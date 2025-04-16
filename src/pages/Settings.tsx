@@ -1,30 +1,166 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { Clock, Globe, MessageSquare } from "lucide-react";
+import { Clock, Globe, MessageSquare, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { db } from "@/lib/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+
+// Definición del tipo para los datos del usuario
+interface UserSettings {
+  botName: string;
+  welcomeMessage: string;
+  knowledgeBase: string;
+  startTime: string;
+  endTime: string;
+  activeDays: string[];
+  outOfHoursMessage: string;
+  primaryLanguage: string;
+  supportedLanguages: string[];
+}
+
+// Valores por defecto para los ajustes del usuario
+const defaultSettings: UserSettings = {
+  botName: "AsistenteAI",
+  welcomeMessage: "¡Hola! Soy tu asistente virtual. ¿En qué puedo ayudarte hoy?",
+  knowledgeBase: "Somos una empresa dedicada a la venta de productos electrónicos. Ofrecemos garantía de 1 año en todos nuestros productos. Nuestro horario de atención es de lunes a viernes de 9:00 a 18:00.",
+  startTime: "09:00",
+  endTime: "18:00",
+  activeDays: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"],
+  outOfHoursMessage: "Gracias por tu mensaje. En este momento estamos fuera de horario. Te responderemos tan pronto como sea posible durante nuestro horario de atención.",
+  primaryLanguage: "Español",
+  supportedLanguages: ["Español", "Inglés"]
+};
 
 const Settings = () => {
+  const { currentUser } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   
-  const handleSubmit = (event: React.FormEvent) => {
+  // Cargar los datos del usuario al iniciar
+  useEffect(() => {
+    const loadUserSettings = async () => {
+      if (currentUser) {
+        setIsLoading(true);
+        try {
+          const userDocRef = doc(db, "users", currentUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          
+          if (userDocSnap.exists()) {
+            const userData = userDocSnap.data() as Partial<UserSettings>;
+            // Combinar los datos existentes con los valores por defecto
+            setSettings({
+              ...defaultSettings,
+              ...userData
+            });
+          } else {
+            console.log("No se encontró el documento del usuario, usando valores por defecto");
+            // Inicializar el documento con valores por defecto
+            await setDoc(userDocRef, defaultSettings);
+          }
+        } catch (error) {
+          console.error("Error al cargar los datos del usuario:", error);
+          toast({
+            title: "Error",
+            description: "No se pudieron cargar tus configuraciones. Por favor, inténtalo de nuevo.",
+            variant: "destructive"
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+    
+    loadUserSettings();
+  }, [currentUser, toast]);
+  
+  // Manejar cambios en los campos de formulario
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+    field: keyof UserSettings
+  ) => {
+    setSettings({
+      ...settings,
+      [field]: e.target.value
+    });
+  };
+  
+  // Manejar cambios en los días activos
+  const handleDayToggle = (day: string) => {
+    const updatedDays = settings.activeDays.includes(day)
+      ? settings.activeDays.filter(d => d !== day)
+      : [...settings.activeDays, day];
+    
+    setSettings({
+      ...settings,
+      activeDays: updatedDays
+    });
+  };
+  
+  // Manejar cambios en los idiomas soportados
+  const handleLanguageToggle = (language: string) => {
+    const updatedLanguages = settings.supportedLanguages.includes(language)
+      ? settings.supportedLanguages.filter(l => l !== language)
+      : [...settings.supportedLanguages, language];
+    
+    setSettings({
+      ...settings,
+      supportedLanguages: updatedLanguages
+    });
+  };
+  
+  // Guardar los ajustes del usuario
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "Debes iniciar sesión para guardar tu configuración.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setIsSubmitting(true);
     
-    // Simulando una petición
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const userDocRef = doc(db, "users", currentUser.uid);
+      await setDoc(userDocRef, settings, { merge: true });
+      
       toast({
         title: "Configuración guardada",
         description: "Los cambios han sido guardados correctamente."
       });
-    }, 1000);
+    } catch (error) {
+      console.error("Error al guardar la configuración:", error);
+      toast({
+        title: "Error",
+        description: "No se pudieron guardar los cambios. Por favor, inténtalo de nuevo.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-lg text-muted-foreground">Cargando configuración...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -48,7 +184,11 @@ const Settings = () => {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="botName">Nombre del Agente</Label>
-                <Input id="botName" defaultValue="AsistenteAI" />
+                <Input 
+                  id="botName" 
+                  value={settings.botName} 
+                  onChange={(e) => handleChange(e, 'botName')}
+                />
               </div>
               
               <div className="space-y-2">
@@ -56,7 +196,8 @@ const Settings = () => {
                 <Textarea 
                   id="welcomeMessage" 
                   rows={3}
-                  defaultValue="¡Hola! Soy tu asistente virtual. ¿En qué puedo ayudarte hoy?"
+                  value={settings.welcomeMessage}
+                  onChange={(e) => handleChange(e, 'welcomeMessage')}
                 />
               </div>
               
@@ -66,13 +207,19 @@ const Settings = () => {
                   id="knowledgeBase" 
                   rows={5}
                   placeholder="Añade información específica sobre tu negocio, productos, servicios, políticas, etc."
-                  defaultValue="Somos una empresa dedicada a la venta de productos electrónicos. Ofrecemos garantía de 1 año en todos nuestros productos. Nuestro horario de atención es de lunes a viernes de 9:00 a 18:00."
+                  value={settings.knowledgeBase}
+                  onChange={(e) => handleChange(e, 'knowledgeBase')}
                 />
               </div>
             </CardContent>
             <CardFooter>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Guardando..." : "Guardar Cambios"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : "Guardar Cambios"}
               </Button>
             </CardFooter>
           </form>
@@ -96,11 +243,21 @@ const Settings = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="startTime" className="text-xs">Hora inicio</Label>
-                    <Input id="startTime" type="time" defaultValue="09:00" />
+                    <Input 
+                      id="startTime" 
+                      type="time" 
+                      value={settings.startTime}
+                      onChange={(e) => handleChange(e, 'startTime')}
+                    />
                   </div>
                   <div>
                     <Label htmlFor="endTime" className="text-xs">Hora fin</Label>
-                    <Input id="endTime" type="time" defaultValue="18:00" />
+                    <Input 
+                      id="endTime" 
+                      type="time" 
+                      value={settings.endTime}
+                      onChange={(e) => handleChange(e, 'endTime')}
+                    />
                   </div>
                 </div>
               </div>
@@ -112,12 +269,13 @@ const Settings = () => {
                     <Button 
                       key={day}
                       type="button"
-                      variant={day !== "Sábado" && day !== "Domingo" ? "default" : "outline"}
+                      variant={settings.activeDays.includes(day) ? "default" : "outline"}
                       className={`${
-                        day !== "Sábado" && day !== "Domingo" 
+                        settings.activeDays.includes(day)
                           ? "bg-whatsapp text-white" 
                           : ""
                       } rounded-full px-4`}
+                      onClick={() => handleDayToggle(day)}
                     >
                       {day.substring(0, 3)}
                     </Button>
@@ -130,13 +288,19 @@ const Settings = () => {
                 <Textarea 
                   id="outOfHoursMessage" 
                   rows={3}
-                  defaultValue="Gracias por tu mensaje. En este momento estamos fuera de horario. Te responderemos tan pronto como sea posible durante nuestro horario de atención."
+                  value={settings.outOfHoursMessage}
+                  onChange={(e) => handleChange(e, 'outOfHoursMessage')}
                 />
               </div>
             </CardContent>
             <CardFooter>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Guardando..." : "Guardar Cambios"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : "Guardar Cambios"}
               </Button>
             </CardFooter>
           </form>
@@ -162,12 +326,13 @@ const Settings = () => {
                     <Button 
                       key={language}
                       type="button"
-                      variant={language === "Español" || language === "Inglés" ? "default" : "outline"}
+                      variant={settings.supportedLanguages.includes(language) ? "default" : "outline"}
                       className={`${
-                        language === "Español" || language === "Inglés" 
+                        settings.supportedLanguages.includes(language)
                           ? "bg-whatsapp text-white" 
                           : ""
                       } rounded-full px-4`}
+                      onClick={() => handleLanguageToggle(language)}
                     >
                       {language}
                     </Button>
@@ -177,12 +342,21 @@ const Settings = () => {
               
               <div className="space-y-2">
                 <Label htmlFor="primaryLanguage">Idioma principal</Label>
-                <Input id="primaryLanguage" defaultValue="Español" />
+                <Input 
+                  id="primaryLanguage" 
+                  value={settings.primaryLanguage}
+                  onChange={(e) => handleChange(e, 'primaryLanguage')}
+                />
               </div>
             </CardContent>
             <CardFooter>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Guardando..." : "Guardar Cambios"}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : "Guardar Cambios"}
               </Button>
             </CardFooter>
           </form>

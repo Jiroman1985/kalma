@@ -3,6 +3,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getAnalytics } from "firebase/analytics";
+import { getFirestore } from "firebase/firestore";
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -20,6 +21,9 @@ const app = initializeApp(firebaseConfig);
 
 // Inicializamos Auth
 export const auth = getAuth(app);
+
+// Inicializamos Firestore
+export const db = getFirestore(app);
 
 // Configuración adicional para entornos de desarrollo
 if (window.location.hostname === 'localhost' || 
