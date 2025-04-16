@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, ReactNode } from "react";
 import { 
   User, 
@@ -11,7 +10,8 @@ import {
   browserLocalPersistence,
   setPersistence
 } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase";
+import { auth, googleProvider, db } from "@/lib/firebase";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -20,7 +20,7 @@ interface AuthContextProps {
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, additionalData?: Record<string, any>) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -44,6 +44,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Función para guardar datos del usuario en Firestore
+  const saveUserToFirestore = async (user: User, additionalData = {}) => {
+    if (!user) return;
+    
+    try {
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      
+      if (!userSnap.exists()) {
+        // Si el usuario no existe, creamos el documento
+        await setDoc(userRef, {
+          email: user.email,
+          displayName: user.displayName || "",
+          photoURL: user.photoURL || "",
+          createdAt: serverTimestamp(),
+          lastLogin: serverTimestamp(),
+          ...additionalData
+        });
+        console.log("Información de usuario guardada en Firestore");
+      } else {
+        // Si el usuario ya existe, actualizamos solo lastLogin
+        await setDoc(userRef, {
+          lastLogin: serverTimestamp(),
+          ...additionalData
+        }, { merge: true });
+        console.log("Información de usuario actualizada en Firestore");
+      }
+    } catch (error) {
+      console.error("Error al guardar datos en Firestore:", error);
+    }
+  };
+
   // Configurar persistencia de sesión
   useEffect(() => {
     setPersistence(auth, browserLocalPersistence)
@@ -61,6 +93,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       
       const result = await signInWithPopup(auth, googleProvider);
+      
+      // Guardar información del usuario en Firestore
+      await saveUserToFirestore(result.user, {
+        provider: "google",
+        companyName: result.user.displayName || ""
+      });
+      
       toast({
         title: "¡Bienvenido!",
         description: `Has iniciado sesión como ${result.user.email}`,
@@ -91,6 +130,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   async function signInWithEmail(email: string, password: string) {
     try {
       const result = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Guardar información del usuario en Firestore
+      await saveUserToFirestore(result.user, {
+        provider: "email"
+      });
+      
       toast({
         title: "¡Bienvenido!",
         description: `Has iniciado sesión como ${result.user.email}`,
@@ -120,9 +165,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   // Registrarse con Email y contraseña
-  async function signUpWithEmail(email: string, password: string) {
+  async function signUpWithEmail(email: string, password: string, additionalData = {}) {
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Guardar información del usuario en Firestore
+      await saveUserToFirestore(result.user, {
+        provider: "email",
+        isNewUser: true,
+        ...additionalData
+      });
+      
       toast({
         title: "¡Cuenta creada!",
         description: `Te has registrado como ${result.user.email}`,

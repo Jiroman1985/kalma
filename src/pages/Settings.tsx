@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,10 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 
 // Definición del tipo para los datos del usuario
 interface UserSettings {
+  companyName: string;
+  businessType: string;
+  contactPhone: string;
+  websiteUrl: string;
   botName: string;
   welcomeMessage: string;
   knowledgeBase: string;
@@ -26,6 +29,10 @@ interface UserSettings {
 
 // Valores por defecto para los ajustes del usuario
 const defaultSettings: UserSettings = {
+  companyName: "",
+  businessType: "",
+  contactPhone: "",
+  websiteUrl: "",
   botName: "AsistenteAI",
   welcomeMessage: "¡Hola! Soy tu asistente virtual. ¿En qué puedo ayudarte hoy?",
   knowledgeBase: "Somos una empresa dedicada a la venta de productos electrónicos. Ofrecemos garantía de 1 año en todos nuestros productos. Nuestro horario de atención es de lunes a viernes de 9:00 a 18:00.",
@@ -169,6 +176,77 @@ const Settings = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-6">
+        {/* Información de la empresa */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5" />
+              Información de Empresa
+            </CardTitle>
+            <CardDescription>
+              Estos datos nos ayudan a personalizar mejor tu asistente IA
+            </CardDescription>
+          </CardHeader>
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="companyName">Nombre de la Empresa</Label>
+                <Input 
+                  id="companyName" 
+                  value={settings.companyName} 
+                  onChange={(e) => handleChange(e, 'companyName')}
+                  placeholder="Tu Empresa S.L."
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="businessType">Tipo de Negocio</Label>
+                <Input 
+                  id="businessType" 
+                  value={settings.businessType} 
+                  onChange={(e) => handleChange(e, 'businessType')}
+                  placeholder="Ej: Tienda de ropa, Restaurante, Consultoría..."
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="contactPhone">Teléfono de Contacto</Label>
+                  <Input 
+                    id="contactPhone" 
+                    value={settings.contactPhone} 
+                    onChange={(e) => handleChange(e, 'contactPhone')}
+                    placeholder="+34 XXX XXX XXX"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="websiteUrl">Sitio Web</Label>
+                  <Input 
+                    id="websiteUrl" 
+                    value={settings.websiteUrl} 
+                    onChange={(e) => handleChange(e, 'websiteUrl')}
+                    placeholder="https://tuempresa.com"
+                  />
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                type="submit" 
+                className="w-full md:w-auto bg-whatsapp hover:bg-whatsapp-dark"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</>
+                ) : (
+                  <>Guardar Información</>
+                )}
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
+
         {/* Configuración general del bot */}
         <Card>
           <CardHeader>

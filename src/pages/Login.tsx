@@ -9,13 +9,21 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { Mail, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, ArrowRight, Loader2, Building } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-// Esquema de validación para el formulario
+// Esquema de validación para el formulario de login
 const loginSchema = z.object({
   email: z.string().email("Ingrese un correo electrónico válido"),
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+});
+
+// Esquema de validación para el formulario de registro
+const registerSchema = z.object({
+  email: z.string().email("Ingrese un correo electrónico válido"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+  companyName: z.string().min(2, "Ingrese el nombre de su empresa").max(100),
+  businessType: z.string().optional(),
 });
 
 const Login = () => {
@@ -26,12 +34,23 @@ const Login = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Configuración del formulario con React Hook Form
-  const form = useForm<z.infer<typeof loginSchema>>({
+  // Configuración del formulario de login con React Hook Form
+  const loginForm = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
       password: "",
+    },
+  });
+
+  // Configuración del formulario de registro con React Hook Form
+  const registerForm = useForm<z.infer<typeof registerSchema>>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      companyName: "",
+      businessType: "",
     },
   });
 
@@ -56,22 +75,33 @@ const Login = () => {
     }
   };
 
-  const onSubmit = async (values: z.infer<typeof loginSchema>) => {
+  const onLoginSubmit = async (values: z.infer<typeof loginSchema>) => {
     try {
       setIsSubmitting(true);
       setLoginError(null);
-      
-      if (isRegistering) {
-        await signUpWithEmail(values.email, values.password);
-      } else {
-        await signInWithEmail(values.email, values.password);
+      await signInWithEmail(values.email, values.password);
+    } catch (error: any) {
+      // El error ya se maneja en el contexto de autenticación
+      if (error.code === 'auth/invalid-credential') {
+        setLoginError("Credenciales inválidas. Verifica tu correo y contraseña.");
       }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onRegisterSubmit = async (values: z.infer<typeof registerSchema>) => {
+    try {
+      setIsSubmitting(true);
+      setLoginError(null);
+      await signUpWithEmail(values.email, values.password, {
+        companyName: values.companyName,
+        businessType: values.businessType || ""
+      });
     } catch (error: any) {
       // El error ya se maneja en el contexto de autenticación
       if (error.code === 'auth/email-already-in-use') {
         setLoginError("Este correo ya está registrado. Intenta iniciar sesión.");
-      } else if (error.code === 'auth/invalid-credential') {
-        setLoginError("Credenciales inválidas. Verifica tu correo y contraseña.");
       }
     } finally {
       setIsSubmitting(false);
@@ -98,57 +128,145 @@ const Login = () => {
             </Alert>
           )}
           
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Correo electrónico</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="tu@empresa.com" 
-                        type="email" 
-                        disabled={isSubmitting}
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contraseña</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="••••••••" 
-                        type="password" 
-                        disabled={isSubmitting}
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button 
-                type="submit" 
-                className="w-full bg-whatsapp hover:bg-whatsapp-dark"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando</>
-                ) : (
-                  <>{isRegistering ? "Crear cuenta" : "Iniciar sesión"} <ArrowRight className="ml-2 h-4 w-4" /></>
-                )}
-              </Button>
-            </form>
-          </Form>
+          {isRegistering ? (
+            <Form {...registerForm}>
+              <form onSubmit={registerForm.handleSubmit(onRegisterSubmit)} className="space-y-4">
+                <FormField
+                  control={registerForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Correo electrónico</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="tu@empresa.com" 
+                          type="email" 
+                          disabled={isSubmitting}
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={registerForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contraseña</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="••••••••" 
+                          type="password" 
+                          disabled={isSubmitting}
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={registerForm.control}
+                  name="companyName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nombre de la Empresa</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="Tu Empresa S.L." 
+                          disabled={isSubmitting}
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={registerForm.control}
+                  name="businessType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de Negocio (Opcional)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="Ej: Tienda de ropa, Restaurante..." 
+                          disabled={isSubmitting}
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button 
+                  type="submit" 
+                  className="w-full bg-whatsapp hover:bg-whatsapp-dark"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando</>
+                  ) : (
+                    <>Crear cuenta <ArrowRight className="ml-2 h-4 w-4" /></>
+                  )}
+                </Button>
+              </form>
+            </Form>
+          ) : (
+            <Form {...loginForm}>
+              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-4">
+                <FormField
+                  control={loginForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Correo electrónico</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="tu@empresa.com" 
+                          type="email" 
+                          disabled={isSubmitting}
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={loginForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contraseña</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="••••••••" 
+                          type="password" 
+                          disabled={isSubmitting}
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button 
+                  type="submit" 
+                  className="w-full bg-whatsapp hover:bg-whatsapp-dark"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Procesando</>
+                  ) : (
+                    <>Iniciar sesión <ArrowRight className="ml-2 h-4 w-4" /></>
+                  )}
+                </Button>
+              </form>
+            </Form>
+          )}
           
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
@@ -184,7 +302,10 @@ const Login = () => {
           <Button
             variant="link"
             className="w-full"
-            onClick={() => setIsRegistering(!isRegistering)}
+            onClick={() => {
+              setIsRegistering(!isRegistering);
+              setLoginError(null);
+            }}
             disabled={isSubmitting}
           >
             {isRegistering
