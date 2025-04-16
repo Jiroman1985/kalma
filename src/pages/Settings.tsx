@@ -139,8 +139,22 @@ const Settings = () => {
     setIsSubmitting(true);
     
     try {
+      console.log("Iniciando guardado de configuración para usuario:", currentUser.uid);
       const userDocRef = doc(db, "users", currentUser.uid);
-      await setDoc(userDocRef, settings, { merge: true });
+      
+      // Asegurarnos de que no haya campos undefined que puedan causar problemas
+      const cleanedSettings = { ...settings };
+      Object.keys(cleanedSettings).forEach(key => {
+        // Convertir cualquier valor undefined a string vacío para evitar errores
+        if (cleanedSettings[key as keyof UserSettings] === undefined) {
+          // @ts-ignore - Manejamos esta asignación dinámicamente
+          cleanedSettings[key] = "";
+        }
+      });
+      
+      console.log("Guardando configuración:", cleanedSettings);
+      await setDoc(userDocRef, cleanedSettings, { merge: true });
+      console.log("Configuración guardada correctamente");
       
       toast({
         title: "Configuración guardada",
@@ -148,9 +162,20 @@ const Settings = () => {
       });
     } catch (error) {
       console.error("Error al guardar la configuración:", error);
+      
+      // Mostrar mensaje de error más detallado si está disponible
+      let errorMessage = "No se pudieron guardar los cambios. Por favor, inténtalo de nuevo.";
+      if (error instanceof Error) {
+        console.error("Detalles del error:", error.message);
+        // Si el error tiene un mensaje específico, lo mostramos
+        if (error.message.includes("permission-denied")) {
+          errorMessage = "No tienes permisos para guardar esta configuración. Contacta al administrador.";
+        }
+      }
+      
       toast({
         title: "Error",
-        description: "No se pudieron guardar los cambios. Por favor, inténtalo de nuevo.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {

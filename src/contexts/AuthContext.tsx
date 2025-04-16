@@ -50,29 +50,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     try {
       const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
+      console.log("Intentando guardar usuario:", user.uid);
       
+      // Datos completos a guardar siempre (tanto para nuevos como actualizaciones)
+      const userData = {
+        email: user.email,
+        displayName: user.displayName || "",
+        photoURL: user.photoURL || "",
+        lastLogin: serverTimestamp(),
+        ...additionalData
+      };
+      
+      // Agregar createdAt solo para nuevos usuarios
+      const userSnap = await getDoc(userRef);
       if (!userSnap.exists()) {
-        // Si el usuario no existe, creamos el documento
-        await setDoc(userRef, {
-          email: user.email,
-          displayName: user.displayName || "",
-          photoURL: user.photoURL || "",
-          createdAt: serverTimestamp(),
-          lastLogin: serverTimestamp(),
-          ...additionalData
-        });
-        console.log("Información de usuario guardada en Firestore");
+        userData.createdAt = serverTimestamp();
+        console.log("Creando nuevo usuario en Firestore");
       } else {
-        // Si el usuario ya existe, actualizamos solo lastLogin
-        await setDoc(userRef, {
-          lastLogin: serverTimestamp(),
-          ...additionalData
-        }, { merge: true });
-        console.log("Información de usuario actualizada en Firestore");
+        console.log("Actualizando usuario existente en Firestore");
       }
+      
+      // Usar merge: true para asegurar que no se sobrescriban datos existentes
+      await setDoc(userRef, userData, { merge: true });
+      console.log("Datos guardados correctamente en Firestore");
     } catch (error) {
       console.error("Error al guardar datos en Firestore:", error);
+      // Notificar error amigable al usuario
+      toast({
+        title: "Error al guardar datos",
+        description: "No se pudo guardar la información. Por favor, intenta nuevamente.",
+        variant: "destructive"
+      });
     }
   };
 
