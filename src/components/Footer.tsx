@@ -1,4 +1,3 @@
-
 import { MessageCircle, Mail, PhoneCall } from "lucide-react";
 
 const Footer: React.FC = () => {
@@ -8,7 +7,7 @@ const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <div className="flex items-center mb-4">
-              <span className="text-2xl font-bold text-white">Pyme<span className="text-whatsapp">AI</span></span>
+              <span className="text-2xl font-bold text-white">Whats<span className="text-whatsapp">Pyme</span></span>
             </div>
             <p className="text-gray-400 mb-6 max-w-xs">
               Asistentes de IA para WhatsApp que transforman la comunicación de tu negocio.
@@ -16,7 +15,7 @@ const Footer: React.FC = () => {
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <Mail size={18} className="text-whatsapp" />
-                <span>contacto@pymeai.com</span>
+                <span>contacto@whatspyme.com</span>
               </div>
               <div className="flex items-center gap-3">
                 <PhoneCall size={18} className="text-whatsapp" />
@@ -67,7 +66,7 @@ const Footer: React.FC = () => {
         </div>
         
         <div className="border-t border-gray-800 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-sm text-gray-500">&copy; {new Date().getFullYear()} PymeAI. Todos los derechos reservados.</p>
+          <p className="text-sm text-gray-500">&copy; {new Date().getFullYear()} WhatsPyme. Todos los derechos reservados.</p>
           
           <div className="flex space-x-4 mt-4 md:mt-0">
             <a href="#" className="text-gray-400 hover:text-white transition-colors">

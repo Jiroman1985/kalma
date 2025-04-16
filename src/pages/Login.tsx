@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -84,7 +83,7 @@ const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            {isRegistering ? "Registro para PYMEs" : "Acceso para PYMEs"}
+            {isRegistering ? "Registro para WhatsPyme" : "Acceso para WhatsPyme"}
           </CardTitle>
           <CardDescription className="text-center">
             {isRegistering 
