@@ -1,9 +1,13 @@
 
 import { Button } from "./ui/button";
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { User } from "lucide-react";
 
 const Navbar: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
+  const { currentUser } = useAuth();
   
   useEffect(() => {
     const handleScroll = () => {
@@ -39,7 +43,23 @@ const Navbar: React.FC = () => {
           <a href="#precios" className="text-gray-600 hover:text-whatsapp-dark transition-colors">Precios</a>
         </nav>
         
-        <div>
+        <div className="flex items-center gap-4">
+          {currentUser ? (
+            <Button asChild variant="outline">
+              <Link to="/dashboard" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Dashboard
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild variant="outline">
+              <Link to="/login" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Acceder
+              </Link>
+            </Button>
+          )}
+
           <Button asChild>
             <a href="#prueba-gratis" className="bg-whatsapp hover:bg-whatsapp-dark transition-colors">
               Prueba Gratuita
