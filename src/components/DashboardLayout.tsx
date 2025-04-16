@@ -14,7 +14,8 @@ import {
   FileText,
   Home,
   MessageSquare,
-  BarChart3
+  BarChart3,
+  Database
 } from "lucide-react";
 
 const DashboardLayout = () => {
@@ -24,10 +25,31 @@ const DashboardLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
-    { name: "Dashboard", icon: <LayoutDashboard className="w-5 h-5" />, path: "/dashboard" },
-    { name: "Conversaciones", icon: <MessageCircle className="w-5 h-5" />, path: "/dashboard/conversations" },
-    { name: "Analytics", icon: <BarChart className="w-5 h-5" />, path: "/dashboard/analytics" },
-    { name: "Configuración", icon: <Settings className="w-5 h-5" />, path: "/dashboard/settings" }
+    {
+      name: "Dashboard",
+      path: "/dashboard",
+      icon: <LayoutDashboard className="mr-3 h-5 w-5" />
+    },
+    {
+      name: "Conversaciones",
+      path: "/dashboard/conversations",
+      icon: <MessageSquare className="mr-3 h-5 w-5" />
+    },
+    {
+      name: "Analytics",
+      path: "/dashboard/analytics",
+      icon: <BarChart3 className="mr-3 h-5 w-5" />
+    },
+    {
+      name: "Base de conocimiento",
+      path: "/dashboard/knowledge-base",
+      icon: <Database className="mr-3 h-5 w-5" />
+    },
+    {
+      name: "Configuración",
+      path: "/dashboard/settings",
+      icon: <Settings className="mr-3 h-5 w-5" />
+    }
   ];
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);

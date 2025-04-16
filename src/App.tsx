@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import Conversations from "./pages/Conversations";
+import KnowledgeBase from "./pages/KnowledgeBase";
 import DashboardLayout from "./components/DashboardLayout";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -38,6 +38,7 @@ const App = () => (
               <Route path="settings" element={<Settings />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="conversations" element={<Conversations />} />
+              <Route path="knowledge-base" element={<KnowledgeBase />} />
             </Route>
             
             {/* Ruta para 404 */}

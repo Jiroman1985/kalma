@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Regla por defecto: denegar a todos
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+    
+    // Reglas para los documentos de los usuarios
+    match /users/{userId}/{allPaths=**} {
+      // Permitir lectura/escritura solo para el usuario autenticado
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+} 
