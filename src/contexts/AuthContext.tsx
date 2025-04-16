@@ -5,17 +5,19 @@ import {
   signInWithPopup, 
   signOut, 
   onAuthStateChanged, 
-  GoogleAuthProvider, 
-  FacebookAuthProvider 
+  GoogleAuthProvider,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword
 } from "firebase/auth";
-import { auth, googleProvider, facebookProvider } from "@/lib/firebase";
+import { auth, googleProvider } from "@/lib/firebase";
 import { useNavigate } from "react-router-dom";
 
 interface AuthContextProps {
   currentUser: User | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
-  signInWithFacebook: () => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -48,13 +50,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
-  // Iniciar sesión con Facebook
-  async function signInWithFacebook() {
+  // Iniciar sesión con Email y contraseña
+  async function signInWithEmail(email: string, password: string) {
     try {
-      await signInWithPopup(auth, facebookProvider);
+      await signInWithEmailAndPassword(auth, email, password);
       navigate("/dashboard");
     } catch (error) {
-      console.error("Error al iniciar sesión con Facebook:", error);
+      console.error("Error al iniciar sesión con email:", error);
+      throw error;
+    }
+  }
+
+  // Registrarse con Email y contraseña
+  async function signUpWithEmail(email: string, password: string) {
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("Error al registrarse con email:", error);
+      throw error;
     }
   }
 
@@ -82,7 +96,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     currentUser,
     loading,
     signInWithGoogle,
-    signInWithFacebook,
+    signInWithEmail,
+    signUpWithEmail,
     logout
   };
 

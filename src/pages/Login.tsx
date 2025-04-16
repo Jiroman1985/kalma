@@ -1,16 +1,38 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Facebook, Mail } from "lucide-react";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { Mail, User } from "lucide-react";
+
+// Esquema de validación para el formulario
+const loginSchema = z.object({
+  email: z.string().email("Ingrese un correo electrónico válido"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+});
 
 const Login = () => {
-  const { currentUser, signInWithGoogle, signInWithFacebook } = useAuth();
+  const { currentUser, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  // Configuración del formulario con React Hook Form
+  const form = useForm<z.infer<typeof loginSchema>>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
 
   useEffect(() => {
     if (currentUser) {
@@ -34,17 +56,25 @@ const Login = () => {
     }
   };
 
-  const handleFacebookLogin = async () => {
+  const onSubmit = async (values: z.infer<typeof loginSchema>) => {
     try {
-      await signInWithFacebook();
-      toast({
-        title: "Inicio de sesión exitoso",
-        description: "Has iniciado sesión correctamente.",
-      });
+      if (isRegistering) {
+        await signUpWithEmail(values.email, values.password);
+        toast({
+          title: "Registro exitoso",
+          description: "Tu cuenta ha sido creada correctamente.",
+        });
+      } else {
+        await signInWithEmail(values.email, values.password);
+        toast({
+          title: "Inicio de sesión exitoso",
+          description: "Has iniciado sesión correctamente.",
+        });
+      }
     } catch (error) {
       toast({
-        title: "Error al iniciar sesión",
-        description: "No se pudo iniciar sesión con Facebook.",
+        title: isRegistering ? "Error al registrarse" : "Error al iniciar sesión",
+        description: "Por favor, verifica tus credenciales e intenta nuevamente.",
         variant: "destructive"
       });
     }
@@ -55,13 +85,58 @@ const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            Acceso para PYMEs
+            {isRegistering ? "Registro para PYMEs" : "Acceso para PYMEs"}
           </CardTitle>
           <CardDescription className="text-center">
-            Inicia sesión en tu cuenta para administrar tu agente IA
+            {isRegistering 
+              ? "Crea una cuenta para administrar tu agente IA" 
+              : "Inicia sesión en tu cuenta para administrar tu agente IA"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Correo electrónico</FormLabel>
+                    <FormControl>
+                      <Input placeholder="tu@empresa.com" type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Contraseña</FormLabel>
+                    <FormControl>
+                      <Input placeholder="••••••••" type="password" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" className="w-full bg-whatsapp hover:bg-whatsapp-dark">
+                {isRegistering ? "Crear cuenta" : "Iniciar sesión"}
+              </Button>
+            </form>
+          </Form>
+          
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white px-2 text-gray-500">O continúa con</span>
+            </div>
+          </div>
+          
           <Button
             variant="outline"
             className="w-full flex items-center gap-2 bg-white hover:bg-gray-50 border-gray-300"
@@ -77,19 +152,17 @@ const Login = () => {
             </svg>
             Iniciar sesión con Google
           </Button>
-          <Button
-            variant="outline"
-            className="w-full flex items-center gap-2 bg-[#1877f2] hover:bg-[#166fe5] border-[#1877f2] text-white hover:text-white"
-            onClick={handleFacebookLogin}
-          >
-            <Facebook className="h-5 w-5" />
-            Iniciar sesión con Facebook
-          </Button>
         </CardContent>
         <CardFooter>
-          <p className="text-xs text-center w-full text-gray-500">
-            Al iniciar sesión, aceptas nuestros términos y condiciones y política de privacidad.
-          </p>
+          <Button
+            variant="link"
+            className="w-full"
+            onClick={() => setIsRegistering(!isRegistering)}
+          >
+            {isRegistering
+              ? "¿Ya tienes una cuenta? Inicia sesión"
+              : "¿No tienes una cuenta? Regístrate"}
+          </Button>
         </CardFooter>
       </Card>
     </div>

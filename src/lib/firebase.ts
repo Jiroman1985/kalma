@@ -1,16 +1,17 @@
 
 // Importamos los módulos de Firebase necesarios
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, FacebookAuthProvider } from "firebase/auth";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 
 // Configuración de Firebase
 const firebaseConfig = {
-  apiKey: "AIzaSyCkskVWq-KDNKzKdNZFfaV7xPJcj9ryD7o",
-  authDomain: "pyme-ai-assist.firebaseapp.com",
-  projectId: "pyme-ai-assist",
-  storageBucket: "pyme-ai-assist.appspot.com",
-  messagingSenderId: "740091408566",
-  appId: "1:740091408566:web:5c49babf5ffc5e9c9a1f04"
+  apiKey: "AIzaSyB_fjWDYiXtddbQnE-gxXCZoWcJDJt4KwA",
+  authDomain: "pymai-5464d.firebaseapp.com",
+  projectId: "pymai-5464d",
+  storageBucket: "pymai-5464d.firebasestorage.app",
+  messagingSenderId: "928927480327",
+  appId: "1:928927480327:web:d35319e4573b19605ac8a2",
+  measurementId: "G-LSPQ5GGGME"
 };
 
 // Inicializamos Firebase
@@ -19,8 +20,7 @@ const app = initializeApp(firebaseConfig);
 // Inicializamos Auth
 export const auth = getAuth(app);
 
-// Inicializamos los proveedores de autenticación
+// Inicializamos el proveedor de autenticación
 export const googleProvider = new GoogleAuthProvider();
-export const facebookProvider = new FacebookAuthProvider();
 
 export default app;
