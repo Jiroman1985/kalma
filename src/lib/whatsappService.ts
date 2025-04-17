@@ -110,7 +110,7 @@ export const initializeWhatsAppData = async (userId: string) => {
   try {
     console.log("Inicializando datos de WhatsApp para userId:", userId);
     
-    const whatsappRef = doc(db, `users/${userId}/whatsapp`);
+    const whatsappRef = doc(db, `users/${userId}`, 'whatsapp');
     const whatsappDoc = await getDoc(whatsappRef);
     
     if (!whatsappDoc.exists()) {
@@ -170,7 +170,8 @@ export const initializeWhatsAppData = async (userId: string) => {
  */
 export const getWhatsAppMessages = async (userId: string, limitCount: number = 50) => {
   try {
-    const messagesRef = collection(db, `users/${userId}/whatsapp/messages`);
+    const userDocRef = doc(db, 'users', userId);
+    const messagesRef = collection(userDocRef, 'whatsapp', 'messages');
     const q = query(messagesRef, orderBy("timestamp", "desc"), limit(limitCount));
     const querySnapshot = await getDocs(q);
     
@@ -191,10 +192,11 @@ export const getWhatsAppMessages = async (userId: string, limitCount: number = 5
  */
 export const getWhatsAppAnalytics = async (userId: string) => {
   try {
-    const analyticsRef = doc(db, `users/${userId}/whatsapp`);
+    // Corregir la ruta del documento para que tenga un número par de segmentos
+    const analyticsRef = doc(db, `users/${userId}`, 'whatsapp');
     const analyticsDoc = await getDoc(analyticsRef);
     
-    console.log("Intentando obtener analytics de:", `users/${userId}/whatsapp`);
+    console.log("Intentando obtener analytics de:", `users/${userId}`, 'whatsapp');
     
     if (analyticsDoc.exists()) {
       const data = analyticsDoc.data();

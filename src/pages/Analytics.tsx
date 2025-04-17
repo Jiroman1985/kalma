@@ -62,7 +62,7 @@ const Analytics = () => {
         console.log("Verificando estructura de WhatsApp para userId:", currentUser.uid);
         
         // Comprobar si el documento existe directamente
-        const docRef = doc(db, `users/${currentUser.uid}/whatsapp`);
+        const docRef = doc(db, 'users', currentUser.uid, 'whatsapp');
         const docSnap = await getDoc(docRef);
         
         console.log("Documento whatsapp existe:", docSnap.exists());
@@ -71,7 +71,8 @@ const Analytics = () => {
         }
         
         // Comprobar si hay mensajes en la colección
-        const messagesRef = collection(db, `users/${currentUser.uid}/whatsapp/messages`);
+        const userRef = doc(db, 'users', currentUser.uid);
+        const messagesRef = collection(userRef, 'whatsapp', 'messages');
         const messagesQuery = query(messagesRef, orderBy("timestamp", "desc"), limit(5));
         const messagesSnap = await getDocs(messagesQuery);
         
