@@ -27,13 +27,15 @@ import {
   Pie, 
   Cell, 
   LineChart,
-  Line
+  Line,
+  AreaChart,
+  Area
 } from "recharts";
 import { useAuth } from "@/contexts/AuthContext";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { doc, getDoc, collection, query, getDocs, orderBy, limit, Timestamp } from "firebase/firestore";
 import { useToast } from "@/components/ui/use-toast";
-import { getWhatsAppAnalytics, getMessagesPerDay, WhatsAppAnalytics } from "@/lib/whatsappService";
+import { getWhatsAppAnalytics, getMessagesPerDay, calculateTimeSaved, calculateAverageResponseTime, getWeeklyStats, getUserStats, WhatsAppAnalytics } from "@/lib/whatsappService";
 
 // Colores para gráficos
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
@@ -41,199 +43,84 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 const Analytics = () => {
   const { currentUser } = useAuth();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [whatsappAnalytics, setWhatsappAnalytics] = useState<WhatsAppAnalytics | null>(null);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
   const [categoryData, setCategoryData] = useState<any[]>([]);
   const [hourlyData, setHourlyData] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [messagesPerDay, setMessagesPerDay] = useState<any[]>([]);
+  const [timeSaved, setTimeSaved] = useState<{ hours: number, minutes: number, totalMinutes: number }>({ hours: 0, minutes: 0, totalMinutes: 0 });
+  const [responseTime, setResponseTime] = useState<number>(0);
+  const [weeklyStats, setWeeklyStats] = useState<any>({ totalWeeklyMessages: 0, averagePerDay: 0, mostActiveDay: 'N/A', mostActiveDayCount: 0 });
+  const [userStats, setUserStats] = useState<any>({ uniqueUsers: 0, activeChats: 0, responseRate: 0 });
 
   // Cargar datos de análisis de WhatsApp
   useEffect(() => {
-    const loadWhatsAppAnalytics = async () => {
-      if (!currentUser) {
-        setLoading(false);
-        return;
-      }
-
+    const fetchData = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-        
-        // Verificar la estructura de datos
-        console.log("Verificando estructura de WhatsApp para userId:", currentUser.uid);
-        
-        // Comprobar si tenemos mensajes en la colección whatsapp
-        const whatsappCollectionRef = collection(db, 'users', currentUser.uid, 'whatsapp');
-        const messagesQuery = query(whatsappCollectionRef, limit(5));
-        const messagesSnap = await getDocs(messagesQuery);
-        
-        console.log(`Encontrados ${messagesSnap.size} mensajes en la colección whatsapp`);
-        if (!messagesSnap.empty) {
-          console.log("Ejemplos de mensajes:");
-          messagesSnap.forEach(doc => {
-            console.log("- Mensaje:", doc.id, doc.data());
-          });
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          setLoading(false);
+          return;
         }
-        
-        // También verificar si tenemos el campo whatsapp en el documento usuario
-        const userRef = doc(db, 'users', currentUser.uid);
-        const userDoc = await getDoc(userRef);
-        
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          console.log("Datos del documento usuario:", userData);
-          
-          if (userData.whatsapp) {
-            console.log("Campo whatsapp encontrado en el documento usuario:", userData.whatsapp);
-          } else {
-            console.log("No se encontró el campo whatsapp en el documento usuario");
-          }
-        }
-        
-        // Usar las funciones de whatsappService para obtener los datos completos
-        const data = await getWhatsAppAnalytics(currentUser.uid);
-        console.log("Datos obtenidos después de getWhatsAppAnalytics:", data);
-        
-        if (data) {
-          setWhatsappAnalytics(data);
 
-          // Obtener datos de mensajes por día para el gráfico de barras
-          const messagesPerDayData = await getMessagesPerDay(currentUser.uid, 7);
-          console.log("Datos de mensajes por día:", messagesPerDayData);
-          
-          // Transformar los datos para el formato del gráfico
-          const weeklyChartData = messagesPerDayData.map(item => {
-            return {
-              name: formatDayName(item.date),
-              conversaciones: item.count,
-              usuarios: Math.floor(item.count * 0.6) // Simulado proporcionalmente a conversaciones
-            };
-          });
-          
-          console.log("Datos procesados para gráfico semanal:", weeklyChartData);
-          
-          // Verificar si hay datos reales
-          const hasRealWeeklyData = weeklyChartData.some(day => day.conversaciones > 0);
-          if (hasRealWeeklyData) {
-            setWeeklyData(weeklyChartData);
-          } else {
-            console.log("No hay datos reales semanales, usando datos simulados");
-            // Generar datos simulados si no hay datos reales
-            const simulatedData = getLastNDays(7).map(day => ({
-              name: formatDayName(day),
-              conversaciones: Math.floor(Math.random() * 5) + 1, // Entre 1 y 5
-              usuarios: Math.floor(Math.random() * 3) + 1 // Entre 1 y 3
-            }));
-            setWeeklyData(simulatedData);
-          }
+        // Obtener datos de análisis de WhatsApp
+        const whatsappData = await getWhatsAppAnalytics(currentUser.uid);
+        console.log("WhatsApp data:", whatsappData);
 
-          // Obtener datos de categorías desde Firebase
-          if (data.messageCategories) {
-            console.log("Datos de categorías encontrados:", data.messageCategories);
-            
-            // Construir datos para el gráfico de categorías
-            const categoryChartData = [
-              { name: 'Consultas', value: data.messageCategories.consultas || 0 },
-              { name: 'Ventas', value: data.messageCategories.ventas || 0 },
-              { name: 'Soporte', value: data.messageCategories.soporte || 0 },
-              { name: 'Otros', value: data.messageCategories.otros || 0 }
-            ];
-            
-            console.log("Datos procesados para gráfico de categorías:", categoryChartData);
-            setCategoryData(categoryChartData);
-            
-            // Verificar si hay alguna categoría con valor
-            const hasData = categoryChartData.some(cat => cat.value > 0);
-            if (!hasData) {
-              console.log("No hay datos reales en categorías, usando datos por defecto.");
-              setCategoryData([
-                { name: 'Consultas', value: 1 },
-                { name: 'Ventas', value: 1 },
-                { name: 'Soporte', value: 1 },
-                { name: 'Otros', value: 1 }
-              ]);
-            }
-          } else {
-            console.log("No hay datos de categorías, usando datos por defecto");
-            // Datos predeterminados si no hay categorías
-            setCategoryData([
-              { name: 'Consultas', value: 1 },
-              { name: 'Ventas', value: 1 },
-              { name: 'Soporte', value: 1 },
-              { name: 'Otros', value: 1 }
-            ]);
-          }
+        // Obtener estadísticas por día
+        const messagesPerDayData = await getMessagesPerDay(currentUser.uid, 30);
+        setMessagesPerDay(messagesPerDayData);
 
-          // Obtener datos horarios desde Firebase
-          if (data.messagesByHour) {
-            console.log("Datos horarios encontrados:", data.messagesByHour);
-            
-            // Construir datos para el gráfico horario
-            const hourlyChartData = Object.keys(data.messagesByHour)
-              .sort((a, b) => parseInt(a) - parseInt(b))
-              .map(hour => ({
-                hora: `${hour}:00`,
-                conversaciones: data.messagesByHour![hour] || 0
-              }));
-            
-            console.log("Datos procesados para gráfico horario:", hourlyChartData);
-              
-            // Asegurar que todas las horas estén representadas (0-23)
-            const completeHourlyData = Array.from({ length: 24 }, (_, i) => {
-              const hourString = i.toString();
-              const existingData = hourlyChartData.find(entry => entry.hora === `${i}:00`);
-              return existingData || { 
-                hora: `${i}:00`,
-                conversaciones: (data.messagesByHour && data.messagesByHour[hourString]) || 0
-              };
-            });
-            
-            console.log("Datos horarios completos:", completeHourlyData);
-            
-            // Verificar si hay datos reales
-            const hasRealData = completeHourlyData.some(h => h.conversaciones > 0);
-            if (hasRealData) {
-              setHourlyData(completeHourlyData);
-            } else {
-              console.log("No hay datos reales de horas, usando datos simulados");
-              // Si no hay datos reales, usar la función de generación simulada
-              setHourlyData(generateHourlyData(data.totalMessages || 100));
-            }
-          } else {
-            console.log("No hay datos horarios, usando datos simulados");
-            // Si no hay datos horarios, usar la función de generación simulada existente
-            setHourlyData(generateHourlyData(data.totalMessages || 100));
-          }
+        // Obtener tiempo ahorrado
+        const savedTime = await calculateTimeSaved(currentUser.uid);
+        setTimeSaved(savedTime);
+
+        // Obtener tiempo promedio de respuesta
+        const avgResponseTime = await calculateAverageResponseTime(currentUser.uid);
+        setResponseTime(avgResponseTime);
+
+        // Obtener estadísticas semanales
+        const weekly = await getWeeklyStats(currentUser.uid);
+        setWeeklyStats(weekly);
+
+        // Obtener estadísticas de usuarios
+        const users = await getUserStats(currentUser.uid);
+        setUserStats(users);
+
+        // Verificar si existen datos de categorías de mensajes
+        if (whatsappData && whatsappData.messageCategories) {
+          const categoriesData = Object.entries(whatsappData.messageCategories).map(([name, value]) => ({
+            name,
+            value: typeof value === 'number' ? value : 0
+          }));
+          setChartData(categoriesData);
         } else {
-          // Si no hay datos, inicializar con valores predeterminados
-          setWeeklyData(getLastNDays(7).map(day => ({
-            name: formatDayName(day),
-            conversaciones: 0,
-            usuarios: 0
-          })));
-          
-          setCategoryData([
-            { name: 'Consultas', value: 1 },
-            { name: 'Ventas', value: 1 },
-            { name: 'Soporte', value: 1 },
-            { name: 'Otros', value: 1 }
+          // Datos de ejemplo para el gráfico de categorías si no hay datos reales
+          setChartData([
+            { name: 'Consultas', value: 25 },
+            { name: 'Ventas', value: 35 },
+            { name: 'Soporte', value: 20 },
+            { name: 'Reclamos', value: 15 },
+            { name: 'Otros', value: 5 }
           ]);
-          
-          setHourlyData(generateHourlyData(0));
         }
+
+        // Verificar la estructura de la colección de mensajes
+        const whatsappMessagesRef = collection(db, 'users', currentUser.uid, 'whatsapp');
+        const whatsappMessagesSnapshot = await getDocs(query(whatsappMessagesRef));
+        console.log(`Encontrados ${whatsappMessagesSnapshot.size} mensajes en la colección whatsapp`);
       } catch (error) {
         console.error("Error al cargar datos de análisis:", error);
-        toast({
-          title: "Error",
-          description: "No se pudieron cargar los datos de análisis",
-          variant: "destructive"
-        });
       } finally {
         setLoading(false);
       }
     };
 
-    loadWhatsAppAnalytics();
-  }, [currentUser]);
+    fetchData();
+  }, []);
 
   // Obtener los últimos N días en formato YYYY-MM-DD
   const getLastNDays = (n: number): string[] => {
@@ -291,6 +178,107 @@ const Analytics = () => {
     return 'inicio';
   };
 
+  const renderPieChart = () => {
+    return (
+      <ResponsiveContainer width="100%" height={300}>
+        <PieChart>
+          <Pie
+            data={chartData}
+            cx="50%"
+            cy="50%"
+            labelLine={true}
+            outerRadius={100}
+            paddingAngle={2}
+            fill="#8884d8"
+            dataKey="value"
+            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+          >
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip 
+            formatter={(value, name) => [`${value} mensajes`, name]}
+            labelFormatter={() => 'Categoría'} 
+          />
+          <Legend formatter={(value) => <span style={{ color: '#666', fontSize: '0.9em' }}>{value}</span>} />
+        </PieChart>
+      </ResponsiveContainer>
+    );
+  };
+
+  const renderAreaChart = () => {
+    return (
+      <ResponsiveContainer width="100%" height={300}>
+        <AreaChart
+          data={messagesPerDay}
+          margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+        >
+          <defs>
+            <linearGradient id="colorMessages" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#25D366" stopOpacity={0.8} />
+              <stop offset="95%" stopColor="#25D366" stopOpacity={0.2} />
+            </linearGradient>
+          </defs>
+          <XAxis 
+            dataKey="date" 
+            tickFormatter={(value) => {
+              const date = new Date(value);
+              return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' });
+            }}
+          />
+          <YAxis />
+          <CartesianGrid strokeDasharray="3 3" />
+          <Tooltip
+            labelFormatter={(value) => {
+              const date = new Date(value);
+              return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            }}
+            formatter={(value: any) => [`${value} mensajes`, 'Total']}
+          />
+          <Area 
+            type="monotone" 
+            dataKey="count" 
+            stroke="#25D366" 
+            fillOpacity={1} 
+            fill="url(#colorMessages)" 
+            name="Mensajes"
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    );
+  };
+
+  const renderDashboardMetrics = () => {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white p-4 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold mb-1 text-gray-700">Conversaciones Totales</h3>
+          <p className="text-3xl font-bold text-blue-600">{weeklyStats.totalWeeklyMessages}</p>
+          <p className="text-sm text-gray-500">Últimos 7 días</p>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold mb-1 text-gray-700">Usuarios Atendidos</h3>
+          <p className="text-3xl font-bold text-green-600">{userStats.uniqueUsers}</p>
+          <p className="text-sm text-gray-500">Chats activos: {userStats.activeChats}</p>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold mb-1 text-gray-700">Tiempo Promedio</h3>
+          <p className="text-3xl font-bold text-purple-600">{responseTime} min</p>
+          <p className="text-sm text-gray-500">Tasa de respuesta: {userStats.responseRate}%</p>
+        </div>
+        
+        <div className="bg-white p-4 rounded-lg shadow-md">
+          <h3 className="text-lg font-semibold mb-1 text-gray-700">Horas de Vida Ganadas</h3>
+          <p className="text-3xl font-bold text-amber-600">{timeSaved.hours}h {timeSaved.minutes}m</p>
+          <p className="text-sm text-gray-500">Total: {timeSaved.totalMinutes} minutos</p>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -303,160 +291,52 @@ const Analytics = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Mensajes</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{whatsappAnalytics?.totalMessages || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Desde {whatsappAnalytics?.firstMessageTimestamp 
-                ? formatDate(whatsappAnalytics.firstMessageTimestamp) 
-                : 'inicio'}
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Conversaciones Activas</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{whatsappAnalytics?.activeChats || 0}</div>
-            <p className="text-xs text-muted-foreground">Conversaciones con actividad reciente</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Promedio Mensajes Diarios</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {whatsappAnalytics && whatsappAnalytics.totalMessages > 0
-                ? (whatsappAnalytics.totalMessages / Object.keys(whatsappAnalytics.messagesPerDay || {}).length).toFixed(1)
-                : "0"}
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">Análisis de WhatsApp</h1>
+      
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      ) : (
+        <>
+          {renderDashboardMetrics()}
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <div className="bg-white p-4 rounded-lg shadow-md">
+              <h2 className="text-xl font-semibold mb-4">Categorías de Mensajes</h2>
+              {renderPieChart()}
             </div>
-            <p className="text-xs text-muted-foreground">Promedio de mensajes por día</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Gráficos principales */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Gráfico de barras */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BarChartIcon className="h-5 w-5" />
-              Conversaciones y Usuarios Diarios
-            </CardTitle>
-            <CardDescription>
-              Datos de la última semana
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={weeklyData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="conversaciones" fill="#25D366" />
-                  <Bar dataKey="usuarios" fill="#34B7F1" />
-                </BarChart>
-              </ResponsiveContainer>
+            
+            <div className="bg-white p-4 rounded-lg shadow-md">
+              <h2 className="text-xl font-semibold mb-4">Mensajes por Día</h2>
+              {renderAreaChart()}
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Gráfico circular */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PieChartIcon className="h-5 w-5" />
-              Categorías de Conversaciones
-            </CardTitle>
-            <CardDescription>
-              Distribución por tipo de consulta
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={categoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {categoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+          </div>
+          
+          <div className="bg-white p-4 rounded-lg shadow-md mb-8">
+            <h2 className="text-xl font-semibold mb-4">Actividad Semanal</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-gray-50 p-3 rounded-md">
+                <h3 className="text-md font-medium mb-1">Total Mensajes</h3>
+                <p className="text-2xl font-bold text-blue-600">{weeklyStats.totalWeeklyMessages}</p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-md">
+                <h3 className="text-md font-medium mb-1">Promedio Diario</h3>
+                <p className="text-2xl font-bold text-green-600">{weeklyStats.averagePerDay}</p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-md">
+                <h3 className="text-md font-medium mb-1">Día Más Activo</h3>
+                <p className="text-2xl font-bold text-purple-600">{weeklyStats.mostActiveDay}</p>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-md">
+                <h3 className="text-md font-medium mb-1">Mensajes ese día</h3>
+                <p className="text-2xl font-bold text-amber-600">{weeklyStats.mostActiveDayCount}</p>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Gráfico de líneas */}
-        <Card className="col-span-1 md:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Distribución Horaria de Conversaciones
-            </CardTitle>
-            <CardDescription>
-              Número de conversaciones por hora
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={hourlyData}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="hora" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="conversaciones" 
-                    stroke="#25D366" 
-                    activeDot={{ r: 8 }}
-                    strokeWidth={2}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

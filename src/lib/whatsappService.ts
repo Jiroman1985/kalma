@@ -454,6 +454,131 @@ export const getMessagesPerDay = async (userId: string, days: number = 30) => {
 };
 
 /**
+ * Calcula tiempo de vida ahorrado basado en las respuestas automatizadas
+ * @param userId ID del usuario
+ * @param minutesSavedPerMessage Minutos ahorrados por cada mensaje respondido automáticamente
+ * @returns Objeto con horas, minutos y total en minutos
+ */
+export const calculateTimeSaved = async (userId: string, minutesSavedPerMessage: number = 3) => {
+  try {
+    // Obtener los analytics y usar respondedMessages y agentResponses
+    const analytics = await getWhatsAppAnalytics(userId);
+    
+    if (!analytics) return { hours: 0, minutes: 0, totalMinutes: 0 };
+    
+    // Usar agentResponses si está disponible, de lo contrario usar respondedMessages
+    const totalResponses = analytics.agentResponses || analytics.respondedMessages || 0;
+    
+    // Calcular tiempo total ahorrado en minutos
+    const totalMinutesSaved = totalResponses * minutesSavedPerMessage;
+    
+    // Convertir a horas y minutos
+    const hours = Math.floor(totalMinutesSaved / 60);
+    const minutes = totalMinutesSaved % 60;
+    
+    return {
+      hours,
+      minutes,
+      totalMinutes: totalMinutesSaved
+    };
+  } catch (error) {
+    console.error("Error al calcular tiempo ahorrado:", error);
+    return { hours: 0, minutes: 0, totalMinutes: 0 };
+  }
+};
+
+/**
+ * Calcula el tiempo promedio de respuesta en minutos
+ */
+export const calculateAverageResponseTime = async (userId: string) => {
+  try {
+    const analytics = await getWhatsAppAnalytics(userId);
+    
+    if (!analytics || !analytics.avgResponseTime) return 0;
+    
+    // Convertir de milisegundos a minutos
+    return Math.round((analytics.avgResponseTime / 60000) * 10) / 10; // Redondear a 1 decimal
+  } catch (error) {
+    console.error("Error al calcular tiempo promedio de respuesta:", error);
+    return 0;
+  }
+};
+
+/**
+ * Obtiene estadísticas semanales de mensajes
+ */
+export const getWeeklyStats = async (userId: string) => {
+  try {
+    // Obtener los últimos 7 días de datos
+    const messagesPerDayData = await getMessagesPerDay(userId, 7);
+    
+    // Calcular total de mensajes en la semana
+    const totalWeeklyMessages = messagesPerDayData.reduce((acc, day) => acc + day.count, 0);
+    
+    // Calcular promedio diario
+    const averagePerDay = totalWeeklyMessages / 7;
+    
+    // Calcular día con más actividad
+    let maxDay = { date: '', count: 0 };
+    messagesPerDayData.forEach(day => {
+      if (day.count > maxDay.count) {
+        maxDay = day;
+      }
+    });
+    
+    // Formatear día de más actividad
+    const date = new Date(maxDay.date);
+    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const mostActiveDay = dayNames[date.getDay()];
+    
+    return {
+      totalWeeklyMessages,
+      averagePerDay: Math.round(averagePerDay * 10) / 10,
+      mostActiveDay,
+      mostActiveDayCount: maxDay.count,
+      dailyData: messagesPerDayData
+    };
+  } catch (error) {
+    console.error("Error al obtener estadísticas semanales:", error);
+    return {
+      totalWeeklyMessages: 0,
+      averagePerDay: 0,
+      mostActiveDay: 'N/A',
+      mostActiveDayCount: 0,
+      dailyData: []
+    };
+  }
+};
+
+/**
+ * Obtiene estadísticas de usuarios atendidos
+ */
+export const getUserStats = async (userId: string) => {
+  try {
+    const analytics = await getWhatsAppAnalytics(userId);
+    
+    if (!analytics) return { uniqueUsers: 0, activeChats: 0, responseRate: 0 };
+    
+    // Número de usuarios únicos atendidos (aproximado por activeChats)
+    const uniqueUsers = analytics.activeChats || 0;
+    
+    // Tasa de respuesta (mensajes respondidos / total mensajes)
+    const totalMessages = analytics.totalMessages || 0;
+    const respondedMessages = analytics.respondedMessages || 0;
+    const responseRate = totalMessages > 0 ? Math.round((respondedMessages / totalMessages) * 100) : 0;
+    
+    return {
+      uniqueUsers,
+      activeChats: uniqueUsers,
+      responseRate
+    };
+  } catch (error) {
+    console.error("Error al obtener estadísticas de usuarios:", error);
+    return { uniqueUsers: 0, activeChats: 0, responseRate: 0 };
+  }
+};
+
+/**
  * Guía para configurar n8n para inserción directa a Firebase
  * 
  * 1. En n8n, configura un nodo de Firebase Admin para autenticación con credenciales de servicio
