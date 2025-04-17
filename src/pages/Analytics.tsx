@@ -1,4 +1,4 @@
-
+import { useState, useEffect } from "react";
 import { 
   Card, 
   CardContent,
@@ -11,7 +11,8 @@ import {
   PieChart as PieChartIcon,
   TrendingUp, 
   Users, 
-  Clock
+  Clock,
+  Loader2
 } from "lucide-react";
 import { 
   BarChart, 
@@ -28,43 +29,145 @@ import {
   LineChart,
   Line
 } from "recharts";
+import { useAuth } from "@/contexts/AuthContext";
+import { db } from "@/lib/firebase";
+import { doc, getDoc, collection, query, getDocs, orderBy, limit } from "firebase/firestore";
+import { useToast } from "@/components/ui/use-toast";
 
-// Datos para gráficos
-const weeklyData = [
-  { name: 'Lun', conversaciones: 40, usuarios: 22 },
-  { name: 'Mar', conversaciones: 30, usuarios: 18 },
-  { name: 'Mié', conversaciones: 20, usuarios: 10 },
-  { name: 'Jue', conversaciones: 27, usuarios: 15 },
-  { name: 'Vie', conversaciones: 18, usuarios: 12 },
-  { name: 'Sáb', conversaciones: 23, usuarios: 14 },
-  { name: 'Dom', conversaciones: 34, usuarios: 20 }
-];
+// Definir tipo para los datos de análisis de WhatsApp
+interface WhatsAppAnalytics {
+  totalMessages: number;
+  lastMessageTimestamp: number;
+  messagesPerDay: Record<string, number>;
+  activeChats: number;
+  firstMessageTimestamp: Date;
+  lastUpdated: Date;
+}
 
-const categoryData = [
-  { name: 'Consultas', value: 45 },
-  { name: 'Ventas', value: 30 },
-  { name: 'Soporte', value: 15 },
-  { name: 'Otros', value: 10 }
-];
-
+// Colores para gráficos
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
-const hourlyData = [
-  { hora: '8:00', conversaciones: 10 },
-  { hora: '9:00', conversaciones: 20 },
-  { hora: '10:00', conversaciones: 35 },
-  { hora: '11:00', conversaciones: 25 },
-  { hora: '12:00', conversaciones: 30 },
-  { hora: '13:00', conversaciones: 40 },
-  { hora: '14:00', conversaciones: 20 },
-  { hora: '15:00', conversaciones: 30 },
-  { hora: '16:00', conversaciones: 35 },
-  { hora: '17:00', conversaciones: 25 },
-  { hora: '18:00', conversaciones: 15 },
-  { hora: '19:00', conversaciones: 10 }
-];
-
 const Analytics = () => {
+  const { currentUser } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [whatsappAnalytics, setWhatsappAnalytics] = useState<WhatsAppAnalytics | null>(null);
+  const [weeklyData, setWeeklyData] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([
+    { name: 'Consultas', value: 45 },
+    { name: 'Ventas', value: 30 },
+    { name: 'Soporte', value: 15 },
+    { name: 'Otros', value: 10 }
+  ]);
+  const [hourlyData, setHourlyData] = useState<any[]>([]);
+
+  // Cargar datos de análisis de WhatsApp
+  useEffect(() => {
+    const loadWhatsAppAnalytics = async () => {
+      if (!currentUser) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        // Cargar datos de análisis de WhatsApp
+        const analyticsRef = doc(db, `users/${currentUser.uid}/analytics/whatsapp`);
+        const analyticsSnap = await getDoc(analyticsRef);
+
+        if (analyticsSnap.exists()) {
+          const data = analyticsSnap.data() as WhatsAppAnalytics;
+          setWhatsappAnalytics(data);
+
+          // Procesar datos para gráficos
+          // Formatear datos de mensajes por día para el gráfico de barras
+          const last7Days = getLastNDays(7);
+          const messagesPerDay = data.messagesPerDay || {};
+
+          const weeklyChartData = last7Days.map(day => {
+            return {
+              name: formatDayName(day),
+              conversaciones: messagesPerDay[day] || 0,
+              usuarios: Math.floor((messagesPerDay[day] || 0) * 0.6) // Simulado por ahora
+            };
+          });
+          setWeeklyData(weeklyChartData);
+
+          // Simular datos horarios basados en patrones típicos
+          const hourlyChartData = generateHourlyData(data.totalMessages || 0);
+          setHourlyData(hourlyChartData);
+        } else {
+          // Si no existen datos, inicializar con valores predeterminados
+          setWeeklyData(getLastNDays(7).map(day => ({
+            name: formatDayName(day),
+            conversaciones: 0,
+            usuarios: 0
+          })));
+          setHourlyData(generateHourlyData(0));
+        }
+      } catch (error) {
+        console.error("Error al cargar datos de análisis:", error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los datos de análisis",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadWhatsAppAnalytics();
+  }, [currentUser]);
+
+  // Obtener los últimos N días en formato YYYY-MM-DD
+  const getLastNDays = (n: number): string[] => {
+    const dates: string[] = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      dates.push(date.toISOString().split('T')[0]);
+    }
+    return dates;
+  };
+
+  // Formatear nombre del día a partir de fecha YYYY-MM-DD
+  const formatDayName = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    return dayNames[date.getDay()];
+  };
+
+  // Generar datos horarios simulados basados en patrones típicos
+  const generateHourlyData = (totalMessages: number): any[] => {
+    // Patrón típico de distribución horaria
+    const hourlyPattern = [
+      0.01, 0.01, 0.005, 0.005, 0.01, 0.02, // 0-5 AM
+      0.03, 0.05, 0.07, 0.08, 0.09, 0.10,   // 6-11 AM
+      0.08, 0.07, 0.06, 0.07, 0.08, 0.09,   // 12-5 PM
+      0.07, 0.06, 0.04, 0.03, 0.02, 0.01    // 6-11 PM
+    ];
+
+    // Calcular factor para escalar a totalMessages
+    const factor = totalMessages > 0 ? totalMessages : 100; 
+
+    return Array.from({ length: 24 }, (_, i) => ({
+      hora: `${i}:00`,
+      conversaciones: Math.round(hourlyPattern[i] * factor)
+    }));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-lg text-muted-foreground">Cargando datos de análisis...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -74,34 +177,42 @@ const Analytics = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tasa de Respuesta</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Mensajes</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">95.8%</div>
-            <p className="text-xs text-muted-foreground">+2.5% respecto al mes pasado</p>
+            <div className="text-2xl font-bold">{whatsappAnalytics?.totalMessages || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Desde {whatsappAnalytics?.firstMessageTimestamp 
+                ? new Date(whatsappAnalytics.firstMessageTimestamp).toLocaleDateString() 
+                : 'inicio'}
+            </p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Usuarios Recurrentes</CardTitle>
+            <CardTitle className="text-sm font-medium">Conversaciones Activas</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">67</div>
-            <p className="text-xs text-muted-foreground">+15% respecto al mes pasado</p>
+            <div className="text-2xl font-bold">{whatsappAnalytics?.activeChats || 0}</div>
+            <p className="text-xs text-muted-foreground">Conversaciones con actividad reciente</p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tiempo Promedio de Conversación</CardTitle>
+            <CardTitle className="text-sm font-medium">Promedio Mensajes Diarios</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">4.2 min</div>
-            <p className="text-xs text-muted-foreground">-0.5 min respecto al mes pasado</p>
+            <div className="text-2xl font-bold">
+              {whatsappAnalytics && whatsappAnalytics.totalMessages > 0
+                ? (whatsappAnalytics.totalMessages / Object.keys(whatsappAnalytics.messagesPerDay || {}).length).toFixed(1)
+                : "0"}
+            </div>
+            <p className="text-xs text-muted-foreground">Promedio de mensajes por día</p>
           </CardContent>
         </Card>
       </div>

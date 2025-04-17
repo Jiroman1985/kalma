@@ -14,6 +14,7 @@ import { auth, googleProvider, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
+import { initializeWhatsAppData } from "@/lib/whatsappService";
 
 interface AuthContextProps {
   currentUser: User | null;
@@ -22,6 +23,7 @@ interface AuthContextProps {
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, additionalData?: Record<string, any>) => Promise<void>;
   logout: () => Promise<void>;
+  updatePhoneNumber: (phoneNumber: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -66,6 +68,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!userSnap.exists()) {
         userData.createdAt = serverTimestamp();
         console.log("Creando nuevo usuario en Firestore");
+        
+        // Inicializar estructura de datos para WhatsApp para nuevos usuarios
+        await initializeWhatsAppData(user.uid);
       } else {
         console.log("Actualizando usuario existente en Firestore");
       }
@@ -231,6 +236,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  // Actualizar número de teléfono del usuario
+  async function updatePhoneNumber(phoneNumber: string) {
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "No hay sesión activa",
+        variant: "destructive"
+      });
+      return false;
+    }
+    
+    try {
+      // Limpiar el número de teléfono (eliminar caracteres no numéricos excepto +)
+      const cleanPhone = phoneNumber.replace(/[^\d+]/g, '');
+      
+      const userRef = doc(db, "users", currentUser.uid);
+      await setDoc(userRef, { phoneNumber: cleanPhone }, { merge: true });
+      
+      // Inicializar estructura de datos para WhatsApp si no existe
+      await initializeWhatsAppData(currentUser.uid);
+      
+      toast({
+        title: "Número actualizado",
+        description: "Tu número de teléfono ha sido actualizado correctamente"
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Error al actualizar número de teléfono:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el número de teléfono",
+        variant: "destructive"
+      });
+      return false;
+    }
+  }
+
   // Escuchar cambios en el estado de autenticación
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -247,7 +290,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
-    logout
+    logout,
+    updatePhoneNumber
   };
 
   return (

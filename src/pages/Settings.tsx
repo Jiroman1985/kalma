@@ -5,10 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { Clock, Globe, MessageSquare, Loader2 } from "lucide-react";
+import { Clock, Globe, MessageSquare, Loader2, Phone } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 
 // Definición del tipo para los datos del usuario
 interface UserSettings {
@@ -25,6 +25,7 @@ interface UserSettings {
   outOfHoursMessage: string;
   primaryLanguage: string;
   supportedLanguages: string[];
+  whatsappNumber: string;
 }
 
 // Valores por defecto para los ajustes del usuario
@@ -41,11 +42,12 @@ const defaultSettings: UserSettings = {
   activeDays: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"],
   outOfHoursMessage: "Gracias por tu mensaje. En este momento estamos fuera de horario. Te responderemos tan pronto como sea posible durante nuestro horario de atención.",
   primaryLanguage: "Español",
-  supportedLanguages: ["Español", "Inglés"]
+  supportedLanguages: ["Español", "Inglés"],
+  whatsappNumber: ""
 };
 
 const Settings = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, updatePhoneNumber } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,28 +59,72 @@ const Settings = () => {
       if (currentUser) {
         setIsLoading(true);
         try {
+          console.log("Intentando cargar configuraciones para el usuario:", currentUser.uid);
           const userDocRef = doc(db, "users", currentUser.uid);
+          
+          // Verificamos si existe el documento del usuario
+          console.log("Verificando si existe el documento del usuario...");
           const userDocSnap = await getDoc(userDocRef);
           
           if (userDocSnap.exists()) {
+            console.log("Documento de usuario encontrado, cargando configuraciones...");
             const userData = userDocSnap.data() as Partial<UserSettings>;
+            console.log("Datos obtenidos:", userData);
+            
             // Combinar los datos existentes con los valores por defecto
-            setSettings({
+            const combinedSettings = {
               ...defaultSettings,
               ...userData
-            });
+            };
+            
+            console.log("Configuración combinada:", combinedSettings);
+            setSettings(combinedSettings);
           } else {
-            console.log("No se encontró el documento del usuario, usando valores por defecto");
+            console.log("No se encontró el documento del usuario, creando uno nuevo con valores por defecto...");
+            
             // Inicializar el documento con valores por defecto
-            await setDoc(userDocRef, defaultSettings);
+            try {
+              await setDoc(userDocRef, defaultSettings);
+              console.log("Documento de usuario creado exitosamente con valores por defecto");
+              setSettings(defaultSettings);
+            } catch (initError) {
+              console.error("Error al inicializar documento de usuario:", initError);
+              
+              // Informar al usuario sobre el error
+              toast({
+                title: "Error de inicialización",
+                description: "No se pudo crear la configuración inicial. Verifica tu conexión e inténtalo nuevamente.",
+                variant: "destructive"
+              });
+            }
           }
         } catch (error) {
           console.error("Error al cargar los datos del usuario:", error);
+          
+          // Proporcionar un mensaje de error más descriptivo
+          let errorMessage = "No se pudieron cargar tus configuraciones. Por favor, recarga la página e intenta de nuevo.";
+          
+          if (error instanceof Error) {
+            console.error("Detalles del error:", error.message);
+            
+            // Personalizar mensaje según el tipo de error
+            if (error.message.includes("permission-denied")) {
+              errorMessage = "No tienes permiso para acceder a estas configuraciones. Contacta al administrador.";
+            } else if (error.message.includes("not-found")) {
+              errorMessage = "No se encontró tu perfil. Puede que necesites crear uno nuevo.";
+            } else if (error.message.includes("network")) {
+              errorMessage = "Error de conexión. Verifica tu conexión a internet e intenta nuevamente.";
+            }
+          }
+          
           toast({
             title: "Error",
-            description: "No se pudieron cargar tus configuraciones. Por favor, inténtalo de nuevo.",
+            description: errorMessage,
             variant: "destructive"
           });
+          
+          // En caso de error, usar los valores por defecto
+          setSettings(defaultSettings);
         } finally {
           setIsLoading(false);
         }
@@ -153,7 +199,17 @@ const Settings = () => {
       });
       
       console.log("Guardando configuración:", cleanedSettings);
-      await setDoc(userDocRef, cleanedSettings, { merge: true });
+      
+      // Verificar si existe el documento del usuario
+      const userDocSnap = await getDoc(userDocRef);
+      if (!userDocSnap.exists()) {
+        console.log("Documento de usuario no encontrado, creando uno nuevo");
+        await setDoc(userDocRef, cleanedSettings);
+      } else {
+        console.log("Actualizando documento de usuario existente");
+        await updateDoc(userDocRef, cleanedSettings);
+      }
+      
       console.log("Configuración guardada correctamente");
       
       toast({
@@ -161,21 +217,77 @@ const Settings = () => {
         description: "Los cambios han sido guardados correctamente."
       });
     } catch (error) {
-      console.error("Error al guardar la configuración:", error);
+      console.error("Error detallado al guardar la configuración:", error);
       
       // Mostrar mensaje de error más detallado si está disponible
       let errorMessage = "No se pudieron guardar los cambios. Por favor, inténtalo de nuevo.";
+      
       if (error instanceof Error) {
         console.error("Detalles del error:", error.message);
+        console.error("Stack trace:", error.stack);
+        
         // Si el error tiene un mensaje específico, lo mostramos
         if (error.message.includes("permission-denied")) {
           errorMessage = "No tienes permisos para guardar esta configuración. Contacta al administrador.";
+        } else if (error.message.includes("network")) {
+          errorMessage = "Error de conexión. Verifica tu conexión a internet e intenta nuevamente.";
+        } else if (error.message.includes("quota-exceeded")) {
+          errorMessage = "Se ha excedido el límite de operaciones. Intenta más tarde.";
         }
       }
       
       toast({
         title: "Error",
         description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  // Actualizar el número de WhatsApp para la cuenta
+  const handleUpdateWhatsApp = async (event: React.FormEvent) => {
+    event.preventDefault();
+    
+    if (!currentUser) {
+      toast({
+        title: "Error",
+        description: "Debes iniciar sesión para actualizar tu número de WhatsApp.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Validar formato del número
+    const phoneRegex = /^\+?[0-9]{10,15}$/;
+    if (!phoneRegex.test(settings.whatsappNumber)) {
+      toast({
+        title: "Formato incorrecto",
+        description: "Por favor, introduce un número de teléfono válido (10-15 dígitos, puede incluir el + inicial).",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    try {
+      // Actualizar el número usando la función del contexto de autenticación
+      const success = await updatePhoneNumber(settings.whatsappNumber);
+      
+      if (success) {
+        // Actualizar también la configuración local
+        toast({
+          title: "Número de WhatsApp actualizado",
+          description: "Tu número de WhatsApp ha sido vinculado correctamente a tu cuenta."
+        });
+      }
+    } catch (error) {
+      console.error("Error al actualizar número de WhatsApp:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el número de WhatsApp. Por favor, inténtalo nuevamente.",
         variant: "destructive"
       });
     } finally {
@@ -201,6 +313,49 @@ const Settings = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-6">
+        {/* WhatsApp Integration */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5" />
+              Integración con WhatsApp
+            </CardTitle>
+            <CardDescription>
+              Vincula tu número de WhatsApp para recibir analíticas sobre tus conversaciones
+            </CardDescription>
+          </CardHeader>
+          <form onSubmit={handleUpdateWhatsApp}>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="whatsappNumber">Número de WhatsApp</Label>
+                <Input 
+                  id="whatsappNumber" 
+                  value={settings.whatsappNumber} 
+                  onChange={(e) => handleChange(e, 'whatsappNumber')}
+                  placeholder="+34612345678"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Introduce tu número de WhatsApp completo, incluyendo el código de país (ej: +34612345678).
+                  Este número se utilizará para vincular tus conversaciones de WhatsApp con tu cuenta.
+                </p>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                type="submit" 
+                className="w-full md:w-auto bg-whatsapp hover:bg-whatsapp-dark"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Actualizando...</>
+                ) : (
+                  <>Vincular Número</>
+                )}
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
+
         {/* Información de la empresa */}
         <Card>
           <CardHeader>
