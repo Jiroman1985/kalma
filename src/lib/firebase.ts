@@ -10,7 +10,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyB_fjWDYiXtddbQnE-gxXCZoWcJDJt4KwA",
   authDomain: "pymai-5464d.firebaseapp.com",
   projectId: "pymai-5464d",
-  storageBucket: "pymai-5464d.appspot.com", // Corregido el dominio de storage
+  storageBucket: "pymai-5464d.firebasestorage.app", // Corregido el dominio de storage
   messagingSenderId: "928927480327",
   appId: "1:928927480327:web:d35319e4573b19605ac8a2",
   measurementId: "G-LSPQ5GGGME"
