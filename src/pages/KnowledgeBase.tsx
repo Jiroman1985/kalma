@@ -149,23 +149,30 @@ const KnowledgeBase = () => {
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
           setUploadProgress(progress);
+          console.log(`Progreso de carga: ${progress.toFixed(2)}%`);
         },
         (error) => {
           console.error("Error al subir archivo:", error);
+          console.error("Código de error:", error.code);
+          console.error("Mensaje de error:", error.message);
           toast({
             title: "Error al subir",
-            description: "No se pudo subir el archivo. Por favor, intenta de nuevo.",
+            description: `No se pudo subir el archivo: ${error.message}`,
             variant: "destructive"
           });
           setUploading(false);
         },
         async () => {
           // Subida completada con éxito
+          console.log("Archivo subido exitosamente a Storage");
           try {
             // Obtener URL de descarga
+            console.log("Intentando obtener URL de descarga...");
             const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+            console.log("URL de descarga obtenida:", downloadUrl);
             
             // Guardar información del documento en Firestore
+            console.log("Intentando guardar información en Firestore...");
             const docRef = collection(db, "users", currentUser.uid, "knowledgeDocuments");
             await addDoc(docRef, {
               fileName: file.name,
@@ -176,6 +183,7 @@ const KnowledgeBase = () => {
               downloadUrl: downloadUrl,
               content: "Contenido extraído del documento" // Simulado por ahora
             });
+            console.log("Documento guardado en Firestore exitosamente");
             
             toast({
               title: "Documento subido",
@@ -186,6 +194,11 @@ const KnowledgeBase = () => {
             await loadDocuments();
           } catch (error) {
             console.error("Error al guardar documento en Firestore:", error);
+            toast({
+              title: "Error",
+              description: "No se pudo guardar la información del documento en la base de datos.",
+              variant: "destructive"
+            });
           } finally {
             setUploading(false);
             // Limpiar input de archivos
@@ -195,7 +208,6 @@ const KnowledgeBase = () => {
           }
         }
       );
-      
     } catch (error) {
       console.error("Error al procesar documento:", error);
       toast({
