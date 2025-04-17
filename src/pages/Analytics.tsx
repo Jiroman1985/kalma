@@ -70,19 +70,8 @@ const Analytics = () => {
           console.log("Datos del documento whatsapp:", docSnap.data());
         }
         
-        // Comprobar si hay mensajes en la colección
-        const messagesRef = collection(db, 'users', currentUser.uid, 'messages');
-        console.log("Buscando mensajes en ruta corregida:", 'users', currentUser.uid, 'messages');
-        const messagesQuery = query(messagesRef, orderBy("timestamp", "desc"), limit(5));
-        const messagesSnap = await getDocs(messagesQuery);
-        
-        console.log("Cantidad de mensajes encontrados:", messagesSnap.size);
-        if (!messagesSnap.empty) {
-          console.log("Ejemplos de mensajes:");
-          messagesSnap.forEach(doc => {
-            console.log("- Mensaje:", doc.id, doc.data());
-          });
-        }
+        // Ya no es necesario verificar una colección de mensajes separada porque 
+        // los datos del mensaje están en el documento whatsapp directamente
         
         // Usar las funciones de whatsappService
         const data = await getWhatsAppAnalytics(currentUser.uid);
