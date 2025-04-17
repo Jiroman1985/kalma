@@ -108,7 +108,7 @@ export const updateUserPhoneNumber = async (userId: string, phoneNumber: string)
  */
 export const initializeWhatsAppData = async (userId: string) => {
   try {
-    const whatsappRef = doc(db, `users/${userId}/analytics/whatsapp`);
+    const whatsappRef = doc(db, `users/${userId}/whatsapp`);
     const whatsappDoc = await getDoc(whatsappRef);
     
     if (!whatsappDoc.exists()) {
@@ -174,7 +174,7 @@ export const getWhatsAppMessages = async (userId: string, limit: number = 50) =>
  */
 export const getWhatsAppAnalytics = async (userId: string) => {
   try {
-    const analyticsRef = doc(db, `users/${userId}/analytics/whatsapp`);
+    const analyticsRef = doc(db, `users/${userId}/whatsapp`);
     const analyticsDoc = await getDoc(analyticsRef);
     
     if (analyticsDoc.exists()) {
@@ -189,7 +189,23 @@ export const getWhatsAppAnalytics = async (userId: string) => {
       messagesPerDay: {},
       activeChats: 0,
       firstMessageTimestamp: Timestamp.now(),
-      lastUpdated: Timestamp.now()
+      lastUpdated: Timestamp.now(),
+      // Campos adicionales
+      respondedMessages: 0,
+      unrespondedMessages: 0,
+      avgResponseTime: 0,
+      agentResponses: 0,
+      humanResponses: 0,
+      messageCategories: {
+        consultas: 0,
+        ventas: 0,
+        soporte: 0,
+        otros: 0
+      },
+      messagesByHour: {},
+      activeByWeekday: {
+        "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0
+      }
     } as WhatsAppAnalytics;
   } catch (error) {
     console.error("Error al obtener análisis de WhatsApp:", error);
@@ -241,7 +257,7 @@ export const getMessagesPerDay = async (userId: string, days: number = 30) => {
  *    - Si encuentras un usuario, inserta el mensaje en:
  *      * users/{userId}/whatsapp/messages/{auto-id}
  *    - Actualiza las analíticas en:
- *      * users/{userId}/analytics/whatsapp
+ *      * users/{userId}/whatsapp
  *    - Si no encuentras un usuario, guarda el mensaje en:
  *      * unassigned_messages/{auto-id}
  *

@@ -24,42 +24,12 @@ Campos del documento:
 }
 ```
 
-### 2. Mensajes de WhatsApp
+### 2. WhatsApp
 
-Base path: `/users/{userId}/whatsapp/messages/{messageId}`
+Base path: `/users/{userId}/whatsapp`
 
-- Cada mensaje de WhatsApp se almacena como un documento individual.
-- El `messageId` normalmente es auto-generado por Firestore.
-
-Campos del documento:
-```
-{
-  id: string,                  // ID del mensaje (proporcionado por WhatsApp)
-  messageId: string,           // ID único del mensaje (puede ser igual que id)
-  body: string,                // Contenido del mensaje
-  from: string,                // Número del remitente (formato: 34XXXXXXXXX, sin @c.us)
-  to: string,                  // Número del destinatario
-  timestamp: number,           // Marca de tiempo en segundos o milisegundos
-  isFromMe: boolean,           // Si el mensaje fue enviado por el usuario o recibido
-  senderName: string,          // Nombre del remitente si está disponible
-  messageType: string,         // Tipo de mensaje (texto, imagen, audio, etc.)
-  storedAt: timestamp,         // Marca de tiempo de cuándo se guardó
-  // Campos adicionales para respuestas y categorización
-  category: string,            // Categoría del mensaje (consulta, venta, soporte, otro)
-  responded: boolean,          // Si el mensaje ha sido respondido
-  responseId: string,          // ID del mensaje de respuesta (si existe)
-  responseTimestamp: number,   // Cuándo fue respondido
-  agentResponse: boolean,      // Si fue respondido por el agente IA o un humano
-  responseTime: number,        // Tiempo que tardó en ser respondido (ms)
-  hourOfDay: number            // Hora del día en que se recibió (0-23)
-}
-```
-
-### 3. Analíticas de WhatsApp
-
-Base path: `/users/{userId}/analytics/whatsapp`
-
-- Un único documento que almacena las métricas agregadas de las conversaciones de WhatsApp.
+- Un documento único que almacena las métricas agregadas de las conversaciones de WhatsApp.
+- También sirve como raíz para la subcolección de mensajes de WhatsApp.
 
 Campos del documento:
 ```
@@ -97,6 +67,37 @@ Campos del documento:
     ...
     "6": number                         // Sábado
   }
+}
+```
+
+### 3. Mensajes de WhatsApp
+
+Base path: `/users/{userId}/whatsapp/messages/{messageId}`
+
+- Cada mensaje de WhatsApp se almacena como un documento individual.
+- El `messageId` normalmente es auto-generado por Firestore.
+
+Campos del documento:
+```
+{
+  id: string,                  // ID del mensaje (proporcionado por WhatsApp)
+  messageId: string,           // ID único del mensaje (puede ser igual que id)
+  body: string,                // Contenido del mensaje
+  from: string,                // Número del remitente (formato: 34XXXXXXXXX, sin @c.us)
+  to: string,                  // Número del destinatario
+  timestamp: number,           // Marca de tiempo en segundos o milisegundos
+  isFromMe: boolean,           // Si el mensaje fue enviado por el usuario o recibido
+  senderName: string,          // Nombre del remitente si está disponible
+  messageType: string,         // Tipo de mensaje (texto, imagen, audio, etc.)
+  storedAt: timestamp,         // Marca de tiempo de cuándo se guardó
+  // Campos adicionales para respuestas y categorización
+  category: string,            // Categoría del mensaje (consulta, venta, soporte, otro)
+  responded: boolean,          // Si el mensaje ha sido respondido
+  responseId: string,          // ID del mensaje de respuesta (si existe)
+  responseTimestamp: number,   // Cuándo fue respondido
+  agentResponse: boolean,      // Si fue respondido por el agente IA o un humano
+  responseTime: number,        // Tiempo que tardó en ser respondido (ms)
+  hourOfDay: number            // Hora del día en que se recibió (0-23)
 }
 ```
 
@@ -165,7 +166,7 @@ Para insertar datos correctamente desde n8n a Firebase:
 4. **Actualización de analíticas para mensajes entrantes**:
    - Actualizar el documento de analíticas:
      ```javascript
-     const analyticsRef = admin.firestore().doc(`users/${userId}/analytics/whatsapp`);
+     const analyticsRef = admin.firestore().doc(`users/${userId}/whatsapp`);
      const analyticsDoc = await analyticsRef.get();
      
      if (analyticsDoc.exists) {
@@ -278,7 +279,7 @@ Para insertar datos correctamente desde n8n a Firebase:
        });
      
      // Actualizar analytics
-     const analyticsRef = admin.firestore().doc(`users/${userId}/analytics/whatsapp`);
+     const analyticsRef = admin.firestore().doc(`users/${userId}/whatsapp`);
      const analyticsDoc = await analyticsRef.get();
      
      if (analyticsDoc.exists()) {
