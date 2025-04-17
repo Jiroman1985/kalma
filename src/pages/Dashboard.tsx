@@ -7,7 +7,6 @@ import {
   ChartTooltipContent 
 } from "@/components/ui/chart";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from "recharts";
-import FirestoreDebug from "@/components/FirestoreDebug";
 
 const data = [
   { name: 'Lun', conversaciones: 40 },
@@ -27,12 +26,6 @@ const Dashboard = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold tracking-tight">Bienvenido, {firstName}</h1>
-      </div>
-
-      <div className="bg-amber-50 border border-amber-400 rounded p-4">
-        <h3 className="text-amber-800 font-semibold mb-2">Panel de depuración de Firestore</h3>
-        <p className="text-amber-700 text-sm mb-4">Este panel es temporal para resolver los problemas de guardado de datos.</p>
-        <FirestoreDebug />
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
