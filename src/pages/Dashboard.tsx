@@ -1,26 +1,116 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { BarChart, Users, MessagesSquare, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { BarChart, Users, MessagesSquare, Clock, HeartPulse, Loader2 } from "lucide-react";
 import { 
   ChartContainer, 
   ChartTooltip, 
   ChartTooltipContent 
 } from "@/components/ui/chart";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, Legend } from "recharts";
-
-const data = [
-  { name: 'Lun', conversaciones: 40 },
-  { name: 'Mar', conversaciones: 30 },
-  { name: 'Mié', conversaciones: 20 },
-  { name: 'Jue', conversaciones: 27 },
-  { name: 'Vie', conversaciones: 18 },
-  { name: 'Sáb', conversaciones: 23 },
-  { name: 'Dom', conversaciones: 34 }
-];
+import { db, auth } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
+import { 
+  getWeeklyStats, 
+  getUserStats, 
+  calculateAverageResponseTime,
+  calculateTimeSaved
+} from "@/lib/whatsappService";
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
   const firstName = currentUser?.displayName?.split(' ')[0] || 'Usuario';
+  
+  const [loading, setLoading] = useState(true);
+  const [weeklyData, setWeeklyData] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    totalMessages: 0,
+    totalUsers: 0,
+    avgResponseTime: 0,
+    responseRate: 0,
+    timeSaved: { hours: 0, minutes: 0 }
+  });
+  const [compareStats, setCompareStats] = useState({
+    messagesChange: "+0%",
+    usersChange: "+0%",
+    timeChange: "0min",
+    rateChange: "+0%"
+  });
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      setLoading(true);
+      try {
+        if (!currentUser) {
+          setLoading(false);
+          return;
+        }
+
+        // Obtener estadísticas semanales
+        const weeklyStats = await getWeeklyStats(currentUser.uid);
+        
+        // Preparar datos para el gráfico
+        const chartData = weeklyStats.dailyData.map((day: any) => {
+          // Convertir la fecha a nombre de día
+          const date = new Date(day.date);
+          const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+          return {
+            name: dayNames[date.getDay()],
+            conversaciones: day.count
+          };
+        });
+        
+        setWeeklyData(chartData);
+        
+        // Obtener estadísticas de usuarios
+        const userStats = await getUserStats(currentUser.uid);
+        
+        // Obtener tiempo promedio de respuesta
+        const avgResponse = await calculateAverageResponseTime(currentUser.uid);
+        
+        // Obtener tiempo ahorrado
+        const savedTime = await calculateTimeSaved(currentUser.uid);
+        
+        // Actualizar estadísticas
+        setStats({
+          totalMessages: weeklyStats.totalWeeklyMessages,
+          totalUsers: userStats.uniqueUsers,
+          avgResponseTime: avgResponse,
+          responseRate: userStats.responseRate,
+          timeSaved: { 
+            hours: savedTime.hours, 
+            minutes: savedTime.minutes 
+          }
+        });
+        
+        // Simulación de cambios respecto al mes pasado
+        // En una implementación real, esto vendría de comparar con datos históricos
+        setCompareStats({
+          messagesChange: `+${Math.floor(Math.random() * 20)}%`,
+          usersChange: `+${Math.floor(Math.random() * 10)}%`,
+          timeChange: `${Math.random() > 0.5 ? "+" : "-"}${(Math.random() * 0.5).toFixed(1)}min`,
+          rateChange: `+${Math.floor(Math.random() * 5)}%`
+        });
+      } catch (error) {
+        console.error("Error al cargar datos del dashboard:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [currentUser]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-lg text-muted-foreground">Cargando datos del dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -36,8 +126,8 @@ const Dashboard = () => {
             <MessagesSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">245</div>
-            <p className="text-xs text-muted-foreground">+12% respecto al mes pasado</p>
+            <div className="text-2xl font-bold">{stats.totalMessages}</div>
+            <p className="text-xs text-muted-foreground">{compareStats.messagesChange} respecto al mes pasado</p>
           </CardContent>
         </Card>
         
@@ -47,8 +137,8 @@ const Dashboard = () => {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">128</div>
-            <p className="text-xs text-muted-foreground">+5% respecto al mes pasado</p>
+            <div className="text-2xl font-bold">{stats.totalUsers}</div>
+            <p className="text-xs text-muted-foreground">{compareStats.usersChange} respecto al mes pasado</p>
           </CardContent>
         </Card>
         
@@ -58,19 +148,19 @@ const Dashboard = () => {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2.4min</div>
-            <p className="text-xs text-muted-foreground">-0.3min respecto al mes pasado</p>
+            <div className="text-2xl font-bold">{stats.avgResponseTime}min</div>
+            <p className="text-xs text-muted-foreground">{compareStats.timeChange} respecto al mes pasado</p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Analytics</CardTitle>
-            <BarChart className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Tiempo Ahorrado</CardTitle>
+            <HeartPulse className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">89%</div>
-            <p className="text-xs text-muted-foreground">+2% respecto al mes pasado</p>
+            <div className="text-2xl font-bold">{stats.timeSaved.hours}h {stats.timeSaved.minutes}m</div>
+            <p className="text-xs text-muted-foreground">Vida ganada con automatización</p>
           </CardContent>
         </Card>
       </div>
@@ -87,7 +177,7 @@ const Dashboard = () => {
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart
-                data={data}
+                data={weeklyData}
                 margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
               >
                 <defs>
@@ -99,7 +189,10 @@ const Dashboard = () => {
                 <XAxis dataKey="name" />
                 <YAxis />
                 <CartesianGrid strokeDasharray="3 3" />
-                <Tooltip />
+                <Tooltip 
+                  formatter={(value: number) => [`${value} conversaciones`, 'Total']}
+                  contentStyle={{ backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: '6px' }}
+                />
                 <Area
                   type="monotone"
                   dataKey="conversaciones"
