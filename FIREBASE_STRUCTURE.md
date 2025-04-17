@@ -15,10 +15,10 @@ Datos de usuario:
 - `createdAt`: Fecha de creación de la cuenta
 - `lastLogin`: Último inicio de sesión
 
-### WhatsApp
+### WhatsApp Analytics
 **Base Path**: `/users/{userId}/whatsapp`
 
-Datos de análisis de WhatsApp:
+Documento con datos de análisis de WhatsApp:
 - `totalMessages`: Número total de mensajes
 - `lastMessageTimestamp`: Marca de tiempo del último mensaje
 - `messagesPerDay`: Objeto con conteo de mensajes por día (formato: `{"YYYY-MM-DD": count}`)
@@ -39,9 +39,9 @@ Datos de análisis de WhatsApp:
 - `activeByWeekday`: Actividad por día de la semana (formato: `{"0": count, "1": count, ..., "6": count}`)
 
 ### Mensajes de WhatsApp
-**Base Path**: `/users/{userId}/whatsapp/messages/{messageId}`
+**Base Path**: `/users/{userId}/messages/{messageId}`
 
-Datos de mensaje individual:
+Colección que contiene los mensajes de WhatsApp individuales:
 - `id`: Identificador del mensaje
 - `messageId`: ID del mensaje de WhatsApp
 - `body`: Contenido del mensaje
@@ -76,7 +76,7 @@ Para que n8n inserte correctamente los datos en Firebase, debe seguir los siguie
    - Buscar el usuario correspondiente mediante una consulta a `/users` con `where("phoneNumber", "==", cleanPhoneNumber)`
 
 3. **Guardado de Mensajes**:
-   - Si se encuentra un usuario: Guardar en `/users/{userId}/whatsapp/messages/{auto-id}`
+   - Si se encuentra un usuario: Guardar en `/users/{userId}/messages/{auto-id}`
    - Si no se encuentra: Guardar en `/unassigned_messages/{auto-id}`
 
 4. **Actualización de Analíticas**:
