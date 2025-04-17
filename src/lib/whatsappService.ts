@@ -108,12 +108,16 @@ export const updateUserPhoneNumber = async (userId: string, phoneNumber: string)
  */
 export const initializeWhatsAppData = async (userId: string) => {
   try {
+    console.log("Inicializando datos de WhatsApp para userId:", userId);
+    
     const whatsappRef = doc(db, `users/${userId}/whatsapp`);
     const whatsappDoc = await getDoc(whatsappRef);
     
     if (!whatsappDoc.exists()) {
+      console.log("El documento whatsapp no existe, creándolo ahora...");
+      
       // Crear estructura inicial para análisis de WhatsApp
-      await setDoc(whatsappRef, {
+      const initialData = {
         totalMessages: 0,
         lastMessageTimestamp: 0,
         messagesPerDay: {},
@@ -136,12 +140,25 @@ export const initializeWhatsAppData = async (userId: string) => {
         activeByWeekday: {
           "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0
         }
-      });
+      };
       
-      console.log("Estructura de datos de WhatsApp inicializada para el usuario:", userId);
+      await setDoc(whatsappRef, initialData);
+      console.log("Estructura de datos de WhatsApp inicializada exitosamente:", initialData);
+      
+      // Verificar que se creó correctamente
+      const verifyDoc = await getDoc(whatsappRef);
+      if (verifyDoc.exists()) {
+        console.log("Verificación exitosa - Documento creado:", verifyDoc.data());
+      } else {
+        console.error("Error: El documento no se creó correctamente");
+      }
+      
+      return true;
+    } else {
+      console.log("El documento whatsapp ya existe, no es necesario inicializarlo");
+      console.log("Datos existentes:", whatsappDoc.data());
+      return true;
     }
-    
-    return true;
   } catch (error) {
     console.error("Error al inicializar datos de WhatsApp:", error);
     return false;
@@ -151,10 +168,10 @@ export const initializeWhatsAppData = async (userId: string) => {
 /**
  * Obtiene los mensajes de WhatsApp de un usuario
  */
-export const getWhatsAppMessages = async (userId: string, limit: number = 50) => {
+export const getWhatsAppMessages = async (userId: string, limitCount: number = 50) => {
   try {
     const messagesRef = collection(db, `users/${userId}/whatsapp/messages`);
-    const q = query(messagesRef, orderBy("timestamp", "desc"), limit(limit));
+    const q = query(messagesRef, orderBy("timestamp", "desc"), limit(limitCount));
     const querySnapshot = await getDocs(q);
     
     const messages: WhatsAppMessage[] = [];
@@ -177,10 +194,15 @@ export const getWhatsAppAnalytics = async (userId: string) => {
     const analyticsRef = doc(db, `users/${userId}/whatsapp`);
     const analyticsDoc = await getDoc(analyticsRef);
     
+    console.log("Intentando obtener analytics de:", `users/${userId}/whatsapp`);
+    
     if (analyticsDoc.exists()) {
-      return analyticsDoc.data() as WhatsAppAnalytics;
+      const data = analyticsDoc.data();
+      console.log("Datos de WhatsApp analytics obtenidos:", data);
+      return data as WhatsAppAnalytics;
     }
     
+    console.log("No se encontraron datos de analytics, inicializando...");
     // Si no hay datos de análisis, inicializarlos y devolver valores predeterminados
     await initializeWhatsAppData(userId);
     return {
