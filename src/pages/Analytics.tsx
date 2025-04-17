@@ -33,6 +33,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, collection, query, getDocs, orderBy, limit } from "firebase/firestore";
 import { useToast } from "@/components/ui/use-toast";
+import { getWhatsAppAnalytics, getMessagesPerDay } from "@/lib/whatsappService";
 
 // Definir tipo para los datos de análisis de WhatsApp
 interface WhatsAppAnalytics {
@@ -71,24 +72,20 @@ const Analytics = () => {
 
       try {
         setLoading(true);
-        // Cargar datos de análisis de WhatsApp
-        const analyticsRef = doc(db, `users/${currentUser.uid}/analytics/whatsapp`);
-        const analyticsSnap = await getDoc(analyticsRef);
-
-        if (analyticsSnap.exists()) {
-          const data = analyticsSnap.data() as WhatsAppAnalytics;
+        // Usar las nuevas funciones de whatsappService
+        const data = await getWhatsAppAnalytics(currentUser.uid);
+        if (data) {
           setWhatsappAnalytics(data);
 
-          // Procesar datos para gráficos
-          // Formatear datos de mensajes por día para el gráfico de barras
-          const last7Days = getLastNDays(7);
-          const messagesPerDay = data.messagesPerDay || {};
-
-          const weeklyChartData = last7Days.map(day => {
+          // Obtener datos de mensajes por día para el gráfico de barras
+          const messagesPerDayData = await getMessagesPerDay(currentUser.uid, 7);
+          
+          // Transformar los datos para el formato del gráfico
+          const weeklyChartData = messagesPerDayData.map(item => {
             return {
-              name: formatDayName(day),
-              conversaciones: messagesPerDay[day] || 0,
-              usuarios: Math.floor((messagesPerDay[day] || 0) * 0.6) // Simulado por ahora
+              name: formatDayName(item.date),
+              conversaciones: item.count,
+              usuarios: Math.floor(item.count * 0.6) // Simulado por ahora
             };
           });
           setWeeklyData(weeklyChartData);
@@ -97,7 +94,7 @@ const Analytics = () => {
           const hourlyChartData = generateHourlyData(data.totalMessages || 0);
           setHourlyData(hourlyChartData);
         } else {
-          // Si no existen datos, inicializar con valores predeterminados
+          // Si no hay datos, inicializar con valores predeterminados
           setWeeklyData(getLastNDays(7).map(day => ({
             name: formatDayName(day),
             conversaciones: 0,

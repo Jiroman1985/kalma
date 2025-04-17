@@ -9,7 +9,10 @@ import {
   addDoc, 
   serverTimestamp, 
   updateDoc,
-  getDocs
+  getDocs,
+  orderBy,
+  limit,
+  Timestamp
 } from "firebase/firestore";
 
 // Define la interfaz para los mensajes de WhatsApp
@@ -19,18 +22,21 @@ export interface WhatsAppMessage {
   body: string;
   from: string;
   to: string;
-  timestamp: number;
+  timestamp: number | Timestamp;
   isFromMe: boolean;
   senderName: string;
   messageType: string;
+  storedAt?: Timestamp;
 }
 
 // Define la interfaz para los análisis de WhatsApp
 export interface WhatsAppAnalytics {
   totalMessages: number;
-  lastMessageTimestamp: number;
+  lastMessageTimestamp: number | Timestamp;
   messagesPerDay: Record<string, number>;
   activeChats: number;
+  firstMessageTimestamp?: Timestamp;
+  lastUpdated?: Timestamp;
 }
 
 /**
@@ -104,96 +110,120 @@ export const initializeWhatsAppData = async (userId: string) => {
 };
 
 /**
- * Guarda un mensaje de WhatsApp en Firebase
+ * Obtiene los mensajes de WhatsApp de un usuario
  */
-export const saveWhatsAppMessage = async (userId: string, message: WhatsAppMessage) => {
+export const getWhatsAppMessages = async (userId: string, limit: number = 50) => {
   try {
-    // Guardar el mensaje en la colección de mensajes
     const messagesRef = collection(db, `users/${userId}/whatsapp/messages`);
-    await addDoc(messagesRef, {
-      ...message,
-      storedAt: serverTimestamp(),
+    const q = query(messagesRef, orderBy("timestamp", "desc"), limit(limit));
+    const querySnapshot = await getDocs(q);
+    
+    const messages: WhatsAppMessage[] = [];
+    querySnapshot.forEach(doc => {
+      messages.push({ id: doc.id, ...doc.data() } as WhatsAppMessage);
     });
     
-    // Actualizar los análisis
-    const today = new Date().toISOString().split('T')[0]; // Formato YYYY-MM-DD
-    const analyticsRef = doc(db, `users/${userId}/analytics/whatsapp`);
-    const analyticsDoc = await getDoc(analyticsRef);
-    
-    if (analyticsDoc.exists()) {
-      const data = analyticsDoc.data();
-      
-      // Actualizar contadores
-      const messagesPerDay = data.messagesPerDay || {};
-      messagesPerDay[today] = (messagesPerDay[today] || 0) + 1;
-      
-      await updateDoc(analyticsRef, {
-        totalMessages: (data.totalMessages || 0) + 1,
-        lastMessageTimestamp: message.timestamp,
-        messagesPerDay,
-        lastUpdated: serverTimestamp()
-      });
-    }
-    
-    return true;
+    return messages;
   } catch (error) {
-    console.error("Error al guardar mensaje de WhatsApp:", error);
-    return false;
+    console.error("Error al obtener mensajes de WhatsApp:", error);
+    return [];
   }
 };
 
 /**
- * Procesa un mensaje entrante de WhatsApp desde n8n
- * Esta función se llamaría desde tu API cuando recibas un webhook de n8n
+ * Obtiene los análisis de WhatsApp de un usuario
  */
-export const processWhatsAppWebhook = async (webhookData: any) => {
+export const getWhatsAppAnalytics = async (userId: string) => {
   try {
-    if (!webhookData || !webhookData.body || !webhookData.body.data) {
-      console.error("Datos de webhook inválidos");
-      return { success: false, error: "Datos inválidos" };
+    const analyticsRef = doc(db, `users/${userId}/analytics/whatsapp`);
+    const analyticsDoc = await getDoc(analyticsRef);
+    
+    if (analyticsDoc.exists()) {
+      return analyticsDoc.data() as WhatsAppAnalytics;
     }
     
-    const messageData = webhookData.body.data;
-    
-    // Extraer número de teléfono limpio
-    const senderPhone = messageData.from.replace('@c.us', '');
-    
-    // Buscar usuario por número de teléfono
-    let userId = null;
-    const user = await findUserByPhoneNumber(senderPhone);
-    
-    if (user) {
-      userId = user.id;
-    } else {
-      console.log("Usuario no encontrado para el número:", senderPhone);
-      // Podrías implementar lógica para crear usuarios automáticamente o
-      // almacenar mensajes en una colección general para usuarios no identificados
-      return { success: false, error: "Usuario no encontrado" };
-    }
-    
-    // Inicializar estructura de datos de WhatsApp si es necesario
+    // Si no hay datos de análisis, inicializarlos y devolver valores predeterminados
     await initializeWhatsAppData(userId);
-    
-    // Crear objeto de mensaje estructurado
-    const whatsappMessage: WhatsAppMessage = {
-      id: messageData.id,
-      messageId: messageData.mId || messageData.id.split('_').pop(),
-      body: messageData.body || messageData.content || '',
-      from: messageData.from,
-      to: messageData.to,
-      timestamp: messageData.timestamp || messageData.t,
-      isFromMe: messageData.fromMe || false,
-      senderName: messageData.notifyName || messageData.sender?.pushname || '',
-      messageType: messageData.type || 'chat'
-    };
-    
-    // Guardar mensaje en Firestore
-    await saveWhatsAppMessage(userId, whatsappMessage);
-    
-    return { success: true, userId };
-    
+    return {
+      totalMessages: 0,
+      lastMessageTimestamp: 0,
+      messagesPerDay: {},
+      activeChats: 0,
+      firstMessageTimestamp: Timestamp.now(),
+      lastUpdated: Timestamp.now()
+    } as WhatsAppAnalytics;
   } catch (error) {
-    console.error("Error al procesar webhook de WhatsApp:", error);
-    return { success: false, error: error.message };
+    console.error("Error al obtener análisis de WhatsApp:", error);
+    return null;
   }
-}; 
+};
+
+/**
+ * Obtiene las estadísticas de mensajes por día
+ */
+export const getMessagesPerDay = async (userId: string, days: number = 30) => {
+  try {
+    const analytics = await getWhatsAppAnalytics(userId);
+    if (!analytics) return [];
+    
+    const messagesPerDay = analytics.messagesPerDay || {};
+    const result = [];
+    
+    // Generar las últimas N fechas
+    const dates = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      dates.push(date.toISOString().split('T')[0]); // Formato YYYY-MM-DD
+    }
+    
+    // Rellenar los datos
+    for (const date of dates) {
+      result.push({
+        date,
+        count: messagesPerDay[date] || 0
+      });
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("Error al obtener mensajes por día:", error);
+    return [];
+  }
+};
+
+/**
+ * Guía para configurar n8n para inserción directa a Firebase
+ * 
+ * 1. En n8n, configura un nodo de Firebase Admin para autenticación con credenciales de servicio
+ * 2. Para cada mensaje de WhatsApp:
+ *    - Extrae el número de teléfono del remitente (from)
+ *    - Busca en Firebase el usuario con ese número de teléfono
+ *    - Si encuentras un usuario, inserta el mensaje en:
+ *      * users/{userId}/whatsapp/messages/{auto-id}
+ *    - Actualiza las analíticas en:
+ *      * users/{userId}/analytics/whatsapp
+ *    - Si no encuentras un usuario, guarda el mensaje en:
+ *      * unassigned_messages/{auto-id}
+ *
+ * Estructura recomendada del documento de mensaje:
+ * {
+ *   id: string,           // ID del mensaje (normalmente proporcionado por WhatsApp)
+ *   messageId: string,    // ID único del mensaje (puede ser igual que id)
+ *   body: string,         // Contenido del mensaje
+ *   from: string,         // Número del remitente con formato internacional
+ *   to: string,           // Número del destinatario
+ *   timestamp: number,    // Marca de tiempo en segundos o milisegundos
+ *   isFromMe: boolean,    // Si el mensaje fue enviado por el usuario o recibido
+ *   senderName: string,   // Nombre del remitente si está disponible
+ *   messageType: string,  // Tipo de mensaje (texto, imagen, audio, etc.)
+ *   storedAt: timestamp   // Marca de tiempo de cuándo se guardó (serverTimestamp())
+ * }
+ *
+ * Para actualizar las analíticas, incrementa los campos correspondientes:
+ * - totalMessages: incrementa en 1
+ * - lastMessageTimestamp: establece como el timestamp del último mensaje
+ * - messagesPerDay: incrementa el contador para la fecha actual (formato YYYY-MM-DD)
+ * - activeChats: incrementa si es un nuevo chat
+ * - lastUpdated: actualiza con serverTimestamp()
+ */ 
