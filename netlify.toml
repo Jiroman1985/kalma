@@ -1,0 +1,13 @@
+# Configuración de build para Netlify
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+# Configuración de despliegue para la rama principal
+[context.production]
+  command = "npm run build"
+
+# Forzar siempre la limpieza del caché para los nuevos despliegues
+[build.environment]
+  NETLIFY_USE_YARN = "false"
+  NETLIFY_FORCE_CLEAR_CACHE = "true" 
