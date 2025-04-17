@@ -170,10 +170,13 @@ export const initializeWhatsAppData = async (userId: string) => {
  */
 export const getWhatsAppMessages = async (userId: string, limitCount: number = 50) => {
   try {
-    const userDocRef = doc(db, 'users', userId);
-    const messagesRef = collection(userDocRef, 'whatsapp', 'messages');
+    // Construir correctamente la referencia a la colección de mensajes
+    const messagesRef = collection(db, 'users', userId, 'whatsapp', 'messages');
     const q = query(messagesRef, orderBy("timestamp", "desc"), limit(limitCount));
     const querySnapshot = await getDocs(q);
+    
+    console.log("Ruta de colección de mensajes:", 'users', userId, 'whatsapp', 'messages');
+    console.log("Cantidad de mensajes encontrados:", querySnapshot.size);
     
     const messages: WhatsAppMessage[] = [];
     querySnapshot.forEach(doc => {

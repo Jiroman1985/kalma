@@ -71,8 +71,8 @@ const Analytics = () => {
         }
         
         // Comprobar si hay mensajes en la colección
-        const userRef = doc(db, 'users', currentUser.uid);
-        const messagesRef = collection(userRef, 'whatsapp', 'messages');
+        const messagesRef = collection(db, 'users', currentUser.uid, 'whatsapp', 'messages');
+        console.log("Ruta de colección de mensajes:", 'users', currentUser.uid, 'whatsapp', 'messages');
         const messagesQuery = query(messagesRef, orderBy("timestamp", "desc"), limit(5));
         const messagesSnap = await getDocs(messagesQuery);
         
