@@ -110,22 +110,21 @@ export const initializeWhatsAppData = async (userId: string, preloadedData?: Wha
   try {
     console.log("Inicializando datos de WhatsApp para userId:", userId);
     
-    const whatsappRef = doc(db, 'users', userId);
-    const whatsappDoc = await getDoc(whatsappRef);
+    const userRef = doc(db, 'users', userId);
+    const userDoc = await getDoc(userRef);
     
-    if (!whatsappDoc.exists()) {
+    if (!userDoc.exists()) {
       console.log("El documento usuario no existe, creándolo ahora...");
       
-      // Crear estructura inicial para análisis de WhatsApp, usando datos precalculados si existen
-      const initialData = preloadedData || {
-        whatsapp: {
+      // Crear documento de usuario con campo whatsapp
+      const initialData = {
+        whatsapp: preloadedData || {
           totalMessages: 0,
           lastMessageTimestamp: 0,
           messagesPerDay: {},
           activeChats: 0,
           firstMessageTimestamp: serverTimestamp(),
           lastUpdated: serverTimestamp(),
-          // Campos adicionales
           respondedMessages: 0,
           unrespondedMessages: 0,
           avgResponseTime: 0,
@@ -144,28 +143,20 @@ export const initializeWhatsAppData = async (userId: string, preloadedData?: Wha
         }
       };
       
-      await setDoc(whatsappRef, initialData);
-      console.log("Estructura de datos de WhatsApp inicializada exitosamente", 
-        preloadedData ? "con datos precalculados" : "con valores por defecto");
-      
-      // Verificar que se creó correctamente
-      const verifyDoc = await getDoc(whatsappRef);
-      if (verifyDoc.exists()) {
-        console.log("Verificación exitosa - Documento creado");
-      } else {
-        console.error("Error: El documento no se creó correctamente");
-      }
+      await setDoc(userRef, initialData);
+      console.log("Documento usuario creado con campo whatsapp");
       
       return true;
     } else {
       console.log("El documento usuario ya existe, verificando si tiene datos de WhatsApp");
-      const data = whatsappDoc.data();
+      const userData = userDoc.data();
       
-      // Si no tiene el campo whatsapp, añadirlo
-      if (!data.whatsapp) {
-        console.log("Añadiendo campo whatsapp al documento existente");
-        await updateDoc(whatsappRef, {
-          whatsapp: {
+      // Si no tiene el campo whatsapp o el campo está incompleto, actualizarlo
+      if (!userData.whatsapp || !userData.whatsapp.totalMessages) {
+        console.log("Actualizando campo whatsapp en documento existente");
+        
+        await updateDoc(userRef, {
+          whatsapp: preloadedData || {
             totalMessages: 0,
             lastMessageTimestamp: 0,
             messagesPerDay: {},
@@ -189,7 +180,10 @@ export const initializeWhatsAppData = async (userId: string, preloadedData?: Wha
             }
           }
         });
-        console.log("Campo whatsapp añadido correctamente");
+        
+        console.log("Campo whatsapp actualizado correctamente");
+      } else {
+        console.log("El campo whatsapp ya existe y está completo");
       }
       
       return true;
@@ -205,56 +199,42 @@ export const initializeWhatsAppData = async (userId: string, preloadedData?: Wha
  */
 export const getWhatsAppMessages = async (userId: string, limitCount: number = 50) => {
   try {
-    // Obtener el documento del usuario
-    const userRef = doc(db, 'users', userId);
-    const userDoc = await getDoc(userRef);
+    // Obtener documentos de la colección "whatsapp" para el usuario específico
+    // Usando collectionGroup para evitar problemas con la estructura de segmentos
+    const whatsappCollectionRef = collection(db, 'users', userId, 'whatsapp');
+    const q = query(whatsappCollectionRef, orderBy("timestamp", "desc"), limit(limitCount));
     
-    console.log("Obteniendo documento usuario para mensajes:", 'users', userId);
+    console.log("Consultando colección whatsapp para userId:", userId);
+    const querySnapshot = await getDocs(q);
     
-    if (userDoc.exists()) {
-      const data = userDoc.data();
-      console.log("Documento usuario encontrado:", data);
-      
-      // Verificar si tiene el campo whatsapp
-      if (data.whatsapp) {
-        const whatsappData = data.whatsapp;
-        
-        // Extraer los mensajes relevantes del documento
-        const messages: WhatsAppMessage[] = [];
-        
-        // Verificar si los campos del mensaje están directamente en el documento whatsapp
-        if (whatsappData.messageId && whatsappData.body) {
-          // Si los campos del mensaje están directamente en el documento
-          messages.push({
-            id: whatsappData.messageId || 'unknown',
-            messageId: whatsappData.messageId || 'unknown',
-            body: whatsappData.body || '',
-            from: whatsappData.from || '',
-            to: whatsappData.to || '',
-            timestamp: whatsappData.timestamp || 0,
-            isFromMe: whatsappData.isFromMe || false,
-            senderName: whatsappData.senderName || '',
-            messageType: whatsappData.messageType || 'chat',
-            category: whatsappData.category || 'otros',
-            responded: whatsappData.responded || false,
-            responseId: whatsappData.responseId || null,
-            responseTime: whatsappData.responseTime || null,
-            hourOfDay: whatsappData.hourOfDay || 0,
-            day: whatsappData.day || 1,
-            month: whatsappData.month || 1,
-            minutesOfDay: whatsappData.minutesOfDay || 0
-          } as WhatsAppMessage);
-        }
-        
-        return messages;
-      } else {
-        console.log("No se encontró el campo whatsapp en el documento del usuario");
-        return [];
-      }
-    } else {
-      console.log("Documento usuario no encontrado para el usuario:", userId);
-      return [];
-    }
+    console.log(`Se encontraron ${querySnapshot.size} mensajes de WhatsApp`);
+    
+    const messages: WhatsAppMessage[] = [];
+    
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      messages.push({
+        id: doc.id,
+        messageId: data.messageId || doc.id,
+        body: data.body || '',
+        from: data.from || '',
+        to: data.to || '',
+        timestamp: data.timestamp || 0,
+        isFromMe: data.isFromMe || false,
+        senderName: data.senderName || '',
+        messageType: data.messageType || 'chat',
+        category: data.category || 'otros',
+        responded: data.responded || false,
+        responseId: data.responseId || null,
+        responseTime: data.responseTime || null,
+        hourOfDay: data.hourOfDay || 0,
+        day: data.day || 1,
+        month: data.month || 1,
+        minutesOfDay: data.minutesOfDay || 0
+      } as WhatsAppMessage);
+    });
+    
+    return messages;
   } catch (error) {
     console.error("Error al obtener mensajes de WhatsApp:", error);
     return [];
@@ -266,113 +246,173 @@ export const getWhatsAppMessages = async (userId: string, limitCount: number = 5
  */
 export const getWhatsAppAnalytics = async (userId: string) => {
   try {
-    // Obtener el documento del usuario
+    // 1. Primero intentamos obtener el campo whatsapp del documento usuario
     const userRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userRef);
     
-    console.log("Intentando obtener analytics de:", 'users', userId);
+    console.log("Intentando obtener analytics del usuario:", userId);
     
-    if (userDoc.exists()) {
-      const data = userDoc.data();
-      console.log("Datos de usuario obtenidos:", data);
-      
-      // Verificar si tiene el campo whatsapp
-      if (data.whatsapp) {
-        const whatsappData = data.whatsapp;
-        console.log("Datos de WhatsApp encontrados:", whatsappData);
-        
-        // Si el documento ya tiene un objeto con la estructura de analytics, usarlo directamente
-        if (whatsappData.totalMessages !== undefined) {
-          return whatsappData as WhatsAppAnalytics;
-        }
-        
-        // Si no tiene la estructura completa, construir el objeto de analytics
-        // a partir de los datos directos del documento
-        const analyticsData: WhatsAppAnalytics = {
-          totalMessages: 1, // Siempre hay al menos un mensaje si el documento existe
-          lastMessageTimestamp: whatsappData.timestamp || Date.now(),
-          messagesPerDay: {}, // Se calculará a continuación
-          activeChats: 1, // Al menos un chat activo
-          firstMessageTimestamp: new Timestamp(Math.floor((whatsappData.timestamp || Date.now()) / 1000), 0),
-          lastUpdated: Timestamp.now(),
-          respondedMessages: whatsappData.responded ? 1 : 0,
-          unrespondedMessages: whatsappData.responded ? 0 : 1,
-          avgResponseTime: whatsappData.responseTime || 0,
-          agentResponses: whatsappData.agentResponse ? 1 : 0,
-          humanResponses: 0,
-          messageCategories: {
-            consultas: whatsappData.category === 'consulta' ? 1 : 0,
-            ventas: whatsappData.category === 'venta' ? 1 : 0,
-            soporte: whatsappData.category === 'soporte' ? 1 : 0,
-            otros: ['consulta', 'venta', 'soporte'].includes(whatsappData.category || '') ? 0 : 1
-          },
-          messagesByHour: {},
-          activeByWeekday: { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0 }
-        };
-        
-        // Calcular fecha del mensaje para messagesPerDay
-        if (whatsappData.timestamp) {
-          const messageDate = new Date(whatsappData.timestamp);
-          const dateStr = messageDate.toISOString().split('T')[0]; // Formato YYYY-MM-DD
-          analyticsData.messagesPerDay[dateStr] = 1;
-          
-          // Calcular día de la semana para activeByWeekday
-          const dayOfWeek = messageDate.getDay().toString();
-          analyticsData.activeByWeekday[dayOfWeek] = 1;
-          
-          // Calcular hora para messagesByHour
-          const hour = messageDate.getHours().toString();
-          analyticsData.messagesByHour[hour] = 1;
-        } else if (whatsappData.hourOfDay !== undefined) {
-          // Si no hay timestamp pero hay hourOfDay, usar eso para messagesByHour
-          const hourStr = whatsappData.hourOfDay.toString();
-          analyticsData.messagesByHour[hourStr] = 1;
-          
-          // Usar day y month para aproximar messagesPerDay
-          if (whatsappData.day && whatsappData.month) {
-            const currentYear = new Date().getFullYear();
-            const dateObj = new Date(currentYear, whatsappData.month - 1, whatsappData.day);
-            const dateStr = dateObj.toISOString().split('T')[0];
-            analyticsData.messagesPerDay[dateStr] = 1;
-            
-            // Calcular día de la semana
-            const dayOfWeek = dateObj.getDay().toString();
-            analyticsData.activeByWeekday[dayOfWeek] = 1;
-          }
-        }
-        
-        return analyticsData;
-      }
+    // Verificar si existe el campo whatsapp en el documento usuario y si contiene estructura de analytics
+    if (userDoc.exists() && userDoc.data().whatsapp && userDoc.data().whatsapp.totalMessages !== undefined) {
+      console.log("Analytics encontrados en el campo whatsapp del usuario");
+      return userDoc.data().whatsapp as WhatsAppAnalytics;
     }
     
-    console.log("No se encontraron datos de whatsapp para el usuario:", userId);
+    // 2. Si no hay datos en el campo whatsapp, vamos a generarlos a partir de los mensajes
+    console.log("Generando analytics a partir de los mensajes...");
+    const whatsappCollectionRef = collection(db, 'users', userId, 'whatsapp');
+    const messagesQuery = query(whatsappCollectionRef);
+    const messagesSnapshot = await getDocs(messagesQuery);
     
-    // Si no existe el documento usuario o no tiene campo whatsapp, inicializar con valores por defecto
-    await initializeWhatsAppData(userId);
-    return {
-      totalMessages: 0,
-      lastMessageTimestamp: 0,
-      messagesPerDay: {},
-      activeChats: 0,
-      firstMessageTimestamp: Timestamp.now(),
-      lastUpdated: Timestamp.now(),
-      // Campos adicionales
-      respondedMessages: 0,
-      unrespondedMessages: 0,
-      avgResponseTime: 0,
-      agentResponses: 0,
-      humanResponses: 0,
-      messageCategories: {
-        consultas: 0,
-        ventas: 0,
-        soporte: 0,
-        otros: 0
-      },
-      messagesByHour: {},
-      activeByWeekday: {
-        "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0
+    console.log(`Se encontraron ${messagesSnapshot.size} mensajes para generar analytics`);
+    
+    // Si no hay mensajes, crear estructura con valores por defecto
+    if (messagesSnapshot.empty) {
+      console.log("No hay mensajes, creando estructura de analytics vacía");
+      
+      // Si no existe el campo whatsapp o está vacío, crearla con valores por defecto
+      await initializeWhatsAppData(userId);
+      
+      return {
+        totalMessages: 0,
+        lastMessageTimestamp: 0,
+        messagesPerDay: {},
+        activeChats: 0,
+        firstMessageTimestamp: Timestamp.now(),
+        lastUpdated: Timestamp.now(),
+        respondedMessages: 0,
+        unrespondedMessages: 0,
+        avgResponseTime: 0,
+        agentResponses: 0,
+        humanResponses: 0,
+        messageCategories: {
+          consultas: 0,
+          ventas: 0,
+          soporte: 0,
+          otros: 0
+        },
+        messagesByHour: {},
+        activeByWeekday: {
+          "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0
+        }
+      } as WhatsAppAnalytics;
+    }
+    
+    // Calcular métricas a partir de los mensajes existentes
+    const messagesPerDay: Record<string, number> = {};
+    const messagesByHour: Record<string, number> = {};
+    const activeByWeekday: Record<string, number> = { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0 };
+    const messageCategories = { consultas: 0, ventas: 0, soporte: 0, otros: 0 };
+    
+    let firstMessageTimestamp: Timestamp | null = null;
+    let lastMessageTimestamp = 0;
+    let respondedMessages = 0;
+    let unrespondedMessages = 0;
+    
+    // Conjunto de remitentes únicos para contar chats activos
+    const senders = new Set<string>();
+    
+    // Procesar cada mensaje para calcular métricas
+    messagesSnapshot.forEach(doc => {
+      const message = doc.data();
+      
+      // Añadir remitente para contar chats activos
+      if (message.from) {
+        senders.add(message.from);
       }
-    } as WhatsAppAnalytics;
+      
+      // Fecha del mensaje para agrupar por día
+      let messageDate = new Date();
+      if (message.timestamp) {
+        if (typeof message.timestamp === 'number') {
+          messageDate = new Date(message.timestamp);
+        } else if (message.timestamp.toDate) {
+          messageDate = message.timestamp.toDate();
+        }
+      } else if (message.day && message.month) {
+        // Si no hay timestamp pero hay day y month
+        const currentYear = new Date().getFullYear();
+        messageDate = new Date(currentYear, message.month - 1, message.day);
+      }
+      
+      const dateStr = messageDate.toISOString().split('T')[0];
+      messagesPerDay[dateStr] = (messagesPerDay[dateStr] || 0) + 1;
+      
+      // Hora del día
+      const hour = message.hourOfDay !== undefined 
+        ? message.hourOfDay.toString() 
+        : messageDate.getHours().toString();
+        
+      messagesByHour[hour] = (messagesByHour[hour] || 0) + 1;
+      
+      // Día de la semana
+      const dayOfWeek = messageDate.getDay().toString();
+      activeByWeekday[dayOfWeek] = (activeByWeekday[dayOfWeek] || 0) + 1;
+      
+      // Categoría del mensaje
+      if (message.category) {
+        const category = message.category.toLowerCase();
+        if (category.includes('consulta')) {
+          messageCategories.consultas += 1;
+        } else if (category.includes('venta')) {
+          messageCategories.ventas += 1;
+        } else if (category.includes('soporte')) {
+          messageCategories.soporte += 1;
+        } else {
+          messageCategories.otros += 1;
+        }
+      } else {
+        messageCategories.otros += 1;
+      }
+      
+      // Analizar timestamp para primera/última actividad
+      const messageTimestamp = message.timestamp 
+        ? (typeof message.timestamp === 'number' 
+            ? message.timestamp 
+            : message.timestamp.toMillis ? message.timestamp.toMillis() : Date.now()) 
+        : Date.now();
+        
+      if (!firstMessageTimestamp || messageTimestamp < firstMessageTimestamp.toMillis()) {
+        firstMessageTimestamp = new Timestamp(Math.floor(messageTimestamp / 1000), 0);
+      }
+      
+      if (messageTimestamp > lastMessageTimestamp) {
+        lastMessageTimestamp = messageTimestamp;
+      }
+      
+      // Conteo de mensajes respondidos/sin responder
+      if (message.responded) {
+        respondedMessages += 1;
+      } else {
+        unrespondedMessages += 1;
+      }
+    });
+    
+    // Crear objeto de analytics completo
+    const analyticsData: WhatsAppAnalytics = {
+      totalMessages: messagesSnapshot.size,
+      lastMessageTimestamp,
+      messagesPerDay,
+      activeChats: senders.size,
+      firstMessageTimestamp: firstMessageTimestamp || Timestamp.now(),
+      lastUpdated: Timestamp.now(),
+      respondedMessages,
+      unrespondedMessages,
+      avgResponseTime: 0, // Se podría calcular si hay datos disponibles
+      agentResponses: 0, // Requeriría más análisis de los datos
+      humanResponses: 0, // Requeriría más análisis de los datos
+      messageCategories,
+      messagesByHour,
+      activeByWeekday
+    };
+    
+    console.log("Analytics generados correctamente:", analyticsData);
+    
+    // Guardar estos analytics en el documento de usuario para futuras consultas
+    await updateDoc(userRef, { whatsapp: analyticsData });
+    console.log("Analytics guardados en el documento de usuario");
+    
+    return analyticsData;
   } catch (error) {
     console.error("Error al obtener análisis de WhatsApp:", error);
     return null;

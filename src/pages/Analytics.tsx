@@ -61,24 +61,35 @@ const Analytics = () => {
         // Verificar la estructura de datos
         console.log("Verificando estructura de WhatsApp para userId:", currentUser.uid);
         
-        // Comprobar si el documento existe directamente
-        const docRef = doc(db, 'users', currentUser.uid);
-        const docSnap = await getDoc(docRef);
+        // Comprobar si tenemos mensajes en la colección whatsapp
+        const whatsappCollectionRef = collection(db, 'users', currentUser.uid, 'whatsapp');
+        const messagesQuery = query(whatsappCollectionRef, limit(5));
+        const messagesSnap = await getDocs(messagesQuery);
         
-        console.log("Documento usuario existe:", docSnap.exists());
-        if (docSnap.exists()) {
-          const userData = docSnap.data();
+        console.log(`Encontrados ${messagesSnap.size} mensajes en la colección whatsapp`);
+        if (!messagesSnap.empty) {
+          console.log("Ejemplos de mensajes:");
+          messagesSnap.forEach(doc => {
+            console.log("- Mensaje:", doc.id, doc.data());
+          });
+        }
+        
+        // También verificar si tenemos el campo whatsapp en el documento usuario
+        const userRef = doc(db, 'users', currentUser.uid);
+        const userDoc = await getDoc(userRef);
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
           console.log("Datos del documento usuario:", userData);
           
-          // Verificar si tiene el campo whatsapp
           if (userData.whatsapp) {
-            console.log("Datos de WhatsApp encontrados:", userData.whatsapp);
+            console.log("Campo whatsapp encontrado en el documento usuario:", userData.whatsapp);
           } else {
-            console.log("No se encontró el campo whatsapp en el documento del usuario");
+            console.log("No se encontró el campo whatsapp en el documento usuario");
           }
         }
         
-        // Usar las funciones de whatsappService
+        // Usar las funciones de whatsappService para obtener los datos completos
         const data = await getWhatsAppAnalytics(currentUser.uid);
         console.log("Datos obtenidos después de getWhatsAppAnalytics:", data);
         
