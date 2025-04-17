@@ -14,11 +14,12 @@ Datos de usuario:
 - `phoneNumber`: Número de teléfono
 - `createdAt`: Fecha de creación de la cuenta
 - `lastLogin`: Último inicio de sesión
+- `whatsapp`: Objeto que contiene los datos de WhatsApp (ver estructura abajo)
 
-### WhatsApp 
-**Base Path**: `/users/{userId}/whatsapp`
+### Datos de WhatsApp
+**Estructura dentro del documento usuario**: `users/{userId}.whatsapp`
 
-Documento que contiene los datos del mensaje de WhatsApp directamente:
+Campo que contiene los datos del mensaje de WhatsApp directamente:
 - `messageId`: ID del mensaje de WhatsApp
 - `body`: Contenido del mensaje
 - `from`: Nombre del remitente
@@ -37,6 +38,24 @@ Documento que contiene los datos del mensaje de WhatsApp directamente:
 - `hourOfDay`: Hora del día (0-23)
 - `day`: Día del mes
 - `month`: Mes del año (1-12)
+- `totalMessages`: Número total de mensajes
+- `lastMessageTimestamp`: Marca de tiempo del último mensaje
+- `messagesPerDay`: Objeto con conteo de mensajes por día (formato: `{"YYYY-MM-DD": count}`)
+- `activeChats`: Número de conversaciones activas
+- `firstMessageTimestamp`: Marca de tiempo del primer mensaje
+- `lastUpdated`: Última actualización de los datos
+- `respondedMessages`: Total de mensajes respondidos
+- `unrespondedMessages`: Total de mensajes sin responder
+- `avgResponseTime`: Tiempo promedio de respuesta (en milisegundos)
+- `agentResponses`: Número de respuestas por IA
+- `humanResponses`: Número de respuestas por humanos
+- `messageCategories`: Objeto con distribución por categoría
+  - `consultas`: Número de consultas
+  - `ventas`: Número de ventas
+  - `soporte`: Número de soportes
+  - `otros`: Otros tipos
+- `messagesByHour`: Objeto con distribución por hora (formato: `{"0": count, "1": count, ..., "23": count}`)
+- `activeByWeekday`: Actividad por día de la semana (formato: `{"0": count, "1": count, ..., "6": count}`)
 
 ### Mensajes sin asignar
 **Base Path**: `/unassigned_messages/{messageId}`
@@ -56,66 +75,72 @@ Para que n8n inserte correctamente los datos en Firebase, debe seguir los siguie
    - Buscar el usuario correspondiente mediante una consulta a `/users` con `where("phoneNumber", "==", cleanPhoneNumber)`
 
 3. **Guardado de Mensajes**:
-   - Si se encuentra un usuario: Guardar en `/users/{userId}/whatsapp` directamente
+   - Si se encuentra un usuario: Guardar en `/users/{userId}` actualizando el campo `whatsapp`
    - Si no se encuentra: Guardar en `/unassigned_messages/{auto-id}`
 
 4. **Ejemplo de estructura JSON para inserción**:
    ```json
    {
      "fields": {
-       "messageId": {
-         "stringValue": "ID_DEL_MENSAJE"
-       },
-       "body": {
-         "stringValue": "TEXTO_DEL_MENSAJE"
-       },
-       "from": {
-         "stringValue": "NOMBRE_REMITENTE"
-       },
-       "to": {
-         "stringValue": "NUMERO_DESTINATARIO"
-       },
-       "timestamp": {
-         "integerValue": 1654321098765
-       },
-       "isFromMe": {
-         "booleanValue": false
-       },
-       "senderName": {
-         "stringValue": "NOMBRE_NOTIFICACIÓN"
-       },
-       "messageType": {
-         "stringValue": "chat"
-       },
-       "category": {
-         "stringValue": "CATEGORÍA_MENSAJE"
-       },
-       "responded": {
-         "booleanValue": false
-       },
-       "responseId": {
-         "nullValue": null
-       },
-       "responseTimestamp": {
-         "nullValue": null
-       },
-       "agentResponse": {
-         "booleanValue": false
-       },
-       "responseTime": {
-         "nullValue": null
-       },
-       "minutesOfDay": {
-         "integerValue": 30
-       },
-       "hourOfDay": {
-         "integerValue": 15
-       },
-       "day": {
-         "integerValue": 10
-       },
-       "month": {
-         "integerValue": 6
+       "whatsapp": {
+         "mapValue": {
+           "fields": {
+             "messageId": {
+               "stringValue": "ID_DEL_MENSAJE"
+             },
+             "body": {
+               "stringValue": "TEXTO_DEL_MENSAJE"
+             },
+             "from": {
+               "stringValue": "NOMBRE_REMITENTE"
+             },
+             "to": {
+               "stringValue": "NUMERO_DESTINATARIO"
+             },
+             "timestamp": {
+               "integerValue": 1654321098765
+             },
+             "isFromMe": {
+               "booleanValue": false
+             },
+             "senderName": {
+               "stringValue": "NOMBRE_NOTIFICACIÓN"
+             },
+             "messageType": {
+               "stringValue": "chat"
+             },
+             "category": {
+               "stringValue": "CATEGORÍA_MENSAJE"
+             },
+             "responded": {
+               "booleanValue": false
+             },
+             "responseId": {
+               "nullValue": null
+             },
+             "responseTimestamp": {
+               "nullValue": null
+             },
+             "agentResponse": {
+               "booleanValue": false
+             },
+             "responseTime": {
+               "nullValue": null
+             },
+             "minutesOfDay": {
+               "integerValue": 30
+             },
+             "hourOfDay": {
+               "integerValue": 15
+             },
+             "day": {
+               "integerValue": 10
+             },
+             "month": {
+               "integerValue": 6
+             }
+           }
+         }
        }
      }
    }
@@ -123,7 +148,7 @@ Para que n8n inserte correctamente los datos en Firebase, debe seguir los siguie
 
 ## Visualización en Aplicación
 
-Los datos almacenados en el documento `whatsapp` se utilizan para mostrar:
+Los datos almacenados en el campo `whatsapp` del documento usuario se utilizan para mostrar:
 
 1. **Resumen General**:
    - Total de mensajes 

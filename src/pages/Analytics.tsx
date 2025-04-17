@@ -62,16 +62,21 @@ const Analytics = () => {
         console.log("Verificando estructura de WhatsApp para userId:", currentUser.uid);
         
         // Comprobar si el documento existe directamente
-        const docRef = doc(db, 'users', currentUser.uid, 'whatsapp');
+        const docRef = doc(db, 'users', currentUser.uid);
         const docSnap = await getDoc(docRef);
         
-        console.log("Documento whatsapp existe:", docSnap.exists());
+        console.log("Documento usuario existe:", docSnap.exists());
         if (docSnap.exists()) {
-          console.log("Datos del documento whatsapp:", docSnap.data());
+          const userData = docSnap.data();
+          console.log("Datos del documento usuario:", userData);
+          
+          // Verificar si tiene el campo whatsapp
+          if (userData.whatsapp) {
+            console.log("Datos de WhatsApp encontrados:", userData.whatsapp);
+          } else {
+            console.log("No se encontró el campo whatsapp en el documento del usuario");
+          }
         }
-        
-        // Ya no es necesario verificar una colección de mensajes separada porque 
-        // los datos del mensaje están en el documento whatsapp directamente
         
         // Usar las funciones de whatsappService
         const data = await getWhatsAppAnalytics(currentUser.uid);
