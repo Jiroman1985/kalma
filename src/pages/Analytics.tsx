@@ -31,19 +31,9 @@ import {
 } from "recharts";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, collection, query, getDocs, orderBy, limit } from "firebase/firestore";
+import { doc, getDoc, collection, query, getDocs, orderBy, limit, Timestamp } from "firebase/firestore";
 import { useToast } from "@/components/ui/use-toast";
-import { getWhatsAppAnalytics, getMessagesPerDay } from "@/lib/whatsappService";
-
-// Definir tipo para los datos de análisis de WhatsApp
-interface WhatsAppAnalytics {
-  totalMessages: number;
-  lastMessageTimestamp: number;
-  messagesPerDay: Record<string, number>;
-  activeChats: number;
-  firstMessageTimestamp: Date;
-  lastUpdated: Date;
-}
+import { getWhatsAppAnalytics, getMessagesPerDay, WhatsAppAnalytics } from "@/lib/whatsappService";
 
 // Colores para gráficos
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
@@ -54,12 +44,7 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
   const [whatsappAnalytics, setWhatsappAnalytics] = useState<WhatsAppAnalytics | null>(null);
   const [weeklyData, setWeeklyData] = useState<any[]>([]);
-  const [categoryData, setCategoryData] = useState<any[]>([
-    { name: 'Consultas', value: 45 },
-    { name: 'Ventas', value: 30 },
-    { name: 'Soporte', value: 15 },
-    { name: 'Otros', value: 10 }
-  ]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
   const [hourlyData, setHourlyData] = useState<any[]>([]);
 
   // Cargar datos de análisis de WhatsApp
@@ -90,9 +75,47 @@ const Analytics = () => {
           });
           setWeeklyData(weeklyChartData);
 
-          // Simular datos horarios basados en patrones típicos
-          const hourlyChartData = generateHourlyData(data.totalMessages || 0);
-          setHourlyData(hourlyChartData);
+          // Obtener datos de categorías desde Firebase
+          if (data.messageCategories) {
+            setCategoryData([
+              { name: 'Consultas', value: data.messageCategories.consultas || 0 },
+              { name: 'Ventas', value: data.messageCategories.ventas || 0 },
+              { name: 'Soporte', value: data.messageCategories.soporte || 0 },
+              { name: 'Otros', value: data.messageCategories.otros || 0 }
+            ]);
+          } else {
+            // Datos predeterminados si no hay categorías
+            setCategoryData([
+              { name: 'Consultas', value: 0 },
+              { name: 'Ventas', value: 0 },
+              { name: 'Soporte', value: 0 },
+              { name: 'Otros', value: 0 }
+            ]);
+          }
+
+          // Obtener datos horarios desde Firebase
+          if (data.messagesByHour) {
+            const hourlyChartData = Object.keys(data.messagesByHour)
+              .sort((a, b) => parseInt(a) - parseInt(b))
+              .map(hour => ({
+                hora: `${hour}:00`,
+                conversaciones: data.messagesByHour![hour] || 0
+              }));
+              
+            // Asegurar que todas las horas estén representadas (0-23)
+            const completeHourlyData = Array.from({ length: 24 }, (_, i) => {
+              const existingData = hourlyChartData.find(entry => entry.hora === `${i}:00`);
+              return existingData || { 
+                hora: `${i}:00`,
+                conversaciones: 0
+              };
+            });
+            
+            setHourlyData(completeHourlyData);
+          } else {
+            // Si no hay datos horarios, usar la función de generación simulada existente
+            setHourlyData(generateHourlyData(data.totalMessages || 0));
+          }
         } else {
           // Si no hay datos, inicializar con valores predeterminados
           setWeeklyData(getLastNDays(7).map(day => ({
@@ -100,6 +123,14 @@ const Analytics = () => {
             conversaciones: 0,
             usuarios: 0
           })));
+          
+          setCategoryData([
+            { name: 'Consultas', value: 0 },
+            { name: 'Ventas', value: 0 },
+            { name: 'Soporte', value: 0 },
+            { name: 'Otros', value: 0 }
+          ]);
+          
           setHourlyData(generateHourlyData(0));
         }
       } catch (error) {
@@ -154,6 +185,25 @@ const Analytics = () => {
     }));
   };
 
+  // Helper para formatear fecha desde Timestamp o Date
+  const formatDate = (timestamp: any): string => {
+    if (timestamp) {
+      // Si es un Timestamp de Firestore
+      if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+        return timestamp.toDate().toLocaleDateString();
+      }
+      // Si es un número (timestamp en milisegundos)
+      if (typeof timestamp === 'number') {
+        return new Date(timestamp).toLocaleDateString();
+      }
+      // Si ya es un objeto Date
+      if (timestamp instanceof Date) {
+        return timestamp.toLocaleDateString();
+      }
+    }
+    return 'inicio';
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -181,7 +231,7 @@ const Analytics = () => {
             <div className="text-2xl font-bold">{whatsappAnalytics?.totalMessages || 0}</div>
             <p className="text-xs text-muted-foreground">
               Desde {whatsappAnalytics?.firstMessageTimestamp 
-                ? new Date(whatsappAnalytics.firstMessageTimestamp).toLocaleDateString() 
+                ? formatDate(whatsappAnalytics.firstMessageTimestamp) 
                 : 'inicio'}
             </p>
           </CardContent>

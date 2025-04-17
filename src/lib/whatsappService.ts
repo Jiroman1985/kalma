@@ -27,6 +27,15 @@ export interface WhatsAppMessage {
   senderName: string;
   messageType: string;
   storedAt?: Timestamp;
+  // Campos adicionales para respuestas y categorización
+  category?: string;             // Categoría: consulta, venta, soporte, otro
+  responded?: boolean;           // Si el mensaje ha sido respondido
+  responseId?: string;           // ID del mensaje de respuesta (si existe)
+  responseTimestamp?: number;    // Cuándo fue respondido
+  agentResponse?: boolean;       // Si fue respondido por el agente IA
+  responseTime?: number;         // Tiempo que tardó en ser respondido (ms)
+  hourOfDay?: number;            // Hora del día en que se recibió (0-23)
+  originalMessageId?: string;    // Para respuestas, el ID del mensaje original
 }
 
 // Define la interfaz para los análisis de WhatsApp
@@ -37,6 +46,20 @@ export interface WhatsAppAnalytics {
   activeChats: number;
   firstMessageTimestamp?: Timestamp;
   lastUpdated?: Timestamp;
+  // Campos adicionales para analytics extendidos
+  respondedMessages?: number;                // Total de mensajes respondidos
+  unrespondedMessages?: number;              // Total sin responder
+  avgResponseTime?: number;                  // Tiempo promedio de respuesta (ms)
+  agentResponses?: number;                   // Respuestas por IA
+  humanResponses?: number;                   // Respuestas humanas
+  messageCategories?: {                      // Distribución por categoría
+    consultas: number;
+    ventas: number;
+    soporte: number;
+    otros: number;
+  };
+  messagesByHour?: Record<string, number>;   // Distribución por hora
+  activeByWeekday?: Record<string, number>;  // Actividad por día de la semana
 }
 
 /**
@@ -96,7 +119,23 @@ export const initializeWhatsAppData = async (userId: string) => {
         messagesPerDay: {},
         activeChats: 0,
         firstMessageTimestamp: serverTimestamp(),
-        lastUpdated: serverTimestamp()
+        lastUpdated: serverTimestamp(),
+        // Campos adicionales
+        respondedMessages: 0,
+        unrespondedMessages: 0,
+        avgResponseTime: 0,
+        agentResponses: 0,
+        humanResponses: 0,
+        messageCategories: {
+          consultas: 0,
+          ventas: 0,
+          soporte: 0,
+          otros: 0
+        },
+        messagesByHour: {},
+        activeByWeekday: {
+          "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0
+        }
       });
       
       console.log("Estructura de datos de WhatsApp inicializada para el usuario:", userId);
