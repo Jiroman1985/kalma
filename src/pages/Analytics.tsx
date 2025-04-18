@@ -66,8 +66,8 @@ const Analytics = () => {
           return;
         }
 
-        // Obtener datos de análisis de WhatsApp
-        const whatsappData = await getWhatsAppAnalytics(currentUser.uid);
+        // Obtener datos de análisis de WhatsApp - Forzar regeneración
+        const whatsappData = await getWhatsAppAnalytics(currentUser.uid, true);
         console.log("WhatsApp data:", whatsappData);
 
         // Obtener estadísticas por día

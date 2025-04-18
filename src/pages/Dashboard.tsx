@@ -14,7 +14,9 @@ import {
   getWeeklyStats, 
   getUserStats, 
   calculateAverageResponseTime,
-  calculateTimeSaved
+  calculateTimeSaved,
+  getWhatsAppAnalytics,
+  getMessagesPerDay
 } from "@/lib/whatsappService";
 
 const Dashboard = () => {
@@ -36,6 +38,7 @@ const Dashboard = () => {
     timeChange: "0min",
     rateChange: "+0%"
   });
+  const [messagesPerDay, setMessagesPerDay] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -45,6 +48,14 @@ const Dashboard = () => {
           setLoading(false);
           return;
         }
+
+        // Forzar regeneración de Analytics desde los mensajes reales
+        const whatsappData = await getWhatsAppAnalytics(currentUser.uid, true);
+        console.log("WhatsApp data:", whatsappData);
+
+        // Obtener estadísticas por día
+        const messagesPerDayData = await getMessagesPerDay(currentUser.uid, 30);
+        setMessagesPerDay(messagesPerDayData);
 
         // Obtener estadísticas semanales
         const weeklyStats = await getWeeklyStats(currentUser.uid);

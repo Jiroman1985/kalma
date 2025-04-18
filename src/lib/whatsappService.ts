@@ -244,21 +244,21 @@ export const getWhatsAppMessages = async (userId: string, limitCount: number = 5
 /**
  * Obtiene los análisis de WhatsApp de un usuario
  */
-export const getWhatsAppAnalytics = async (userId: string) => {
+export const getWhatsAppAnalytics = async (userId: string, forceRegenerate: boolean = true) => {
   try {
-    // 1. Primero intentamos obtener el campo whatsapp del documento usuario
+    // Referencia al documento de usuario
     const userRef = doc(db, 'users', userId);
     const userDoc = await getDoc(userRef);
     
     console.log("Intentando obtener analytics del usuario:", userId);
     
-    // Verificar si existe el campo whatsapp en el documento usuario y si contiene estructura de analytics
-    if (userDoc.exists() && userDoc.data().whatsapp && userDoc.data().whatsapp.totalMessages !== undefined) {
+    // Verificar si existe el campo whatsapp en el documento usuario y si no se solicitó regeneración
+    if (!forceRegenerate && userDoc.exists() && userDoc.data().whatsapp && userDoc.data().whatsapp.totalMessages !== undefined) {
       console.log("Analytics encontrados en el campo whatsapp del usuario");
       return userDoc.data().whatsapp as WhatsAppAnalytics;
     }
     
-    // 2. Si no hay datos en el campo whatsapp, vamos a generarlos a partir de los mensajes
+    // Si tenemos que regenerar o no existen datos, generarlos a partir de los mensajes
     console.log("Generando analytics a partir de los mensajes...");
     const whatsappCollectionRef = collection(db, 'users', userId, 'whatsapp');
     const messagesQuery = query(whatsappCollectionRef);
@@ -270,10 +270,8 @@ export const getWhatsAppAnalytics = async (userId: string) => {
     if (messagesSnapshot.empty) {
       console.log("No hay mensajes, creando estructura de analytics vacía");
       
-      // Si no existe el campo whatsapp o está vacío, crearla con valores por defecto
-      await initializeWhatsAppData(userId);
-      
-      return {
+      // Estructura básica de analytics vacíos
+      const emptyAnalytics = {
         totalMessages: 0,
         lastMessageTimestamp: 0,
         messagesPerDay: {},
@@ -296,6 +294,11 @@ export const getWhatsAppAnalytics = async (userId: string) => {
           "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0
         }
       } as WhatsAppAnalytics;
+      
+      // Guardar analytics vacíos en el documento usuario
+      await updateDoc(userRef, { whatsapp: emptyAnalytics });
+      
+      return emptyAnalytics;
     }
     
     // Calcular métricas a partir de los mensajes existentes
@@ -312,9 +315,15 @@ export const getWhatsAppAnalytics = async (userId: string) => {
     // Conjunto de remitentes únicos para contar chats activos
     const senders = new Set<string>();
     
+    // Depuración para entender cada mensaje
+    let msgCount = 0;
+    
     // Procesar cada mensaje para calcular métricas
     messagesSnapshot.forEach(doc => {
+      msgCount++;
       const message = doc.data();
+      
+      console.log(`Procesando mensaje ${msgCount}: ID=${doc.id}`, message);
       
       // Añadir remitente para contar chats activos
       if (message.from) {
