@@ -49,7 +49,7 @@ const Conversations = () => {
       try {
         // Usar la nueva función que obtiene mensajes respondidos por agente IA
         const respondedByAgentMessages = await getAgentRespondedMessages(currentUser.uid, 100);
-        console.log(`Se encontraron ${respondedByAgentMessages.length} mensajes respondidos por el agente IA`);
+        console.log(`Se encontraron ${respondedByAgentMessages.length} mensajes respondidos`);
         
         if (respondedByAgentMessages.length === 0) {
           setConversations([]);
@@ -218,7 +218,7 @@ const Conversations = () => {
                       <span 
                         className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800"
                       >
-                        Respondido por IA
+                        Respondido
                       </span>
                     </div>
                   </CardFooter>
@@ -230,7 +230,7 @@ const Conversations = () => {
               <MessageSquare className="mx-auto h-8 w-8 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No se encontraron conversaciones</h3>
               <p className="mt-1 text-sm text-gray-500">
-                No hay conversaciones respondidas por el agente IA que coincidan con tu búsqueda.
+                No hay conversaciones respondidas que coincidan con tu búsqueda.
               </p>
             </div>
           )}

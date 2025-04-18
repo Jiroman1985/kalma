@@ -695,21 +695,19 @@ export const getAgentRespondedMessages = async (userId: string, limitCount: numb
     // Obtener documentos de la colección "whatsapp" para el usuario específico
     const whatsappCollectionRef = collection(db, 'users', userId, 'whatsapp');
     
-    // Crear consulta para obtener sólo mensajes respondidos por el agente
-    // Nota: Si necesitamos componer consultas complejas, podemos hacerlo por pasos
-    // Primero filtramos los que han sido respondidos
+    // Crear consulta para obtener sólo mensajes respondidos
+    // Nota: solo filtramos por responded=true ya que este es el indicador de que el agente ha contestado
     const q = query(
       whatsappCollectionRef, 
       where("responded", "==", true),
-      where("agentResponse", "==", true),
       orderBy("timestamp", "desc"), 
       limit(limitCount)
     );
     
-    console.log("Consultando mensajes respondidos por agente IA para userId:", userId);
+    console.log("Consultando mensajes respondidos para userId:", userId);
     const querySnapshot = await getDocs(q);
     
-    console.log(`Se encontraron ${querySnapshot.size} mensajes respondidos por el agente IA`);
+    console.log(`Se encontraron ${querySnapshot.size} mensajes respondidos`);
     
     const messages: WhatsAppMessage[] = [];
     
@@ -729,7 +727,7 @@ export const getAgentRespondedMessages = async (userId: string, limitCount: numb
         responded: true,
         responseId: data.responseId || null,
         responseTime: data.responseTime || null,
-        agentResponse: true,
+        agentResponse: data.agentResponse || false,
         hourOfDay: data.hourOfDay || 0,
         day: data.day || 1,
         month: data.month || 1,
