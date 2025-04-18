@@ -261,7 +261,7 @@ const Analytics = () => {
         <div className="bg-white p-4 rounded-lg shadow-md">
           <h3 className="text-lg font-semibold mb-1 text-gray-700">Usuarios Atendidos</h3>
           <p className="text-3xl font-bold text-green-600">{userStats.uniqueUsers}</p>
-          <p className="text-sm text-gray-500">Chats activos: {userStats.activeChats}</p>
+          <p className="text-sm text-gray-500">Usuarios con respuesta: {Math.round((userStats.uniqueUsers/userStats.activeChats)*100) || 0}%</p>
         </div>
         
         <div className="bg-white p-4 rounded-lg shadow-md">

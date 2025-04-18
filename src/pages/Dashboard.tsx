@@ -149,7 +149,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-muted-foreground">{compareStats.usersChange} respecto al mes pasado</p>
+            <p className="text-xs text-muted-foreground">Usuarios con respuesta</p>
           </CardContent>
         </Card>
         

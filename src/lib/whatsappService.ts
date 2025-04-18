@@ -565,11 +565,34 @@ export const getWeeklyStats = async (userId: string) => {
 export const getUserStats = async (userId: string) => {
   try {
     const analytics = await getWhatsAppAnalytics(userId);
-    
     if (!analytics) return { uniqueUsers: 0, activeChats: 0, responseRate: 0 };
     
-    // Número de usuarios únicos atendidos (aproximado por activeChats)
-    const uniqueUsers = analytics.activeChats || 0;
+    // Necesitamos los mensajes reales para contar usuarios atendidos
+    const whatsappCollectionRef = collection(db, 'users', userId, 'whatsapp');
+    const messagesQuery = query(whatsappCollectionRef);
+    const messagesSnapshot = await getDocs(messagesQuery);
+    
+    // Conjunto para almacenar remitentes únicos con respuestas
+    const respondedSenders = new Set<string>();
+    const allSenders = new Set<string>();
+    
+    // Contar remitentes únicos con mensajes respondidos
+    messagesSnapshot.forEach(doc => {
+      const message = doc.data();
+      if (message.from) {
+        allSenders.add(message.from);
+        
+        if (message.responded === true) {
+          respondedSenders.add(message.from);
+        }
+      }
+    });
+    
+    // Total de chats activos (todos los remitentes únicos)
+    const activeChats = allSenders.size;
+    
+    // Usuarios atendidos (remitentes con al menos un mensaje respondido)
+    const uniqueUsers = respondedSenders.size;
     
     // Tasa de respuesta (mensajes respondidos / total mensajes)
     const totalMessages = analytics.totalMessages || 0;
@@ -578,7 +601,7 @@ export const getUserStats = async (userId: string) => {
     
     return {
       uniqueUsers,
-      activeChats: uniqueUsers,
+      activeChats,
       responseRate
     };
   } catch (error) {
