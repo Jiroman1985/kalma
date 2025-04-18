@@ -74,10 +74,30 @@ const Conversations = () => {
         const conversationsData: Conversation[] = [];
         
         for (const message of respondedByAgentMessages) {
-          // Buscar la respuesta a este mensaje (mensaje con originalMessageId igual al messageId del mensaje actual)
-          const response = allMessages.find(msg => 
+          // Buscar la respuesta como mensaje separado si existe
+          let responseMessage = allMessages.find(msg => 
             msg.originalMessageId === message.messageId
           );
+          
+          // Si no hay mensaje de respuesta separado pero existe texto de respuesta en el mensaje original
+          const hasAgentResponseInSameDoc = typeof message.agentResponseText === 'string' && message.agentResponseText.trim().length > 0;
+          
+          // Si tenemos respuesta en el mismo documento, crear un mensaje simulado de respuesta
+          if (!responseMessage && hasAgentResponseInSameDoc) {
+            responseMessage = {
+              id: `${message.id}_response`,
+              messageId: `${message.id}_response`,
+              body: message.agentResponseText || '',
+              from: message.to, // Invertimos remitente y destinatario
+              to: message.from,
+              timestamp: message.timestamp, // Usamos el mismo timestamp por ahora
+              isFromMe: true,
+              senderName: 'Asistente IA',
+              messageType: 'chat',
+              responded: false,
+              originalMessageId: message.messageId
+            } as WhatsAppMessage;
+          }
           
           if (message.from && message.body) {
             conversationsData.push({
@@ -85,7 +105,7 @@ const Conversations = () => {
               user: message.senderName || "Usuario",
               phone: message.from,
               originalMessage: message,
-              responseMessage: response
+              responseMessage: responseMessage
             });
           }
         }

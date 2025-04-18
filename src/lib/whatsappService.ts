@@ -33,9 +33,13 @@ export interface WhatsAppMessage {
   responseId?: string;           // ID del mensaje de respuesta (si existe)
   responseTimestamp?: number;    // Cuándo fue respondido
   agentResponse?: boolean;       // Si fue respondido por el agente IA
-  responseTime?: number;         // Tiempo que tardó en ser respondido (ms)
+  agentResponseText?: string;    // Texto de respuesta del agente (si existe directamente en el documento)
+  responseTime?: number | string; // Tiempo que tardó en ser respondido (ms o formato de fecha)
   hourOfDay?: number;            // Hora del día en que se recibió (0-23)
   originalMessageId?: string;    // Para respuestas, el ID del mensaje original
+  day?: number;                  // Día del mes
+  month?: number;                // Mes del año
+  minutesOfDay?: number;         // Minutos de la hora (0-59)
 }
 
 // Define la interfaz para los análisis de WhatsApp
@@ -696,7 +700,6 @@ export const getAgentRespondedMessages = async (userId: string, limitCount: numb
     const whatsappCollectionRef = collection(db, 'users', userId, 'whatsapp');
     
     // Crear consulta para obtener sólo mensajes respondidos
-    // Nota: solo filtramos por responded=true ya que este es el indicador de que el agente ha contestado
     const q = query(
       whatsappCollectionRef, 
       where("responded", "==", true),
@@ -713,26 +716,38 @@ export const getAgentRespondedMessages = async (userId: string, limitCount: numb
     
     querySnapshot.forEach(doc => {
       const data = doc.data();
-      messages.push({
-        id: doc.id,
-        messageId: data.messageId || doc.id,
-        body: data.body || '',
-        from: data.from || '',
-        to: data.to || '',
-        timestamp: data.timestamp || 0,
-        isFromMe: data.isFromMe || false,
-        senderName: data.senderName || '',
-        messageType: data.messageType || 'chat',
-        category: data.category || 'otros',
-        responded: true,
-        responseId: data.responseId || null,
-        responseTime: data.responseTime || null,
-        agentResponse: data.agentResponse || false,
-        hourOfDay: data.hourOfDay || 0,
-        day: data.day || 1,
-        month: data.month || 1,
-        minutesOfDay: data.minutesOfDay || 0
-      } as WhatsAppMessage);
+      console.log("Mensaje respondido encontrado:", doc.id, data);
+      
+      // Comprobar si tiene agentResponse como texto o como booleano
+      const hasAgentResponse = typeof data.agentResponse === 'string' && data.agentResponse.trim().length > 0;
+      
+      // Si tiene datos adecuados, agregarlo a la lista
+      if (data.from && data.body) {
+        const message: WhatsAppMessage = {
+          id: doc.id,
+          messageId: data.messageId || doc.id,
+          body: data.body || '',
+          from: data.from || '',
+          to: data.to || '',
+          timestamp: data.timestamp || 0,
+          isFromMe: data.isFromMe || false,
+          senderName: data.senderName || '',
+          messageType: data.messageType || 'chat',
+          category: data.category || 'otros',
+          responded: true,
+          responseId: data.responseId || null,
+          responseTime: data.responseTime || null,
+          agentResponse: hasAgentResponse || data.agentResponse === true,
+          hourOfDay: data.hourOfDay || 0,
+          day: data.day || 1,
+          month: data.month || 1,
+          minutesOfDay: data.minutesOfDay || 0,
+          // Guardar la respuesta textual del agente si existe
+          agentResponseText: typeof data.agentResponse === 'string' ? data.agentResponse : ''
+        };
+        
+        messages.push(message);
+      }
     });
     
     return messages;
