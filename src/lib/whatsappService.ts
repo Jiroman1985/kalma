@@ -392,6 +392,7 @@ export const getWhatsAppAnalytics = async (userId: string, forceRegenerate: bool
       // Conteo de mensajes respondidos/sin responder
       if (message.responded) {
         respondedMessages += 1;
+        console.log(`Mensaje ${doc.id} de ${message.from} marcado como respondido`);
       } else {
         unrespondedMessages += 1;
       }
@@ -572,6 +573,8 @@ export const getUserStats = async (userId: string) => {
     const messagesQuery = query(whatsappCollectionRef);
     const messagesSnapshot = await getDocs(messagesQuery);
     
+    console.log(`Total de mensajes para analizar usuarios atendidos: ${messagesSnapshot.size}`);
+    
     // Conjunto para almacenar remitentes únicos con respuestas
     const respondedSenders = new Set<string>();
     const allSenders = new Set<string>();
@@ -581,12 +584,17 @@ export const getUserStats = async (userId: string) => {
       const message = doc.data();
       if (message.from) {
         allSenders.add(message.from);
+        console.log(`Remitente: ${message.from}, Respondido: ${message.responded}`);
         
         if (message.responded === true) {
           respondedSenders.add(message.from);
+          console.log(`✅ Agregado remitente respondido: ${message.from}`);
         }
       }
     });
+    
+    console.log(`Todos los remitentes únicos: [${Array.from(allSenders).join(', ')}], Total: ${allSenders.size}`);
+    console.log(`Remitentes con respuesta: [${Array.from(respondedSenders).join(', ')}], Total: ${respondedSenders.size}`);
     
     // Total de chats activos (todos los remitentes únicos)
     const activeChats = allSenders.size;
@@ -598,6 +606,8 @@ export const getUserStats = async (userId: string) => {
     const totalMessages = analytics.totalMessages || 0;
     const respondedMessages = analytics.respondedMessages || 0;
     const responseRate = totalMessages > 0 ? Math.round((respondedMessages / totalMessages) * 100) : 0;
+    
+    console.log(`Estadísticas finales - Usuarios atendidos: ${uniqueUsers}, Chats activos: ${activeChats}, Tasa de respuesta: ${responseRate}%`);
     
     return {
       uniqueUsers,
