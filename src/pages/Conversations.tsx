@@ -1,74 +1,132 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Card, 
   CardContent, 
   CardHeader, 
   CardTitle,
-  CardDescription 
+  CardDescription,
+  CardFooter
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, User, Calendar, Clock, Filter } from "lucide-react";
+import { Search, MessageSquare, User, Calendar, Clock, Filter, MessageCircle, Bot } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { db, auth } from "@/lib/firebase";
+import { 
+  collection, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy, 
+  Timestamp 
+} from "firebase/firestore";
+import { WhatsAppMessage, getAgentRespondedMessages } from "@/lib/whatsappService";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
-// Datos de ejemplo para conversaciones
-const conversationsData = [
-  {
-    id: 1,
-    user: "Juan Pérez",
-    phone: "+34612345678",
-    lastMessage: "¿Cuál es el horario de atención?",
-    date: "2025-04-15",
-    time: "10:23",
-    status: "respondido"
-  },
-  {
-    id: 2,
-    user: "María López",
-    phone: "+34698765432",
-    lastMessage: "Necesito información sobre el producto X",
-    date: "2025-04-15",
-    time: "11:45",
-    status: "respondido"
-  },
-  {
-    id: 3,
-    user: "Carlos Rodríguez",
-    phone: "+34634567890",
-    lastMessage: "¿Tienen disponibilidad para una reunión mañana?",
-    date: "2025-04-14",
-    time: "17:12",
-    status: "pendiente"
-  },
-  {
-    id: 4,
-    user: "Laura Martínez",
-    phone: "+34654321098",
-    lastMessage: "Gracias por la información",
-    date: "2025-04-14",
-    time: "16:05",
-    status: "respondido"
-  },
-  {
-    id: 5,
-    user: "Antonio Sánchez",
-    phone: "+34678901234",
-    lastMessage: "¿Cuál es el precio del servicio premium?",
-    date: "2025-04-13",
-    time: "09:30",
-    status: "respondido"
-  }
-];
+interface Conversation {
+  id: string;
+  user: string;
+  phone: string;
+  originalMessage: WhatsAppMessage;
+  responseMessage?: WhatsAppMessage;
+}
 
 const Conversations = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [conversations, setConversations] = useState(conversationsData);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { currentUser } = useAuth();
 
-  const filteredConversations = conversations.filter(conversation => 
+  useEffect(() => {
+    const fetchConversations = async () => {
+      if (!currentUser) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        // Usar la nueva función que obtiene mensajes respondidos por agente IA
+        const respondedByAgentMessages = await getAgentRespondedMessages(currentUser.uid, 100);
+        console.log(`Se encontraron ${respondedByAgentMessages.length} mensajes respondidos por el agente IA`);
+        
+        if (respondedByAgentMessages.length === 0) {
+          setConversations([]);
+          setLoading(false);
+          return;
+        }
+        
+        // Obtener todos los mensajes para encontrar las respuestas
+        const whatsappCollectionRef = collection(db, 'users', currentUser.uid, 'whatsapp');
+        const messagesQuery = query(whatsappCollectionRef, orderBy("timestamp", "desc"));
+        const messagesSnapshot = await getDocs(messagesQuery);
+        
+        // Extraer los mensajes de respuesta
+        const allMessages: WhatsAppMessage[] = [];
+        messagesSnapshot.forEach(doc => {
+          const message = doc.data() as WhatsAppMessage;
+          message.id = doc.id;
+          allMessages.push(message);
+        });
+        
+        // Crear conversaciones con los mensajes respondidos por agente y sus respuestas
+        const conversationsData: Conversation[] = [];
+        
+        for (const message of respondedByAgentMessages) {
+          // Buscar la respuesta a este mensaje (mensaje con originalMessageId igual al messageId del mensaje actual)
+          const response = allMessages.find(msg => 
+            msg.originalMessageId === message.messageId
+          );
+          
+          if (message.from && message.body) {
+            conversationsData.push({
+              id: message.id,
+              user: message.senderName || "Usuario",
+              phone: message.from,
+              originalMessage: message,
+              responseMessage: response
+            });
+          }
+        }
+        
+        console.log(`Se crearon ${conversationsData.length} conversaciones con mensajes reales`);
+        setConversations(conversationsData);
+      } catch (error) {
+        console.error("Error al cargar conversaciones:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchConversations();
+  }, [currentUser]);
+
+  const filteredConversations = conversations.filter(conversation =>
     conversation.user.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    conversation.lastMessage.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    conversation.originalMessage.body.toLowerCase().includes(searchTerm.toLowerCase()) ||
     conversation.phone.includes(searchTerm)
   );
+
+  // Función para formatear timestamp
+  const formatTimestamp = (timestamp: number | Timestamp | undefined) => {
+    if (!timestamp) return { date: 'Fecha desconocida', time: 'Hora desconocida' };
+    
+    let date: Date;
+    if (typeof timestamp === 'number') {
+      date = new Date(timestamp);
+    } else if (timestamp.toDate) {
+      date = timestamp.toDate();
+    } else {
+      date = new Date();
+    }
+    
+    return {
+      date: format(date, 'yyyy-MM-dd'),
+      time: format(date, 'HH:mm'),
+      formatted: format(date, "d 'de' MMMM, HH:mm", { locale: es })
+    };
+  };
 
   return (
     <div className="space-y-6">
@@ -92,60 +150,92 @@ const Conversations = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
-        {filteredConversations.length > 0 ? (
-          filteredConversations.map((conversation) => (
-            <Card key={conversation.id} className="hover:bg-gray-50 cursor-pointer transition-colors">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
-                    <div className="bg-gray-200 rounded-full p-2">
-                      <User className="h-5 w-5 text-gray-600" />
+      {loading ? (
+        <div className="flex justify-center items-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {filteredConversations.length > 0 ? (
+            filteredConversations.map((conversation) => {
+              const originalTime = formatTimestamp(conversation.originalMessage.timestamp);
+              const responseTime = conversation.responseMessage?.timestamp 
+                ? formatTimestamp(conversation.responseMessage.timestamp) 
+                : null;
+              
+              return (
+                <Card key={conversation.id} className="hover:bg-gray-50 transition-colors">
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2">
+                        <div className="bg-gray-200 rounded-full p-2">
+                          <User className="h-5 w-5 text-gray-600" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base">{conversation.user}</CardTitle>
+                          <CardDescription className="text-xs">{conversation.phone}</CardDescription>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Calendar className="h-3 w-3" />
+                          <span>{originalTime.date}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <Clock className="h-3 w-3" />
+                          <span>{originalTime.time}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <CardTitle className="text-base">{conversation.user}</CardTitle>
-                      <CardDescription className="text-xs">{conversation.phone}</CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent className="space-y-4">
+                    {/* Mensaje original */}
+                    <div className="flex gap-3 items-start bg-gray-50 p-3 rounded-lg">
+                      <MessageCircle className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm text-gray-700">{conversation.originalMessage.body}</p>
+                        <p className="text-xs text-gray-500 mt-1">{originalTime.formatted}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      <Calendar className="h-3 w-3" />
-                      <span>{conversation.date}</span>
+                    
+                    {/* Respuesta del agente */}
+                    {conversation.responseMessage && (
+                      <div className="flex gap-3 items-start bg-green-50 p-3 rounded-lg ml-6">
+                        <Bot className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm text-gray-700">{conversation.responseMessage.body}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {responseTime?.formatted || 'Fecha desconocida'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                  
+                  <CardFooter>
+                    <div className="w-full flex justify-end">
+                      <span 
+                        className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800"
+                      >
+                        Respondido por IA
+                      </span>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                      <Clock className="h-3 w-3" />
-                      <span>{conversation.time}</span>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2 items-start">
-                  <MessageSquare className="h-4 w-4 text-gray-500 mt-0.5 shrink-0" />
-                  <p className="text-sm truncate">{conversation.lastMessage}</p>
-                </div>
-                <div className="flex justify-end mt-2">
-                  <span 
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      conversation.status === "respondido" 
-                        ? "bg-green-100 text-green-800" 
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
-                  >
-                    {conversation.status === "respondido" ? "Respondido" : "Pendiente"}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          <div className="text-center py-10">
-            <MessageSquare className="mx-auto h-8 w-8 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No se encontraron conversaciones</h3>
-            <p className="mt-1 text-sm text-gray-500">No hay conversaciones que coincidan con tu búsqueda.</p>
-          </div>
-        )}
-      </div>
+                  </CardFooter>
+                </Card>
+              );
+            })
+          ) : (
+            <div className="text-center py-10">
+              <MessageSquare className="mx-auto h-8 w-8 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No se encontraron conversaciones</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                No hay conversaciones respondidas por el agente IA que coincidan con tu búsqueda.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

@@ -311,6 +311,8 @@ export const getWhatsAppAnalytics = async (userId: string, forceRegenerate: bool
     let lastMessageTimestamp = 0;
     let respondedMessages = 0;
     let unrespondedMessages = 0;
+    let agentResponses = 0;
+    let humanResponses = 0;
     
     // Conjunto de remitentes únicos para contar chats activos
     const senders = new Set<string>();
@@ -389,14 +391,43 @@ export const getWhatsAppAnalytics = async (userId: string, forceRegenerate: bool
         lastMessageTimestamp = messageTimestamp;
       }
       
-      // Conteo de mensajes respondidos/sin responder
+      // Conteo de mensajes respondidos/sin responder y respuestas por agente
       if (message.responded) {
         respondedMessages += 1;
         console.log(`Mensaje ${doc.id} de ${message.from} marcado como respondido`);
+        
+        // Verificar si la respuesta fue por agente o humano
+        if (message.agentResponse === true) {
+          agentResponses += 1;
+          console.log(`Mensaje ${doc.id} respondido por AGENTE`);
+        } else {
+          humanResponses += 1;
+          console.log(`Mensaje ${doc.id} respondido por HUMANO`);
+        }
       } else {
         unrespondedMessages += 1;
       }
     });
+    
+    // Calcular tiempo promedio de respuesta si hay datos disponibles
+    let avgResponseTime = 0;
+    if (respondedMessages > 0) {
+      // Calcular a partir de los mensajes con responseTime
+      let totalResponseTime = 0;
+      let messagesWithResponseTime = 0;
+      
+      messagesSnapshot.forEach(doc => {
+        const message = doc.data();
+        if (message.responseTime && typeof message.responseTime === 'number') {
+          totalResponseTime += message.responseTime;
+          messagesWithResponseTime++;
+        }
+      });
+      
+      if (messagesWithResponseTime > 0) {
+        avgResponseTime = Math.round(totalResponseTime / messagesWithResponseTime);
+      }
+    }
     
     // Crear objeto de analytics completo
     const analyticsData: WhatsAppAnalytics = {
@@ -408,9 +439,9 @@ export const getWhatsAppAnalytics = async (userId: string, forceRegenerate: bool
       lastUpdated: Timestamp.now(),
       respondedMessages,
       unrespondedMessages,
-      avgResponseTime: 0, // Se podría calcular si hay datos disponibles
-      agentResponses: 0, // Requeriría más análisis de los datos
-      humanResponses: 0, // Requeriría más análisis de los datos
+      avgResponseTime, 
+      agentResponses, 
+      humanResponses, 
       messageCategories,
       messagesByHour,
       activeByWeekday
@@ -654,4 +685,61 @@ export const getUserStats = async (userId: string) => {
  * - messagesPerDay: incrementa el contador para la fecha actual (formato YYYY-MM-DD)
  * - activeChats: incrementa si es un nuevo chat
  * - lastUpdated: actualiza con serverTimestamp()
- */ 
+ */
+
+/**
+ * Obtiene los mensajes de WhatsApp respondidos por el agente IA
+ */
+export const getAgentRespondedMessages = async (userId: string, limitCount: number = 50) => {
+  try {
+    // Obtener documentos de la colección "whatsapp" para el usuario específico
+    const whatsappCollectionRef = collection(db, 'users', userId, 'whatsapp');
+    
+    // Crear consulta para obtener sólo mensajes respondidos por el agente
+    // Nota: Si necesitamos componer consultas complejas, podemos hacerlo por pasos
+    // Primero filtramos los que han sido respondidos
+    const q = query(
+      whatsappCollectionRef, 
+      where("responded", "==", true),
+      where("agentResponse", "==", true),
+      orderBy("timestamp", "desc"), 
+      limit(limitCount)
+    );
+    
+    console.log("Consultando mensajes respondidos por agente IA para userId:", userId);
+    const querySnapshot = await getDocs(q);
+    
+    console.log(`Se encontraron ${querySnapshot.size} mensajes respondidos por el agente IA`);
+    
+    const messages: WhatsAppMessage[] = [];
+    
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      messages.push({
+        id: doc.id,
+        messageId: data.messageId || doc.id,
+        body: data.body || '',
+        from: data.from || '',
+        to: data.to || '',
+        timestamp: data.timestamp || 0,
+        isFromMe: data.isFromMe || false,
+        senderName: data.senderName || '',
+        messageType: data.messageType || 'chat',
+        category: data.category || 'otros',
+        responded: true,
+        responseId: data.responseId || null,
+        responseTime: data.responseTime || null,
+        agentResponse: true,
+        hourOfDay: data.hourOfDay || 0,
+        day: data.day || 1,
+        month: data.month || 1,
+        minutesOfDay: data.minutesOfDay || 0
+      } as WhatsAppMessage);
+    });
+    
+    return messages;
+  } catch (error) {
+    console.error("Error al obtener mensajes respondidos por agente:", error);
+    return [];
+  }
+}; 
