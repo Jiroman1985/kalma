@@ -22,20 +22,19 @@ service cloud.firestore {
       }
       
       // Especificación explícita para las subcolecciones de WhatsApp
-      match /whatsapp/messages/{messageId} {
+      match /whatsapp/{messageId} {
         allow read: if request.auth != null && request.auth.uid == userId;
         // Permitir escritura desde n8n (necesitarás una clave API o token de servicio para n8n)
         allow write: if request.auth != null && request.auth.uid == userId || 
                        request.auth.token.n8n_service == true;
       }
       
-      // Acceso a estadísticas de WhatsApp
-      match /analytics/whatsapp {
-        allow read: if request.auth != null && request.auth.uid == userId;
-        // Permitir escritura desde n8n 
-        allow write: if request.auth != null && request.auth.uid == userId || 
-                       request.auth.token.n8n_service == true;
-      }
+      // Campo whatsapp en el documento de usuario para estadísticas
+      // Esta regla permite acceder al campo whatsapp dentro del documento de usuario
+      // que contiene los datos de análisis acumulados
+      allow read, update: if request.auth != null && request.auth.uid == userId && 
+                            (request.resource.data.diff(resource.data).affectedKeys()
+                             .hasOnly(['whatsapp']));
     }
     
     // Colección para mensajes no vinculados a ningún usuario (temporales o sin identificar)
