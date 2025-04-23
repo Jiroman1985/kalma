@@ -1,6 +1,5 @@
-
 import { Button } from "./ui/button";
-import { Check } from "lucide-react";
+import { Check, Crown, Star } from "lucide-react";
 
 const PricingSection: React.FC = () => {
   return (
@@ -9,52 +8,126 @@ const PricingSection: React.FC = () => {
         <div className="text-center max-w-2xl mx-auto mb-16">
           <h2 className="text-3xl font-bold mb-4">Planes Adaptados a tu Negocio</h2>
           <p className="text-gray-600">
-            Todas las funcionalidades incluidas en un único plan, sin sorpresas ni costes adicionales.
+            Elige el plan que mejor se adapte a las necesidades de tu empresa.
           </p>
         </div>
         
-        <div className="max-w-3xl mx-auto">
-          <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100">
-            <div className="bg-gradient-to-r from-whatsapp/20 to-blue-light/20 p-8 text-center">
-              <div className="inline-block text-whatsapp-dark text-xs font-semibold bg-white/80 backdrop-blur-sm rounded-full px-3 py-1 mb-3">
-                OFERTA DE LANZAMIENTO
-              </div>
-              <h3 className="text-2xl font-bold mb-2">Plan Profesional</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          {/* Plan Básico */}
+          <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100 flex flex-col h-full">
+            <div className="bg-gradient-to-r from-whatsapp/10 to-blue-light/10 p-8 text-center">
+              <h3 className="text-2xl font-bold mb-2">Plan Básico</h3>
               <div className="flex items-center justify-center gap-1 mb-4">
-                <span className="text-4xl font-bold">99€</span>
+                <span className="text-4xl font-bold">9,99€</span>
                 <span className="text-gray-500">/mes</span>
-              </div>
-              
-              <div className="bg-white/50 backdrop-blur-sm text-whatsapp-dark text-sm font-medium rounded-lg py-2 px-3 inline-block">
-                15 días de prueba GRATIS
               </div>
             </div>
             
-            <div className="p-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+            <div className="p-8 flex-grow">
+              <div className="space-y-4">
                 {[
-                  "Asistente IA personalizado",
-                  "Control total de tu número",
-                  "Activación/desactivación a demanda",
-                  "Configuración de respuestas",
-                  "Horarios personalizables",
-                  "Transcripción de audio",
-                  "Estadísticas básicas",
-                  "Soporte prioritario"
+                  "Agente IA conectado a WhatsApp",
+                  "Mensajes ilimitados al mes",
+                  "Subida de documentos propios de la empresa",
+                  "Personalización de tu asistente (tono, tipo de preguntas a responder, idiomas, etc)"
                 ].map((feature, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <Check size={18} className="text-whatsapp flex-shrink-0" />
+                  <div key={i} className="flex items-start gap-2">
+                    <Check size={18} className="text-whatsapp flex-shrink-0 mt-1" />
                     <span className="text-gray-700">{feature}</span>
                   </div>
                 ))}
               </div>
               
               <div className="mt-8">
-                <Button asChild size="lg" className="w-full bg-whatsapp hover:bg-whatsapp-dark">
-                  <a href="#prueba-gratis">Comenzar Prueba Gratuita</a>
+                <Button size="lg" className="w-full bg-whatsapp hover:bg-whatsapp-dark">
+                  Seleccionar Plan
                 </Button>
                 <p className="text-center text-sm text-gray-500 mt-3">
-                  Sin compromiso de permanencia. Cancela cuando quieras.
+                  Sin compromiso de permanencia
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Plan Pro - Destacado */}
+          <div className="bg-white rounded-2xl overflow-hidden shadow-xl border-2 border-whatsapp/40 flex flex-col h-full relative transform md:-translate-y-4 scale-105">
+            <div className="absolute top-0 right-0 bg-whatsapp text-white text-xs font-semibold px-4 py-1 rounded-bl-lg">
+              <div className="flex items-center gap-1">
+                <Crown size={14} />
+                <span>El más elegido</span>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-whatsapp/20 to-blue-light/20 p-8 text-center">
+              <h3 className="text-2xl font-bold mb-2">Plan Pro</h3>
+              <div className="flex items-center justify-center gap-1 mb-4">
+                <span className="text-4xl font-bold">19,99€</span>
+                <span className="text-gray-500">/mes</span>
+              </div>
+            </div>
+            
+            <div className="p-8 flex-grow">
+              <div className="space-y-4">
+                <p className="text-gray-500 italic mb-2">Todo lo del Plan Básico más:</p>
+                {[
+                  "Visualización de mensajes contestados por la IA",
+                  "Analíticas avanzadas (categoría de preguntas, mensajes diarios, volumen de mensajes por horas, tiempo ahorrado por la IA, etc)",
+                  "Acceso al calendario por parte de la IA para contestar preguntas sobre horarios y disponibilidad"
+                ].map((feature, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <Star size={18} className="text-whatsapp flex-shrink-0 mt-1" />
+                    <span className="text-gray-700">{feature}</span>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mt-8">
+                <Button size="lg" className="w-full bg-whatsapp hover:bg-whatsapp-dark">
+                  Seleccionar Plan
+                </Button>
+                <p className="text-center text-sm text-gray-500 mt-3">
+                  Sin compromiso de permanencia
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          {/* Plan Empresarial */}
+          <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100 flex flex-col h-full">
+            <div className="bg-gradient-to-r from-blue-light/20 to-purple-300/20 p-8 text-center">
+              <h3 className="text-2xl font-bold mb-2">Plan Custom</h3>
+              <div className="flex items-center justify-center gap-1 mb-4">
+                <span className="text-2xl font-bold">Personalizado</span>
+              </div>
+            </div>
+            
+            <div className="p-8 flex-grow">
+              <div className="space-y-4">
+                <p className="text-gray-500 italic mb-2">Todo lo del Plan Pro más:</p>
+                {[
+                  "Integraciones con herramientas propias del negocio",
+                  "Motor de reservas",
+                  "Integración con CRM",
+                  "Venta de productos",
+                  "Soluciones a medida"
+                ].map((feature, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <Check size={18} className="text-blue-600 flex-shrink-0 mt-1" />
+                    <span className="text-gray-700">{feature}</span>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mt-8">
+                <Button 
+                  size="lg" 
+                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                  onClick={() => window.open('https://wa.me/34648258558', '_blank')}
+                >
+                  Contactar
+                </Button>
+                <p className="text-center text-sm text-gray-500 mt-3">
+                  Hablemos sobre tu proyecto
                 </p>
               </div>
             </div>
