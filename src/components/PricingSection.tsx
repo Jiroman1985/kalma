@@ -1,5 +1,6 @@
 import { Button } from "./ui/button";
 import { Check, Crown, Star } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const PricingSection: React.FC = () => {
   return (
@@ -39,8 +40,8 @@ const PricingSection: React.FC = () => {
               </div>
               
               <div className="mt-8">
-                <Button size="lg" className="w-full bg-whatsapp hover:bg-whatsapp-dark">
-                  Seleccionar Plan
+                <Button asChild size="lg" className="w-full bg-whatsapp hover:bg-whatsapp-dark">
+                  <Link to="/login">Seleccionar Plan</Link>
                 </Button>
                 <p className="text-center text-sm text-gray-500 mt-3">
                   Sin compromiso de permanencia
@@ -82,8 +83,8 @@ const PricingSection: React.FC = () => {
               </div>
               
               <div className="mt-8">
-                <Button size="lg" className="w-full bg-whatsapp hover:bg-whatsapp-dark">
-                  Seleccionar Plan
+                <Button asChild size="lg" className="w-full bg-whatsapp hover:bg-whatsapp-dark">
+                  <Link to="/login">Seleccionar Plan</Link>
                 </Button>
                 <p className="text-center text-sm text-gray-500 mt-3">
                   Sin compromiso de permanencia

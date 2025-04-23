@@ -1,12 +1,9 @@
 import { Button } from "./ui/button";
 import { ArrowRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
+import { Link } from "react-router-dom";
 
 const CtaSection: React.FC = () => {
-  const handleGetStarted = () => {
-    window.location.href = "https://whatspyme.netlify.app/login";
-  };
-
   const fadeInAnimation = {
     hidden: { opacity: 0, y: 40 },
     visible: { 
@@ -84,11 +81,13 @@ const CtaSection: React.FC = () => {
               
               <div className="transform hover:scale-105 transition-transform duration-300">
                 <Button 
-                  onClick={handleGetStarted}
+                  asChild
                   size="lg" 
                   className="w-full md:w-auto px-10 py-6 text-lg font-semibold bg-whatsapp hover:bg-whatsapp-dark shadow-lg hover:shadow-xl"
                 >
-                  Comenzar Ahora <ArrowRight className="ml-2" />
+                  <Link to="/login">
+                    Comenzar Ahora <ArrowRight className="ml-2" />
+                  </Link>
                 </Button>
               </div>
               
