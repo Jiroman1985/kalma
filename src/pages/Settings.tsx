@@ -5,10 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { Clock, Globe, MessageSquare, Loader2, Phone } from "lucide-react";
+import { Clock, Globe, MessageSquare, Loader2, ArrowLeft, ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 
 // Definición del tipo para los datos del usuario
 interface UserSettings {
@@ -57,11 +58,13 @@ const defaultSettings: UserSettings = {
 };
 
 const Settings = () => {
-  const { currentUser, updatePhoneNumber } = useAuth();
+  const { currentUser } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
+  // Estado para controlar el carrusel
+  const [activeStep, setActiveStep] = useState(0);
   
   // Cargar los datos del usuario al iniciar
   useEffect(() => {
@@ -89,6 +92,17 @@ const Settings = () => {
             
             console.log("Configuración combinada:", combinedSettings);
             setSettings(combinedSettings);
+            
+            // Determinar qué paso mostrar basado en la configuración del usuario
+            if (combinedSettings.languageConfigCompleted) {
+              setActiveStep(3);
+            } else if (combinedSettings.availabilityConfigCompleted) {
+              setActiveStep(2);
+            } else if (combinedSettings.agentConfigCompleted) {
+              setActiveStep(1);
+            } else {
+              setActiveStep(0);
+            }
           } else {
             console.log("No se encontró el documento del usuario, creando uno nuevo con valores por defecto...");
             
@@ -97,6 +111,7 @@ const Settings = () => {
               await setDoc(userDocRef, defaultSettings);
               console.log("Documento de usuario creado exitosamente con valores por defecto");
               setSettings(defaultSettings);
+              setActiveStep(0);
             } catch (initError) {
               console.error("Error al inicializar documento de usuario:", initError);
               
@@ -135,6 +150,7 @@ const Settings = () => {
           
           // En caso de error, usar los valores por defecto
           setSettings(defaultSettings);
+          setActiveStep(0);
         } finally {
           setIsLoading(false);
         }
@@ -239,6 +255,11 @@ const Settings = () => {
       // Actualizar el estado local
       setSettings(cleanedSettings);
       
+      // Avanzar al siguiente paso en el carrusel
+      if (activeStep < 3) {
+        setActiveStep(activeStep + 1);
+      }
+      
       console.log("Configuración guardada correctamente");
       
       toast({
@@ -274,55 +295,6 @@ const Settings = () => {
       setIsSubmitting(false);
     }
   };
-  
-  // Actualizar el número de WhatsApp para la cuenta
-  const handleUpdateWhatsApp = async (event: React.FormEvent) => {
-    event.preventDefault();
-    
-    if (!currentUser) {
-      toast({
-        title: "Error",
-        description: "Debes iniciar sesión para actualizar tu número de WhatsApp.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Validar formato del número
-    const phoneRegex = /^\+?[0-9]{10,15}$/;
-    if (!phoneRegex.test(settings.whatsappNumber)) {
-      toast({
-        title: "Formato incorrecto",
-        description: "Por favor, introduce un número de teléfono válido (10-15 dígitos, puede incluir el + inicial).",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    try {
-      // Actualizar el número usando la función del contexto de autenticación
-      const success = await updatePhoneNumber(settings.whatsappNumber);
-      
-      if (success) {
-        // Actualizar también la configuración local
-        toast({
-          title: "Número de WhatsApp actualizado",
-          description: "Tu número de WhatsApp ha sido vinculado correctamente a tu cuenta."
-        });
-      }
-    } catch (error) {
-      console.error("Error al actualizar número de WhatsApp:", error);
-      toast({
-        title: "Error",
-        description: "No se pudo actualizar el número de WhatsApp. Por favor, inténtalo nuevamente.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -341,319 +313,341 @@ const Settings = () => {
         <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
-        {/* WhatsApp Integration */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Phone className="h-5 w-5" />
-              Integración con WhatsApp
-            </CardTitle>
-            <CardDescription>
-              Vincula tu número de WhatsApp para recibir analíticas sobre tus conversaciones
-            </CardDescription>
-          </CardHeader>
-          <form onSubmit={handleUpdateWhatsApp}>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="whatsappNumber">Número de WhatsApp</Label>
-                <Input 
-                  id="whatsappNumber" 
-                  value={settings.whatsappNumber} 
-                  onChange={(e) => handleChange(e, 'whatsappNumber')}
-                  placeholder="+34612345678"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Introduce tu número de WhatsApp completo, incluyendo el código de país (ej: +34612345678).
-                  Este número se utilizará para vincular tus conversaciones de WhatsApp con tu cuenta.
-                </p>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button 
-                type="submit" 
-                className="w-full md:w-auto bg-whatsapp hover:bg-whatsapp-dark"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Actualizando...</>
-                ) : (
-                  <>Vincular Número</>
-                )}
-              </Button>
-            </CardFooter>
-          </form>
-        </Card>
-
-        {/* Información de la empresa - Siempre visible */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Información de Empresa
-            </CardTitle>
-            <CardDescription>
-              Estos datos nos ayudan a personalizar mejor tu asistente IA
-            </CardDescription>
-          </CardHeader>
-          <form onSubmit={(e) => handleSubmit(e, 'company')}>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="companyName">Nombre de la Empresa</Label>
-                <Input 
-                  id="companyName" 
-                  value={settings.companyName} 
-                  onChange={(e) => handleChange(e, 'companyName')}
-                  placeholder="Tu Empresa S.L."
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="businessType">Tipo de Negocio</Label>
-                <Input 
-                  id="businessType" 
-                  value={settings.businessType} 
-                  onChange={(e) => handleChange(e, 'businessType')}
-                  placeholder="Ej: Tienda de ropa, Restaurante, Consultoría..."
-                />
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="contactPhone">Teléfono de Contacto</Label>
-                  <Input 
-                    id="contactPhone" 
-                    value={settings.contactPhone} 
-                    onChange={(e) => handleChange(e, 'contactPhone')}
-                    placeholder="+34 XXX XXX XXX"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="websiteUrl">Sitio Web</Label>
-                  <Input 
-                    id="websiteUrl" 
-                    value={settings.websiteUrl} 
-                    onChange={(e) => handleChange(e, 'websiteUrl')}
-                    placeholder="https://tuempresa.com"
-                  />
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button 
-                type="submit" 
-                className="w-full md:w-auto bg-whatsapp hover:bg-whatsapp-dark"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</>
-                ) : (
-                  <>Guardar Información</>
-                )}
-              </Button>
-            </CardFooter>
-          </form>
-        </Card>
-
-        {/* Configuración general del bot - Visible solo si se completó la información de empresa */}
-        {(settings.companyInfoCompleted || settings.agentConfigCompleted || settings.availabilityConfigCompleted || settings.languageConfigCompleted) && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Configuración del Agente IA
-              </CardTitle>
-              <CardDescription>
-                Personaliza cómo responderá tu asistente de IA en WhatsApp
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={(e) => handleSubmit(e, 'agent')}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="botName">Nombre del Agente</Label>
-                  <Input 
-                    id="botName" 
-                    value={settings.botName} 
-                    onChange={(e) => handleChange(e, 'botName')}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="welcomeMessage">Mensaje de Bienvenida</Label>
-                  <Textarea 
-                    id="welcomeMessage" 
-                    rows={3}
-                    value={settings.welcomeMessage}
-                    onChange={(e) => handleChange(e, 'welcomeMessage')}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="knowledgeBase">Base de Conocimiento</Label>
-                  <Textarea 
-                    id="knowledgeBase" 
-                    rows={5}
-                    placeholder="Añade información específica sobre tu negocio, productos, servicios, políticas, etc."
-                    value={settings.knowledgeBase}
-                    onChange={(e) => handleChange(e, 'knowledgeBase')}
-                  />
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : "Guardar Cambios"}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        )}
-
-        {/* Configuración de disponibilidad - Visible solo si se completó la configuración del agente */}
-        {(settings.agentConfigCompleted || settings.availabilityConfigCompleted || settings.languageConfigCompleted) && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Configuración de Disponibilidad
-              </CardTitle>
-              <CardDescription>
-                Define cuándo tu asistente estará activo para responder mensajes
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={(e) => handleSubmit(e, 'availability')}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="schedule">Horario de Actividad</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="startTime" className="text-xs">Hora inicio</Label>
+      <div className="my-8">
+        <Carousel 
+          className="w-full" 
+          opts={{ 
+            align: "start",
+            loop: false,
+            startIndex: activeStep,
+            dragFree: false
+          }}
+          orientation="horizontal"
+        >
+          <CarouselContent>
+            {/* Información de la empresa */}
+            <CarouselItem className="basis-full">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="h-5 w-5" />
+                    Información de Empresa
+                  </CardTitle>
+                  <CardDescription>
+                    Estos datos nos ayudan a personalizar mejor tu asistente IA
+                  </CardDescription>
+                </CardHeader>
+                <form onSubmit={(e) => handleSubmit(e, 'company')}>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="companyName">Nombre de la Empresa</Label>
                       <Input 
-                        id="startTime" 
-                        type="time" 
-                        value={settings.startTime}
-                        onChange={(e) => handleChange(e, 'startTime')}
+                        id="companyName" 
+                        value={settings.companyName} 
+                        onChange={(e) => handleChange(e, 'companyName')}
+                        placeholder="Tu Empresa S.L."
                       />
                     </div>
-                    <div>
-                      <Label htmlFor="endTime" className="text-xs">Hora fin</Label>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="businessType">Tipo de Negocio</Label>
                       <Input 
-                        id="endTime" 
-                        type="time" 
-                        value={settings.endTime}
-                        onChange={(e) => handleChange(e, 'endTime')}
+                        id="businessType" 
+                        value={settings.businessType} 
+                        onChange={(e) => handleChange(e, 'businessType')}
+                        placeholder="Ej: Tienda de ropa, Restaurante, Consultoría..."
                       />
                     </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Días activos</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((day) => (
-                      <Button 
-                        key={day}
-                        type="button"
-                        variant={settings.activeDays.includes(day) ? "default" : "outline"}
-                        className={`${
-                          settings.activeDays.includes(day)
-                            ? "bg-whatsapp text-white" 
-                            : ""
-                        } rounded-full px-4`}
-                        onClick={() => handleDayToggle(day)}
-                      >
-                        {day.substring(0, 3)}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="outOfHoursMessage">Mensaje Fuera de Horario</Label>
-                  <Textarea 
-                    id="outOfHoursMessage" 
-                    rows={3}
-                    value={settings.outOfHoursMessage}
-                    onChange={(e) => handleChange(e, 'outOfHoursMessage')}
-                  />
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : "Guardar Cambios"}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        )}
-        
-        {/* Configuración de idiomas - Visible solo si se completó la configuración de disponibilidad */}
-        {(settings.availabilityConfigCompleted || settings.languageConfigCompleted) && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="h-5 w-5" />
-                Configuración de Idiomas
-              </CardTitle>
-              <CardDescription>
-                Define en qué idiomas podrá comunicarse tu asistente
-              </CardDescription>
-            </CardHeader>
-            <form onSubmit={(e) => handleSubmit(e, 'language')}>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Idiomas soportados</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {["Español", "Inglés", "Francés", "Alemán", "Italiano", "Portugués"].map((language) => (
-                      <Button 
-                        key={language}
-                        type="button"
-                        variant={settings.supportedLanguages.includes(language) ? "default" : "outline"}
-                        className={`${
-                          settings.supportedLanguages.includes(language)
-                            ? "bg-whatsapp text-white" 
-                            : ""
-                        } rounded-full px-4`}
-                        onClick={() => handleLanguageToggle(language)}
-                      >
-                        {language}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="primaryLanguage">Idioma principal</Label>
-                  <Input 
-                    id="primaryLanguage" 
-                    value={settings.primaryLanguage}
-                    onChange={(e) => handleChange(e, 'primaryLanguage')}
-                  />
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : "Guardar Cambios"}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        )}
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="contactPhone">Teléfono de Contacto</Label>
+                        <Input 
+                          id="contactPhone" 
+                          value={settings.contactPhone} 
+                          onChange={(e) => handleChange(e, 'contactPhone')}
+                          placeholder="+34 XXX XXX XXX"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="websiteUrl">Sitio Web</Label>
+                        <Input 
+                          id="websiteUrl" 
+                          value={settings.websiteUrl} 
+                          onChange={(e) => handleChange(e, 'websiteUrl')}
+                          placeholder="https://tuempresa.com"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-end">
+                    <Button 
+                      type="submit" 
+                      className="w-full md:w-auto bg-whatsapp hover:bg-whatsapp-dark"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Guardando...</>
+                      ) : (
+                        <>Continuar <ArrowRight className="ml-2 h-4 w-4" /></>
+                      )}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </CarouselItem>
+
+            {/* Configuración general del bot */}
+            <CarouselItem className="basis-full">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    Configuración del Agente IA
+                  </CardTitle>
+                  <CardDescription>
+                    Personaliza cómo responderá tu asistente de IA en WhatsApp
+                  </CardDescription>
+                </CardHeader>
+                <form onSubmit={(e) => handleSubmit(e, 'agent')}>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="botName">Nombre del Agente</Label>
+                      <Input 
+                        id="botName" 
+                        value={settings.botName} 
+                        onChange={(e) => handleChange(e, 'botName')}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="welcomeMessage">Mensaje de Bienvenida</Label>
+                      <Textarea 
+                        id="welcomeMessage" 
+                        rows={3}
+                        value={settings.welcomeMessage}
+                        onChange={(e) => handleChange(e, 'welcomeMessage')}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="knowledgeBase">Base de Conocimiento</Label>
+                      <Textarea 
+                        id="knowledgeBase" 
+                        rows={5}
+                        placeholder="Añade información específica sobre tu negocio, productos, servicios, políticas, etc."
+                        value={settings.knowledgeBase}
+                        onChange={(e) => handleChange(e, 'knowledgeBase')}
+                      />
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-between">
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      onClick={() => setActiveStep(0)}
+                    >
+                      <ArrowLeft className="mr-2 h-4 w-4" /> Atrás
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Guardando...
+                        </>
+                      ) : (
+                        <>Continuar <ArrowRight className="ml-2 h-4 w-4" /></>
+                      )}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </CarouselItem>
+
+            {/* Configuración de disponibilidad */}
+            <CarouselItem className="basis-full">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    Configuración de Disponibilidad
+                  </CardTitle>
+                  <CardDescription>
+                    Define cuándo tu asistente estará activo para responder mensajes
+                  </CardDescription>
+                </CardHeader>
+                <form onSubmit={(e) => handleSubmit(e, 'availability')}>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="schedule">Horario de Actividad</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="startTime" className="text-xs">Hora inicio</Label>
+                          <Input 
+                            id="startTime" 
+                            type="time" 
+                            value={settings.startTime}
+                            onChange={(e) => handleChange(e, 'startTime')}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="endTime" className="text-xs">Hora fin</Label>
+                          <Input 
+                            id="endTime" 
+                            type="time" 
+                            value={settings.endTime}
+                            onChange={(e) => handleChange(e, 'endTime')}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Días activos</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"].map((day) => (
+                          <Button 
+                            key={day}
+                            type="button"
+                            variant={settings.activeDays.includes(day) ? "default" : "outline"}
+                            className={`${
+                              settings.activeDays.includes(day)
+                                ? "bg-whatsapp text-white" 
+                                : ""
+                            } rounded-full px-4`}
+                            onClick={() => handleDayToggle(day)}
+                          >
+                            {day.substring(0, 3)}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="outOfHoursMessage">Mensaje Fuera de Horario</Label>
+                      <Textarea 
+                        id="outOfHoursMessage" 
+                        rows={3}
+                        value={settings.outOfHoursMessage}
+                        onChange={(e) => handleChange(e, 'outOfHoursMessage')}
+                      />
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-between">
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      onClick={() => setActiveStep(1)}
+                    >
+                      <ArrowLeft className="mr-2 h-4 w-4" /> Atrás
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Guardando...
+                        </>
+                      ) : (
+                        <>Continuar <ArrowRight className="ml-2 h-4 w-4" /></>
+                      )}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </CarouselItem>
+            
+            {/* Configuración de idiomas */}
+            <CarouselItem className="basis-full">
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="h-5 w-5" />
+                    Configuración de Idiomas
+                  </CardTitle>
+                  <CardDescription>
+                    Define en qué idiomas podrá comunicarse tu asistente
+                  </CardDescription>
+                </CardHeader>
+                <form onSubmit={(e) => handleSubmit(e, 'language')}>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Idiomas soportados</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {["Español", "Inglés", "Francés", "Alemán", "Italiano", "Portugués"].map((language) => (
+                          <Button 
+                            key={language}
+                            type="button"
+                            variant={settings.supportedLanguages.includes(language) ? "default" : "outline"}
+                            className={`${
+                              settings.supportedLanguages.includes(language)
+                                ? "bg-whatsapp text-white" 
+                                : ""
+                            } rounded-full px-4`}
+                            onClick={() => handleLanguageToggle(language)}
+                          >
+                            {language}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="primaryLanguage">Idioma principal</Label>
+                      <Input 
+                        id="primaryLanguage" 
+                        value={settings.primaryLanguage}
+                        onChange={(e) => handleChange(e, 'primaryLanguage')}
+                      />
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-between">
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      onClick={() => setActiveStep(2)}
+                    >
+                      <ArrowLeft className="mr-2 h-4 w-4" /> Atrás
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Guardando...
+                        </>
+                      ) : (
+                        <>Finalizar</>
+                      )}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </CarouselItem>
+          </CarouselContent>
+          
+          <div className="flex justify-center w-full mt-4">
+            <div className="flex gap-1">
+              {[0, 1, 2, 3].map((index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="icon"
+                  className={`h-2 w-2 rounded-full ${activeStep === index ? 'bg-whatsapp' : 'bg-muted'}`}
+                  onClick={() => {
+                    if (
+                      (index === 1 && settings.companyInfoCompleted) ||
+                      (index === 2 && settings.agentConfigCompleted) ||
+                      (index === 3 && settings.availabilityConfigCompleted) ||
+                      index < activeStep
+                    ) {
+                      setActiveStep(index);
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </Carousel>
       </div>
     </div>
   );
