@@ -748,10 +748,13 @@ const Settings = () => {
               Vinculación de WhatsApp pendiente
             </CardTitle>
             <CardDescription>
-              Tu cuenta está pendiente de vinculación con WhatsApp
+              Acceso limitado - Se requiere vinculación
             </CardDescription>
           </CardHeader>
           <CardContent>
+            <p className="text-sm mb-4">
+              <strong>Para acceder a todas las funcionalidades, necesitas terminar la vinculación de tu WhatsApp.</strong>
+            </p>
             <p className="text-sm">
               En breve recibirás en tu email ({currentUser?.email}) las instrucciones necesarias 
               para vincular tu WhatsApp junto con el código QR. Si no recibes el email en los 

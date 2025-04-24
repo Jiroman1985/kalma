@@ -98,12 +98,8 @@ const DashboardLayout = () => {
 
     // Si está restringido, mostrar tooltip, si no, usar Link normal
     if (item.restricted) {
-      // Mensaje personalizado según el estado del usuario
-      let tooltipMessage = "Necesitas una suscripción para acceder a esta función";
-      
-      if (userData?.freeTier && !userData?.vinculado) {
-        tooltipMessage = "Necesitas vincular tu WhatsApp para acceder a esta función";
-      }
+      // Mensaje fijo para todas las secciones bloqueadas
+      const tooltipMessage = "Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función";
       
       return (
         <TooltipProvider key={key}>
@@ -264,42 +260,79 @@ const DashboardLayout = () => {
         </main>
       </div>
 
+      {/* Botones de navegación móvil con tooltips */}
       <div className="md:hidden fixed bottom-0 left-0 z-50 w-full h-16 bg-white border-t border-gray-200">
         <div className="grid h-full grid-cols-4">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
+                  onClick={() => hasCompleteAccess ? navigate('/dashboard') : navigate('/dashboard/settings')}
+                >
+                  <Home size={20} />
+                  <span className="text-xs mt-1">Inicio</span>
+                  {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
+                </Button>
+              </TooltipTrigger>
+              {!hasCompleteAccess && (
+                <TooltipContent>
+                  <p>Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
+                  onClick={() => hasCompleteAccess ? navigate('/dashboard/conversations') : navigate('/dashboard/settings')}
+                >
+                  <MessageSquare size={20} />
+                  <span className="text-xs mt-1">Chats</span>
+                  {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
+                </Button>
+              </TooltipTrigger>
+              {!hasCompleteAccess && (
+                <TooltipContent>
+                  <p>Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
+                  onClick={() => hasCompleteAccess ? navigate('/dashboard/analytics') : navigate('/dashboard/settings')}
+                >
+                  <BarChart3 size={20} />
+                  <span className="text-xs mt-1">Análisis</span>
+                  {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
+                </Button>
+              </TooltipTrigger>
+              {!hasCompleteAccess && (
+                <TooltipContent>
+                  <p>Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+          
           <Button 
             variant="ghost" 
-            className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
-            onClick={() => hasCompleteAccess ? navigate('/dashboard') : navigate('/dashboard/settings')}
+            className="flex flex-col items-center justify-center"
+            onClick={() => navigate('/dashboard/settings')}
           >
-            <Home size={20} />
-            <span className="text-xs mt-1">Inicio</span>
-            {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
-          </Button>
-          <Button 
-            variant="ghost" 
-            className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
-            onClick={() => hasCompleteAccess ? navigate('/dashboard/conversations') : navigate('/dashboard/settings')}
-          >
-            <MessageSquare size={20} />
-            <span className="text-xs mt-1">Chats</span>
-            {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
-          </Button>
-          <Button 
-            variant="ghost" 
-            className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
-            onClick={() => hasCompleteAccess ? navigate('/dashboard/analytics') : navigate('/dashboard/settings')}
-          >
-            <BarChart3 size={20} />
-            <span className="text-xs mt-1">Análisis</span>
-            {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
-          </Button>
-          <Button 
-            variant="ghost" 
-            className="flex flex-col items-center justify-center" 
-            onClick={toggleMobileMenu}
-          >
-            <Menu size={20} />
-            <span className="text-xs mt-1">Más</span>
+            <Settings size={20} />
+            <span className="text-xs mt-1">Ajustes</span>
           </Button>
         </div>
       </div>
