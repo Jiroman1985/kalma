@@ -18,7 +18,9 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return <Navigate to="/login" />;
   }
 
-  if (userData && !userData.hasFullAccess && location.pathname !== "/settings") {
+  if (userData && !userData.hasFullAccess && 
+      location.pathname !== "/dashboard" && 
+      !location.pathname.includes("/settings")) {
     return <Navigate to="/settings" />;
   }
 
