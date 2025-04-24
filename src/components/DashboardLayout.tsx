@@ -35,7 +35,7 @@ const DashboardLayout = () => {
       name: "Dashboard",
       path: "/dashboard",
       icon: <LayoutDashboard className="mr-3 h-5 w-5" />,
-      restricted: false // Dashboard es siempre accesible
+      restricted: !hasFullAccess // Dashboard ahora también está restringido para usuarios sin acceso completo
     },
     {
       name: "Conversaciones",
@@ -243,11 +243,12 @@ const DashboardLayout = () => {
         <div className="grid h-full grid-cols-4">
           <Button 
             variant="ghost" 
-            className="flex flex-col items-center justify-center" 
-            onClick={() => navigate('/dashboard')}
+            className={`flex flex-col items-center justify-center ${!hasFullAccess ? 'opacity-50' : ''}`} 
+            onClick={() => hasFullAccess ? navigate('/dashboard') : navigate('/dashboard/settings')}
           >
             <Home size={20} />
             <span className="text-xs mt-1">Inicio</span>
+            {!hasFullAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
           </Button>
           <Button 
             variant="ghost" 

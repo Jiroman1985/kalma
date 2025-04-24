@@ -19,9 +19,8 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   if (userData && !userData.hasFullAccess && 
-      location.pathname !== "/dashboard" && 
       !location.pathname.includes("/settings")) {
-    return <Navigate to="/settings" />;
+    return <Navigate to="/dashboard/settings" />;
   }
 
   return <>{children}</>;
