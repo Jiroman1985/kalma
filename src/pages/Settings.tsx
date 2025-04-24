@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { Clock, Globe, MessageSquare, Loader2, ArrowLeft, ArrowRight } from "lucide-react";
+import { Clock, Globe, MessageSquare, Loader2, ArrowLeft, ArrowRight, LockOpen } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import { Switch } from "@/components/ui/switch";
 
 // Definición del tipo para los datos del usuario
 interface UserSettings {
@@ -58,14 +59,35 @@ const defaultSettings: UserSettings = {
 };
 
 const Settings = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, userData, activateFreeTrial } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   // Estado para controlar el carrusel
   const [activeStep, setActiveStep] = useState(0);
+  const [activatingTrial, setActivatingTrial] = useState(false);
   
+  // Función para activar el período de prueba gratuito
+  const handleActivateTrial = async () => {
+    if (!userData || userData.freeTier) return;
+    
+    setActivatingTrial(true);
+    try {
+      const success = await activateFreeTrial();
+      if (success) {
+        toast({
+          title: "¡Prueba gratuita activada!",
+          description: "Has activado tu período de prueba gratuito por 15 días."
+        });
+      }
+    } catch (error) {
+      console.error("Error al activar la prueba:", error);
+    } finally {
+      setActivatingTrial(false);
+    }
+  };
+
   // Cargar los datos del usuario al iniciar
   useEffect(() => {
     const loadUserSettings = async () => {
@@ -312,6 +334,49 @@ const Settings = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
       </div>
+
+      {/* Bloque de activación de prueba gratuita */}
+      {userData && !userData.isPaid && (
+        <Card className="mb-6 bg-gradient-to-r from-whatsapp/10 to-blue-100">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Período de prueba gratuito (15 días)
+            </CardTitle>
+            <CardDescription>
+              Activa tu período de prueba gratuito y disfruta de todas las funcionalidades
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                {userData.freeTier ? (
+                  <div className="flex items-center gap-2 text-green-600">
+                    <LockOpen className="h-4 w-4" />
+                    <span className="font-medium">
+                      Tu prueba gratuita está activa hasta: {userData.freeTierFinishDate}
+                    </span>
+                  </div>
+                ) : userData.isTrialExpired ? (
+                  <span className="text-orange-600">
+                    Tu período de prueba ha finalizado. Considera actualizar a un plan de pago.
+                  </span>
+                ) : (
+                  <span>Activa tu prueba gratuita para acceder a todas las funcionalidades.</span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={userData.freeTier}
+                  disabled={userData.freeTier || userData.isPaid || activatingTrial}
+                  onCheckedChange={handleActivateTrial}
+                />
+                <span>{userData.freeTier ? "Activado" : "Desactivado"}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="my-8">
         <Carousel 

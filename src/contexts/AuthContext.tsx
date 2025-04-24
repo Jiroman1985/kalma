@@ -11,20 +11,40 @@ import {
   setPersistence
 } from "firebase/auth";
 import { auth, googleProvider, db } from "@/lib/firebase";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { initializeWhatsAppData } from "@/lib/whatsappService";
 
+// Interface para representar los datos extendidos del usuario
+interface UserData {
+  isPaid: boolean;
+  freeTier: boolean;
+  freeTierFinishDate: string | null;
+  hasFullAccess: boolean;
+  isTrialExpired: boolean;
+}
+
 interface AuthContextProps {
   currentUser: User | null;
   loading: boolean;
+  userData: UserData | null;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, additionalData?: Record<string, any>) => Promise<void>;
   logout: () => Promise<void>;
   updatePhoneNumber: (phoneNumber: string) => Promise<boolean>;
+  activateFreeTrial: () => Promise<boolean>;
 }
+
+// Valores por defecto para los campos del usuario relacionados con el acceso
+const defaultUserData: UserData = {
+  isPaid: false,
+  freeTier: false,
+  freeTierFinishDate: null,
+  hasFullAccess: false,
+  isTrialExpired: false
+};
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
 
@@ -42,9 +62,135 @@ interface AuthProviderProps {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  // Función para verificar si la prueba gratuita ha expirado
+  const checkTrialExpiration = (finishDate: string | null): boolean => {
+    if (!finishDate) return true;
+    
+    const today = new Date();
+    const expiryDate = new Date(finishDate);
+    return today > expiryDate;
+  };
+
+  // Función para calcular el acceso completo basado en isPaid y freeTier
+  const calculateAccess = (isPaid: boolean, freeTier: boolean, freeTierFinishDate: string | null): { hasFullAccess: boolean, isTrialExpired: boolean } => {
+    const isExpired = checkTrialExpiration(freeTierFinishDate);
+    const hasAccess = isPaid || (freeTier && !isExpired);
+    
+    return {
+      hasFullAccess: hasAccess,
+      isTrialExpired: isExpired && !isPaid && freeTier
+    };
+  };
+
+  // Función para cargar datos del usuario desde Firestore
+  const loadUserData = async (userId: string) => {
+    try {
+      const userRef = doc(db, "users", userId);
+      const userSnap = await getDoc(userRef);
+      
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        
+        // Verificar si existen los campos necesarios, si no, utilizar valores por defecto
+        const isPaid = data.isPaid ?? defaultUserData.isPaid;
+        const freeTier = data.freeTier ?? defaultUserData.freeTier;
+        const freeTierFinishDate = data.freeTierFinishDate ?? defaultUserData.freeTierFinishDate;
+        
+        // Verificar la expiración y calcular el acceso
+        const { hasFullAccess, isTrialExpired } = calculateAccess(
+          isPaid, 
+          freeTier, 
+          freeTierFinishDate
+        );
+        
+        // Si la prueba ha expirado pero el campo freeTier sigue siendo true, actualizarlo
+        if (freeTier && isTrialExpired) {
+          await updateDoc(userRef, {
+            freeTier: false,
+            freeTierFinishDate: null
+          });
+        }
+        
+        // Actualizar el estado con todos los datos
+        setUserData({
+          isPaid,
+          freeTier: freeTier && !isTrialExpired, // Si expiró, considerar como false
+          freeTierFinishDate,
+          hasFullAccess,
+          isTrialExpired
+        });
+        
+        return {
+          isPaid,
+          freeTier: freeTier && !isTrialExpired,
+          freeTierFinishDate,
+          hasFullAccess,
+          isTrialExpired
+        };
+      } else {
+        // Si no existe el documento, usar valores por defecto
+        setUserData(defaultUserData);
+        return defaultUserData;
+      }
+    } catch (error) {
+      console.error("Error al cargar datos de usuario:", error);
+      setUserData(defaultUserData);
+      return defaultUserData;
+    }
+  };
+
+  // Función para activar el período de prueba gratuito
+  const activateFreeTrial = async (): Promise<boolean> => {
+    if (!currentUser) return false;
+    
+    try {
+      // Calcular fecha de finalización (hoy + 15 días)
+      const today = new Date();
+      const endDate = new Date(today);
+      endDate.setDate(today.getDate() + 15);
+      
+      // Formatear fecha como YYYY-MM-DD
+      const formattedEndDate = endDate.toISOString().split('T')[0];
+      
+      // Actualizar documento en Firestore
+      const userRef = doc(db, "users", currentUser.uid);
+      await updateDoc(userRef, {
+        freeTier: true,
+        freeTierFinishDate: formattedEndDate
+      });
+      
+      // Actualizar estado local
+      const newUserData = {
+        ...userData!,
+        freeTier: true,
+        freeTierFinishDate: formattedEndDate,
+        hasFullAccess: true,
+        isTrialExpired: false
+      };
+      
+      setUserData(newUserData);
+      
+      toast({
+        title: "¡Prueba activada!",
+        description: `Has activado tu período de prueba gratuito por 15 días. Finaliza el ${formattedEndDate}.`
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Error al activar período de prueba:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo activar el período de prueba. Inténtalo de nuevo más tarde.",
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
 
   // Función para guardar datos del usuario en Firestore
   const saveUserToFirestore = async (user: User, additionalData = {}) => {
@@ -69,6 +215,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         userData.createdAt = serverTimestamp();
         console.log("Creando nuevo usuario en Firestore");
         
+        // Inicializar campos relacionados con el estado de pago y prueba gratuita
+        Object.assign(userData, {
+          isPaid: defaultUserData.isPaid,
+          freeTier: defaultUserData.freeTier,
+          freeTierFinishDate: defaultUserData.freeTierFinishDate
+        });
+        
         // Inicializar estructura de datos para WhatsApp para nuevos usuarios
         await initializeWhatsAppData(user.uid);
       } else {
@@ -78,6 +231,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Usar merge: true para asegurar que no se sobrescriban datos existentes
       await setDoc(userRef, userData, { merge: true });
       console.log("Datos guardados correctamente en Firestore");
+      
+      // Cargar los datos completos del usuario después de guardar
+      return await loadUserData(user.uid);
     } catch (error) {
       console.error("Error al guardar datos en Firestore:", error);
       // Notificar error amigable al usuario
@@ -107,7 +263,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       const result = await signInWithPopup(auth, googleProvider);
       
-      // Guardar información del usuario en Firestore
+      // Guardar información del usuario en Firestore y obtener datos completos
       await saveUserToFirestore(result.user, {
         provider: "google",
         companyName: result.user.displayName || ""
@@ -276,8 +432,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Escuchar cambios en el estado de autenticación
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      
+      if (user) {
+        // Cargar datos completos del usuario después de la autenticación
+        await loadUserData(user.uid);
+      } else {
+        setUserData(null);
+      }
+      
       setLoading(false);
     });
 
@@ -286,12 +450,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const value = {
     currentUser,
+    userData,
     loading,
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
     logout,
-    updatePhoneNumber
+    updatePhoneNumber,
+    activateFreeTrial
   };
 
   return (
