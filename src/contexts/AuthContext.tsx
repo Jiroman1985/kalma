@@ -93,17 +93,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Función para cargar datos del usuario desde Firestore
   const loadUserData = async (userId: string) => {
     try {
+      console.log("Cargando datos del usuario desde Firestore:", userId);
       const userRef = doc(db, "users", userId);
       const userSnap = await getDoc(userRef);
       
       if (userSnap.exists()) {
         const data = userSnap.data();
+        console.log("Datos brutos recibidos de Firebase:", data);
         
         // Verificar si existen los campos necesarios, si no, utilizar valores por defecto
         const isPaid = data.isPaid ?? defaultUserData.isPaid;
         const freeTier = data.freeTier ?? defaultUserData.freeTier;
         const freeTierFinishDate = data.freeTierFinishDate ?? defaultUserData.freeTierFinishDate;
         const vinculado = data.vinculado ?? defaultUserData.vinculado;
+        
+        console.log("Campos extraídos:", { isPaid, freeTier, freeTierFinishDate, vinculado });
         
         // Si alguno de los campos no existe, inicializarlos en Firestore
         if (!data.hasOwnProperty('isPaid') || !data.hasOwnProperty('freeTier') || 
@@ -117,6 +121,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (!data.hasOwnProperty('freeTierFinishDate')) fieldsToUpdate.freeTierFinishDate = freeTierFinishDate;
           if (!data.hasOwnProperty('vinculado')) fieldsToUpdate.vinculado = vinculado;
           
+          console.log("Campos a actualizar:", fieldsToUpdate);
+          
           // Actualizar solo los campos faltantes
           await updateDoc(userRef, fieldsToUpdate);
           console.log("Campos de acceso inicializados:", fieldsToUpdate);
@@ -129,18 +135,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
           freeTierFinishDate
         );
         
+        console.log("Acceso calculado:", { hasFullAccess, isTrialExpired });
+        
         // Si la prueba ha expirado pero el campo freeTier sigue siendo true, actualizarlo
         if (freeTier && isTrialExpired) {
+          console.log("La prueba gratuita ha expirado, actualizando en Firebase freeTier=false");
           await updateDoc(userRef, {
             freeTier: false,
             freeTierFinishDate: null
           });
+          
+          console.log("Datos actualizados en Firebase por expiración");
         }
+        
+        // Valores finales para actualizar el estado
+        const finalFreeTier = freeTier && !isTrialExpired;
+        
+        console.log("Valores finales para actualizar el estado:", {
+          isPaid,
+          freeTier: finalFreeTier,
+          freeTierFinishDate,
+          hasFullAccess,
+          isTrialExpired,
+          vinculado
+        });
         
         // Actualizar el estado con todos los datos
         setUserData({
           isPaid,
-          freeTier: freeTier && !isTrialExpired, // Si expiró, considerar como false
+          freeTier: finalFreeTier, // Si expiró, considerar como false
           freeTierFinishDate,
           hasFullAccess,
           isTrialExpired,
@@ -149,13 +172,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
         return {
           isPaid,
-          freeTier: freeTier && !isTrialExpired,
+          freeTier: finalFreeTier,
           freeTierFinishDate,
           hasFullAccess,
           isTrialExpired,
           vinculado
         };
       } else {
+        console.log("No existe documento del usuario, usando valores por defecto");
         // Si no existe el documento, usar valores por defecto
         setUserData(defaultUserData);
         return defaultUserData;
@@ -172,6 +196,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (!currentUser) return false;
     
     try {
+      console.log("Iniciando activación de prueba gratuita para usuario:", currentUser.uid);
+      
       // Calcular fecha de finalización (hoy + 15 días)
       const today = new Date();
       const endDate = new Date(today);
@@ -179,13 +205,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       // Formatear fecha como YYYY-MM-DD
       const formattedEndDate = endDate.toISOString().split('T')[0];
+      console.log("Fecha de finalización calculada:", formattedEndDate);
       
       // Actualizar documento en Firestore
       const userRef = doc(db, "users", currentUser.uid);
-      await updateDoc(userRef, {
+      
+      // Datos a actualizar
+      const updateData = {
         freeTier: true,
         freeTierFinishDate: formattedEndDate
-      });
+      };
+      
+      console.log("Actualizando en Firebase:", updateData);
+      await updateDoc(userRef, updateData);
+      console.log("Datos actualizados en Firebase correctamente");
+      
+      // Verificar que los datos se hayan actualizado correctamente
+      const updatedData = await getDoc(userRef);
+      console.log("Datos verificados después de actualizar:", updatedData.data());
       
       // Actualizar estado local
       const newUserData = {
@@ -197,6 +234,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         vinculado: userData!.vinculado
       };
       
+      console.log("Actualizando estado local:", newUserData);
       setUserData(newUserData);
       
       toast({
@@ -482,12 +520,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Escuchar cambios en el estado de autenticación
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log("Estado de autenticación cambiado:", user ? `Usuario ${user.uid} autenticado` : "No hay usuario autenticado");
       setCurrentUser(user);
       
       if (user) {
-        // Cargar datos completos del usuario después de la autenticación
-        await loadUserData(user.uid);
+        try {
+          // Cargar datos completos del usuario después de la autenticación
+          const userData = await loadUserData(user.uid);
+          console.log("Datos de usuario cargados desde Firebase:", userData);
+          
+          // Verificar específicamente el estado de freeTier para depuración
+          console.log("Estado freeTier en Firebase:", userData.freeTier);
+          
+          // Verificar si la prueba gratuita ha expirado
+          if (userData.freeTier && userData.isTrialExpired) {
+            console.log("La prueba gratuita ha expirado, actualizando estado a false");
+            // Ya se actualiza dentro de loadUserData
+          }
+        } catch (error) {
+          console.error("Error al cargar datos del usuario:", error);
+          setUserData(defaultUserData);
+        }
       } else {
+        console.log("No hay usuario autenticado, reseteando userData a null");
         setUserData(null);
       }
       
