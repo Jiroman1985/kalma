@@ -18,8 +18,11 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return <Navigate to="/login" />;
   }
 
-  if (userData && !userData.hasFullAccess && 
-      !location.pathname.includes("/settings")) {
+  // Verificar si el usuario no tiene acceso completo y está intentando acceder a cualquier ruta
+  // que no sea específicamente la página de configuración
+  const isSettingsPath = location.pathname === "/dashboard/settings" || location.pathname === "/settings";
+  if (userData && !userData.hasFullAccess && !isSettingsPath) {
+    console.log("Usuario sin acceso completo. Redirigiendo a settings desde:", location.pathname);
     return <Navigate to="/dashboard/settings" />;
   }
 

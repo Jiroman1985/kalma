@@ -101,6 +101,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const freeTier = data.freeTier ?? defaultUserData.freeTier;
         const freeTierFinishDate = data.freeTierFinishDate ?? defaultUserData.freeTierFinishDate;
         
+        // Si alguno de los campos no existe, inicializarlos en Firestore
+        if (!data.hasOwnProperty('isPaid') || !data.hasOwnProperty('freeTier') || !data.hasOwnProperty('freeTierFinishDate')) {
+          console.log("Inicializando campos de acceso faltantes para usuario:", userId);
+          
+          // Preparar un objeto con los campos que faltan
+          const fieldsToUpdate: any = {};
+          if (!data.hasOwnProperty('isPaid')) fieldsToUpdate.isPaid = isPaid;
+          if (!data.hasOwnProperty('freeTier')) fieldsToUpdate.freeTier = freeTier;
+          if (!data.hasOwnProperty('freeTierFinishDate')) fieldsToUpdate.freeTierFinishDate = freeTierFinishDate;
+          
+          // Actualizar solo los campos faltantes
+          await updateDoc(userRef, fieldsToUpdate);
+          console.log("Campos de acceso inicializados:", fieldsToUpdate);
+        }
+        
         // Verificar la expiración y calcular el acceso
         const { hasFullAccess, isTrialExpired } = calculateAccess(
           isPaid, 

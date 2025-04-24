@@ -1,7 +1,9 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect } from "react";
-import { BarChart, Users, MessagesSquare, Clock, HeartPulse, Loader2 } from "lucide-react";
+import { BarChart, Users, MessagesSquare, Clock, HeartPulse, Loader2, Lock } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { 
   ChartContainer, 
   ChartTooltip, 
@@ -20,7 +22,8 @@ import {
 } from "@/lib/whatsappService";
 
 const Dashboard = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, userData } = useAuth();
+  const navigate = useNavigate();
   const firstName = currentUser?.displayName?.split(' ')[0] || 'Usuario';
   
   const [loading, setLoading] = useState(true);
@@ -40,77 +43,111 @@ const Dashboard = () => {
   });
   const [messagesPerDay, setMessagesPerDay] = useState<any[]>([]);
 
+  // Verificar acceso y redirigir si es necesario
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      setLoading(true);
-      try {
-        if (!currentUser) {
-          setLoading(false);
-          return;
-        }
+    if (userData && !userData.hasFullAccess) {
+      console.log("Acceso restringido al Dashboard. Redirigiendo a configuración...");
+      navigate('/dashboard/settings');
+    }
+  }, [userData, navigate]);
 
-        // Forzar regeneración de Analytics desde los mensajes reales
-        const whatsappData = await getWhatsAppAnalytics(currentUser.uid, true);
-        console.log("WhatsApp data:", whatsappData);
-
-        // Obtener estadísticas por día
-        const messagesPerDayData = await getMessagesPerDay(currentUser.uid, 30);
-        setMessagesPerDay(messagesPerDayData);
-
-        // Obtener estadísticas semanales
-        const weeklyStats = await getWeeklyStats(currentUser.uid);
-        
-        // Preparar datos para el gráfico
-        const chartData = weeklyStats.dailyData.map((day: any) => {
-          // Convertir la fecha a nombre de día
-          const date = new Date(day.date);
-          const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-          return {
-            name: dayNames[date.getDay()],
-            conversaciones: day.count
-          };
-        });
-        
-        setWeeklyData(chartData);
-        
-        // Obtener estadísticas de usuarios
-        const userStats = await getUserStats(currentUser.uid);
-        
-        // Obtener tiempo promedio de respuesta
-        const avgResponse = await calculateAverageResponseTime(currentUser.uid);
-        
-        // Obtener tiempo ahorrado
-        const savedTime = await calculateTimeSaved(currentUser.uid);
-        
-        // Actualizar estadísticas
-        setStats({
-          totalMessages: weeklyStats.totalWeeklyMessages,
-          totalUsers: userStats.uniqueUsers,
-          avgResponseTime: avgResponse,
-          responseRate: userStats.responseRate,
-          timeSaved: { 
-            hours: savedTime.hours, 
-            minutes: savedTime.minutes 
+  useEffect(() => {
+    // Solo cargar datos si el usuario tiene acceso completo
+    if (userData && userData.hasFullAccess) {
+      const fetchDashboardData = async () => {
+        setLoading(true);
+        try {
+          if (!currentUser) {
+            setLoading(false);
+            return;
           }
-        });
-        
-        // Simulación de cambios respecto al mes pasado
-        // En una implementación real, esto vendría de comparar con datos históricos
-        setCompareStats({
-          messagesChange: `+${Math.floor(Math.random() * 20)}%`,
-          usersChange: `+${Math.floor(Math.random() * 10)}%`,
-          timeChange: `${Math.random() > 0.5 ? "+" : "-"}${(Math.random() * 0.5).toFixed(1)}min`,
-          rateChange: `+${Math.floor(Math.random() * 5)}%`
-        });
-      } catch (error) {
-        console.error("Error al cargar datos del dashboard:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchDashboardData();
-  }, [currentUser]);
+          // Forzar regeneración de Analytics desde los mensajes reales
+          const whatsappData = await getWhatsAppAnalytics(currentUser.uid, true);
+          console.log("WhatsApp data:", whatsappData);
+
+          // Obtener estadísticas por día
+          const messagesPerDayData = await getMessagesPerDay(currentUser.uid, 30);
+          setMessagesPerDay(messagesPerDayData);
+
+          // Obtener estadísticas semanales
+          const weeklyStats = await getWeeklyStats(currentUser.uid);
+          
+          // Preparar datos para el gráfico
+          const chartData = weeklyStats.dailyData.map((day: any) => {
+            // Convertir la fecha a nombre de día
+            const date = new Date(day.date);
+            const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            return {
+              name: dayNames[date.getDay()],
+              conversaciones: day.count
+            };
+          });
+          
+          setWeeklyData(chartData);
+          
+          // Obtener estadísticas de usuarios
+          const userStats = await getUserStats(currentUser.uid);
+          
+          // Obtener tiempo promedio de respuesta
+          const avgResponse = await calculateAverageResponseTime(currentUser.uid);
+          
+          // Obtener tiempo ahorrado
+          const savedTime = await calculateTimeSaved(currentUser.uid);
+          
+          // Actualizar estadísticas
+          setStats({
+            totalMessages: weeklyStats.totalWeeklyMessages,
+            totalUsers: userStats.uniqueUsers,
+            avgResponseTime: avgResponse,
+            responseRate: userStats.responseRate,
+            timeSaved: { 
+              hours: savedTime.hours, 
+              minutes: savedTime.minutes 
+            }
+          });
+          
+          // Simulación de cambios respecto al mes pasado
+          // En una implementación real, esto vendría de comparar con datos históricos
+          setCompareStats({
+            messagesChange: `+${Math.floor(Math.random() * 20)}%`,
+            usersChange: `+${Math.floor(Math.random() * 10)}%`,
+            timeChange: `${Math.random() > 0.5 ? "+" : "-"}${(Math.random() * 0.5).toFixed(1)}min`,
+            rateChange: `+${Math.floor(Math.random() * 5)}%`
+          });
+        } catch (error) {
+          console.error("Error al cargar datos del dashboard:", error);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      fetchDashboardData();
+    } else {
+      setLoading(false);
+    }
+  }, [currentUser, userData]);
+
+  // Si el usuario no tiene acceso completo, mostrar pantalla de acceso restringido
+  if (userData && !userData.hasFullAccess) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-[60vh] gap-4">
+        <div className="bg-gray-100 p-6 rounded-full mb-4">
+          <Lock className="h-12 w-12 text-gray-500" />
+        </div>
+        <h2 className="text-2xl font-bold text-center">Acceso Restringido</h2>
+        <p className="text-gray-600 text-center max-w-md mb-4">
+          Necesitas activar tu período de prueba gratuito o adquirir una suscripción para acceder a esta sección.
+        </p>
+        <Button 
+          className="bg-whatsapp hover:bg-whatsapp-dark" 
+          onClick={() => navigate('/dashboard/settings')}
+        >
+          Ir a configuración
+        </Button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
