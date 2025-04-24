@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   LayoutDashboard, 
   Settings, 
@@ -15,45 +15,113 @@ import {
   Home,
   MessageSquare,
   BarChart3,
-  Database
+  Database,
+  Lock
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const DashboardLayout = () => {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, userData, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Verificar si el usuario tiene acceso completo
+  const hasFullAccess = userData?.hasFullAccess || false;
 
   const navItems = [
     {
       name: "Dashboard",
       path: "/dashboard",
-      icon: <LayoutDashboard className="mr-3 h-5 w-5" />
+      icon: <LayoutDashboard className="mr-3 h-5 w-5" />,
+      restricted: false // Dashboard es siempre accesible
     },
     {
       name: "Conversaciones",
       path: "/dashboard/conversations",
-      icon: <MessageSquare className="mr-3 h-5 w-5" />
+      icon: <MessageSquare className="mr-3 h-5 w-5" />,
+      restricted: !hasFullAccess
     },
     {
       name: "Analytics",
       path: "/dashboard/analytics",
-      icon: <BarChart3 className="mr-3 h-5 w-5" />
+      icon: <BarChart3 className="mr-3 h-5 w-5" />,
+      restricted: !hasFullAccess
     },
     {
       name: "Base de conocimiento",
       path: "/dashboard/knowledge-base",
-      icon: <Database className="mr-3 h-5 w-5" />
+      icon: <Database className="mr-3 h-5 w-5" />,
+      restricted: !hasFullAccess
     },
     {
       name: "Configuración",
       path: "/dashboard/settings",
-      icon: <Settings className="mr-3 h-5 w-5" />
+      icon: <Settings className="mr-3 h-5 w-5" />,
+      restricted: false // Configuración siempre es accesible
     }
   ];
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
+
+  // Función para manejar clics en elementos de navegación
+  const handleNavItemClick = (item) => {
+    if (item.restricted) {
+      navigate("/dashboard/settings");
+      return false;
+    }
+    return true;
+  };
+
+  // Renderizar elemento de navegación con tooltip si está restringido
+  const renderNavItem = (item, mobile = false, onClick = null) => {
+    const itemClassName = `group flex items-center px-4 py-3 text-${mobile ? 'base' : 'sm'} font-medium rounded-md ${
+      location.pathname === item.path
+        ? "bg-gray-100 text-whatsapp-dark"
+        : item.restricted 
+          ? "text-gray-400 cursor-not-allowed" 
+          : "text-gray-600 hover:bg-gray-50"
+    }`;
+
+    const content = (
+      <>
+        {item.icon}
+        <span className="ml-3">{item.name}</span>
+        {item.restricted && <Lock className="ml-2 h-4 w-4" />}
+      </>
+    );
+
+    // Si está restringido, mostrar tooltip, si no, usar Link normal
+    if (item.restricted) {
+      return (
+        <TooltipProvider key={item.name}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className={itemClassName} onClick={() => navigate("/dashboard/settings")}>
+                {content}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Necesitas una suscripción para acceder a esta función</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    }
+    
+    return (
+      <Link
+        key={item.name}
+        to={item.path}
+        className={itemClassName}
+        onClick={onClick}
+      >
+        {content}
+      </Link>
+    );
+  };
 
   return (
     <div className="h-screen flex overflow-hidden bg-gray-100">
@@ -86,21 +154,7 @@ const DashboardLayout = () => {
               </div>
               <div className="flex-1 h-0 overflow-y-auto">
                 <nav className="mt-5 px-2 space-y-1">
-                  {navItems.map((item) => (
-                    <Link
-                      key={item.name}
-                      to={item.path}
-                      className={`group flex items-center px-4 py-3 text-base font-medium rounded-md ${
-                        location.pathname === item.path
-                          ? "bg-gray-100 text-whatsapp-dark"
-                          : "text-gray-600 hover:bg-gray-50"
-                      }`}
-                      onClick={toggleSidebar}
-                    >
-                      {item.icon}
-                      <span className="ml-3">{item.name}</span>
-                    </Link>
-                  ))}
+                  {navItems.map((item) => renderNavItem(item, true, toggleSidebar))}
                 </nav>
               </div>
               <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
@@ -145,20 +199,7 @@ const DashboardLayout = () => {
             </div>
             <div className="flex-1 flex flex-col overflow-y-auto">
               <nav className="flex-1 px-4 py-4 space-y-2">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.name}
-                    to={item.path}
-                    className={`group flex items-center px-4 py-3 text-sm font-medium rounded-md ${
-                      location.pathname === item.path
-                        ? "bg-gray-100 text-whatsapp-dark"
-                        : "text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
-                    {item.icon}
-                    <span className="ml-3">{item.name}</span>
-                  </Link>
-                ))}
+                {navItems.map((item) => renderNavItem(item))}
               </nav>
             </div>
             <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
@@ -200,19 +241,37 @@ const DashboardLayout = () => {
 
       <div className="md:hidden fixed bottom-0 left-0 z-50 w-full h-16 bg-white border-t border-gray-200">
         <div className="grid h-full grid-cols-4">
-          <Button variant="ghost" className="flex flex-col items-center justify-center" onClick={() => navigate('/dashboard')}>
+          <Button 
+            variant="ghost" 
+            className="flex flex-col items-center justify-center" 
+            onClick={() => navigate('/dashboard')}
+          >
             <Home size={20} />
             <span className="text-xs mt-1">Inicio</span>
           </Button>
-          <Button variant="ghost" className="flex flex-col items-center justify-center" onClick={() => navigate('/dashboard/conversations')}>
+          <Button 
+            variant="ghost" 
+            className={`flex flex-col items-center justify-center ${!hasFullAccess ? 'opacity-50' : ''}`} 
+            onClick={() => hasFullAccess ? navigate('/dashboard/conversations') : navigate('/dashboard/settings')}
+          >
             <MessageSquare size={20} />
             <span className="text-xs mt-1">Chats</span>
+            {!hasFullAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
           </Button>
-          <Button variant="ghost" className="flex flex-col items-center justify-center" onClick={() => navigate('/dashboard/analytics')}>
+          <Button 
+            variant="ghost" 
+            className={`flex flex-col items-center justify-center ${!hasFullAccess ? 'opacity-50' : ''}`} 
+            onClick={() => hasFullAccess ? navigate('/dashboard/analytics') : navigate('/dashboard/settings')}
+          >
             <BarChart3 size={20} />
             <span className="text-xs mt-1">Análisis</span>
+            {!hasFullAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
           </Button>
-          <Button variant="ghost" className="flex flex-col items-center justify-center" onClick={toggleMobileMenu}>
+          <Button 
+            variant="ghost" 
+            className="flex flex-col items-center justify-center" 
+            onClick={toggleMobileMenu}
+          >
             <Menu size={20} />
             <span className="text-xs mt-1">Más</span>
           </Button>
@@ -232,21 +291,7 @@ const DashboardLayout = () => {
             </div>
             <div className="flex-1 h-0 overflow-y-auto">
               <nav className="mt-5 px-2 space-y-1">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.name}
-                    to={item.path}
-                    className={`group flex items-center px-4 py-3 text-base font-medium rounded-md ${
-                      location.pathname === item.path
-                        ? "bg-gray-100 text-whatsapp-dark"
-                        : "text-gray-600 hover:bg-gray-50"
-                    }`}
-                    onClick={toggleMobileMenu}
-                  >
-                    {item.icon}
-                    <span className="ml-3">{item.name}</span>
-                  </Link>
-                ))}
+                {navItems.map((item) => renderNavItem(item, true, toggleMobileMenu))}
               </nav>
             </div>
             <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
