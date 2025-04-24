@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
@@ -26,16 +26,23 @@ const DashboardLayout = () => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Verificar si el usuario tiene acceso completo
   const hasFullAccess = userData?.hasFullAccess || false;
+
+  // Asegurarnos de que el componente esté montado antes de renderizar
+  // para evitar discrepancias entre servidor y cliente
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const navItems = [
     {
       name: "Dashboard",
       path: "/dashboard",
       icon: <LayoutDashboard className="mr-3 h-5 w-5" />,
-      restricted: !hasFullAccess // Dashboard ahora también está restringido para usuarios sin acceso completo
+      restricted: !hasFullAccess // Dashboard está restringido para usuarios sin acceso completo
     },
     {
       name: "Conversaciones",
@@ -66,22 +73,16 @@ const DashboardLayout = () => {
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
   const toggleMobileMenu = () => setMobileMenuOpen(!mobileMenuOpen);
 
-  // Función para manejar clics en elementos de navegación
-  const handleNavItemClick = (item) => {
-    if (item.restricted) {
-      navigate("/dashboard/settings");
-      return false;
-    }
-    return true;
-  };
-
   // Renderizar elemento de navegación con tooltip si está restringido
   const renderNavItem = (item, mobile = false, onClick = null) => {
+    // Crear una key única para cada elemento
+    const key = `nav-${item.name.toLowerCase().replace(/\s+/g, '-')}${mobile ? '-mobile' : ''}`;
+    
     const itemClassName = `group flex items-center px-4 py-3 text-${mobile ? 'base' : 'sm'} font-medium rounded-md ${
       location.pathname === item.path
-        ? "bg-gray-100 text-whatsapp-dark"
+        ? (item.restricted ? "bg-gray-50 text-gray-400" : "bg-gray-100 text-whatsapp-dark")
         : item.restricted 
-          ? "text-gray-400 cursor-not-allowed" 
+          ? "text-gray-400 cursor-not-allowed opacity-50" 
           : "text-gray-600 hover:bg-gray-50"
     }`;
 
@@ -96,10 +97,16 @@ const DashboardLayout = () => {
     // Si está restringido, mostrar tooltip, si no, usar Link normal
     if (item.restricted) {
       return (
-        <TooltipProvider key={item.name}>
+        <TooltipProvider key={key}>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className={itemClassName} onClick={() => navigate("/dashboard/settings")}>
+              <div 
+                className={itemClassName} 
+                onClick={() => {
+                  navigate("/dashboard/settings");
+                  if (onClick) onClick();
+                }}
+              >
                 {content}
               </div>
             </TooltipTrigger>
@@ -113,7 +120,7 @@ const DashboardLayout = () => {
     
     return (
       <Link
-        key={item.name}
+        key={key}
         to={item.path}
         className={itemClassName}
         onClick={onClick}
@@ -122,6 +129,15 @@ const DashboardLayout = () => {
       </Link>
     );
   };
+
+  // Si no está montado aún o no hay datos de usuario, mostrar un layout básico
+  if (!mounted || !userData) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <p className="text-gray-500">Cargando...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex overflow-hidden bg-gray-100">
