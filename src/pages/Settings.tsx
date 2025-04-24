@@ -59,7 +59,7 @@ const defaultSettings: UserSettings = {
 };
 
 const Settings = () => {
-  const { currentUser, userData, activateFreeTrial } = useAuth();
+  const { currentUser, userData, activateFreeTrial, setVinculado } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -259,6 +259,36 @@ const Settings = () => {
           break;
         case 'language':
           cleanedSettings.languageConfigCompleted = true;
+          
+          // Si es la última sección y el usuario tiene freeTier pero no está vinculado, 
+          // actualizamos el campo vinculado y mostramos mensaje especial
+          if (userData?.freeTier && !userData?.vinculado) {
+            // Actualizar el documento en Firestore para registrar que el usuario ha terminado la configuración
+            // pero aún necesita vincular su WhatsApp
+            try {
+              await setVinculado(false);
+              
+              // Mostrar mensaje especial de vinculación de WhatsApp
+              toast({
+                title: "¡Configuración completada!",
+                description: "En breve recibirás en tu email las instrucciones necesarias para vincular tu WhatsApp junto con el código QR.",
+                duration: 6000
+              });
+            } catch (vinculacionError) {
+              console.error("Error al actualizar estado de vinculación:", vinculacionError);
+            }
+          } else {
+            toast({
+              title: "Configuración guardada",
+              description: "Los cambios han sido guardados correctamente."
+            });
+          }
+          break;
+        default:
+          toast({
+            title: "Configuración guardada",
+            description: "Los cambios han sido guardados correctamente."
+          });
           break;
       }
       
@@ -283,11 +313,6 @@ const Settings = () => {
       }
       
       console.log("Configuración guardada correctamente");
-      
-      toast({
-        title: "Configuración guardada",
-        description: "Los cambios han sido guardados correctamente."
-      });
     } catch (error) {
       console.error("Error detallado al guardar la configuración:", error);
       
@@ -714,6 +739,27 @@ const Settings = () => {
           </div>
         </Carousel>
       </div>
+
+      {/* En la vista inicial al cargar la página, mostrar mensaje si corresponde */}
+      {userData?.freeTier && !userData?.vinculado && settings.languageConfigCompleted && (
+        <Card className="mb-6 bg-gradient-to-r from-green-100 to-blue-100">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              Vinculación de WhatsApp pendiente
+            </CardTitle>
+            <CardDescription>
+              Tu cuenta está pendiente de vinculación con WhatsApp
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">
+              En breve recibirás en tu email ({currentUser?.email}) las instrucciones necesarias 
+              para vincular tu WhatsApp junto con el código QR. Si no recibes el email en los 
+              próximos minutos, revisa tu carpeta de spam.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

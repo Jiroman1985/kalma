@@ -23,6 +23,7 @@ interface UserData {
   freeTierFinishDate: string | null;
   hasFullAccess: boolean;
   isTrialExpired: boolean;
+  vinculado: boolean;
 }
 
 interface AuthContextProps {
@@ -35,6 +36,7 @@ interface AuthContextProps {
   logout: () => Promise<void>;
   updatePhoneNumber: (phoneNumber: string) => Promise<boolean>;
   activateFreeTrial: () => Promise<boolean>;
+  setVinculado: (value: boolean) => Promise<boolean>;
 }
 
 // Valores por defecto para los campos del usuario relacionados con el acceso
@@ -43,7 +45,8 @@ const defaultUserData: UserData = {
   freeTier: false,
   freeTierFinishDate: null,
   hasFullAccess: false,
-  isTrialExpired: false
+  isTrialExpired: false,
+  vinculado: false
 };
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -100,9 +103,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const isPaid = data.isPaid ?? defaultUserData.isPaid;
         const freeTier = data.freeTier ?? defaultUserData.freeTier;
         const freeTierFinishDate = data.freeTierFinishDate ?? defaultUserData.freeTierFinishDate;
+        const vinculado = data.vinculado ?? defaultUserData.vinculado;
         
         // Si alguno de los campos no existe, inicializarlos en Firestore
-        if (!data.hasOwnProperty('isPaid') || !data.hasOwnProperty('freeTier') || !data.hasOwnProperty('freeTierFinishDate')) {
+        if (!data.hasOwnProperty('isPaid') || !data.hasOwnProperty('freeTier') || 
+            !data.hasOwnProperty('freeTierFinishDate') || !data.hasOwnProperty('vinculado')) {
           console.log("Inicializando campos de acceso faltantes para usuario:", userId);
           
           // Preparar un objeto con los campos que faltan
@@ -110,6 +115,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (!data.hasOwnProperty('isPaid')) fieldsToUpdate.isPaid = isPaid;
           if (!data.hasOwnProperty('freeTier')) fieldsToUpdate.freeTier = freeTier;
           if (!data.hasOwnProperty('freeTierFinishDate')) fieldsToUpdate.freeTierFinishDate = freeTierFinishDate;
+          if (!data.hasOwnProperty('vinculado')) fieldsToUpdate.vinculado = vinculado;
           
           // Actualizar solo los campos faltantes
           await updateDoc(userRef, fieldsToUpdate);
@@ -137,7 +143,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           freeTier: freeTier && !isTrialExpired, // Si expiró, considerar como false
           freeTierFinishDate,
           hasFullAccess,
-          isTrialExpired
+          isTrialExpired,
+          vinculado
         });
         
         return {
@@ -145,7 +152,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           freeTier: freeTier && !isTrialExpired,
           freeTierFinishDate,
           hasFullAccess,
-          isTrialExpired
+          isTrialExpired,
+          vinculado
         };
       } else {
         // Si no existe el documento, usar valores por defecto
@@ -185,7 +193,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         freeTier: true,
         freeTierFinishDate: formattedEndDate,
         hasFullAccess: true,
-        isTrialExpired: false
+        isTrialExpired: false,
+        vinculado: userData!.vinculado
       };
       
       setUserData(newUserData);
@@ -216,7 +225,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log("Intentando guardar usuario:", user.uid);
       
       // Datos completos a guardar siempre (tanto para nuevos como actualizaciones)
-      const userData = {
+      const userData: any = {
         email: user.email,
         displayName: user.displayName || "",
         photoURL: user.photoURL || "",
@@ -234,7 +243,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         Object.assign(userData, {
           isPaid: defaultUserData.isPaid,
           freeTier: defaultUserData.freeTier,
-          freeTierFinishDate: defaultUserData.freeTierFinishDate
+          freeTierFinishDate: defaultUserData.freeTierFinishDate,
+          vinculado: defaultUserData.vinculado
         });
         
         // Inicializar estructura de datos para WhatsApp para nuevos usuarios
@@ -279,16 +289,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const result = await signInWithPopup(auth, googleProvider);
       
       // Guardar información del usuario en Firestore y obtener datos completos
-      await saveUserToFirestore(result.user, {
+      const userData = await saveUserToFirestore(result.user, {
         provider: "google",
         companyName: result.user.displayName || ""
       });
       
+      // Mostrar mensaje de bienvenida
       toast({
         title: "¡Bienvenido!",
         description: `Has iniciado sesión como ${result.user.email}`,
       });
-      navigate("/dashboard");
+      
+      // Verificar si tiene freeTier activado pero no vinculado
+      if (userData && userData.freeTier && !userData.vinculado) {
+        toast({
+          title: "Vinculación de WhatsApp pendiente",
+          description: "En breve recibirás instrucciones por email para vincular tu WhatsApp junto con el código QR.",
+          duration: 6000
+        });
+        navigate("/dashboard/settings");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (error: any) {
       console.error("Error al iniciar sesión con Google:", error);
       
@@ -316,15 +338,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const result = await signInWithEmailAndPassword(auth, email, password);
       
       // Guardar información del usuario en Firestore
-      await saveUserToFirestore(result.user, {
+      const userData = await saveUserToFirestore(result.user, {
         provider: "email"
       });
       
+      // Mostrar mensaje de bienvenida
       toast({
         title: "¡Bienvenido!",
         description: `Has iniciado sesión como ${result.user.email}`,
       });
-      navigate("/dashboard");
+      
+      // Verificar si tiene freeTier activado pero no vinculado
+      if (userData && userData.freeTier && !userData.vinculado) {
+        toast({
+          title: "Vinculación de WhatsApp pendiente",
+          description: "En breve recibirás instrucciones por email para vincular tu WhatsApp junto con el código QR.",
+          duration: 6000
+        });
+        navigate("/dashboard/settings");
+      } else {
+        navigate("/dashboard");
+      }
     } catch (error: any) {
       console.error("Error al iniciar sesión con email:", error);
       
@@ -463,16 +497,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return unsubscribe;
   }, []);
 
+  // Función para marcar la vinculación de WhatsApp
+  const setVinculado = async (value: boolean): Promise<boolean> => {
+    if (!currentUser) return false;
+    
+    try {
+      const userRef = doc(db, "users", currentUser.uid);
+      await updateDoc(userRef, {
+        vinculado: value
+      });
+      
+      // Actualizar estado local
+      if (userData) {
+        const newUserData = {
+          ...userData,
+          vinculado: value
+        };
+        
+        setUserData(newUserData);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error al actualizar estado de vinculación:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el estado de vinculación. Inténtalo de nuevo más tarde.",
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
   const value = {
     currentUser,
-    userData,
     loading,
+    userData,
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
     logout,
     updatePhoneNumber,
-    activateFreeTrial
+    activateFreeTrial,
+    setVinculado
   };
 
   return (

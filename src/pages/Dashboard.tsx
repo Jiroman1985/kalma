@@ -49,11 +49,17 @@ const Dashboard = () => {
       console.log("Acceso restringido al Dashboard. Redirigiendo a configuración...");
       navigate('/dashboard/settings');
     }
+
+    // Si el usuario tiene freeTier pero no está vinculado, redirigir a settings
+    if (userData && userData.freeTier && !userData.vinculado) {
+      console.log("Usuario con freeTier sin vincular. Redirigiendo a settings...");
+      navigate('/dashboard/settings');
+    }
   }, [userData, navigate]);
 
   useEffect(() => {
-    // Solo cargar datos si el usuario tiene acceso completo
-    if (userData && userData.hasFullAccess) {
+    // Solo cargar datos si el usuario tiene acceso completo Y está vinculado
+    if (userData && userData.hasFullAccess && userData.vinculado) {
       const fetchDashboardData = async () => {
         setLoading(true);
         try {
@@ -145,6 +151,47 @@ const Dashboard = () => {
         >
           Ir a configuración
         </Button>
+      </div>
+    );
+  }
+
+  // Si el usuario tiene freeTier pero no está vinculado, mostrar mensaje especial
+  if (userData && userData.freeTier && !userData.vinculado) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold tracking-tight">Bienvenido, {firstName}</h1>
+        </div>
+        
+        <Card className="bg-gradient-to-r from-green-100 to-blue-100">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2">
+              Vinculación de WhatsApp pendiente
+            </CardTitle>
+            <CardDescription>
+              Tu cuenta está pendiente de vinculación con WhatsApp
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm mb-4">
+              En breve recibirás en tu email ({currentUser?.email}) las instrucciones necesarias 
+              para vincular tu WhatsApp junto con el código QR. Si no recibes el email en los 
+              próximos minutos, revisa tu carpeta de spam.
+            </p>
+            <p className="text-sm">
+              Una vez que recibas las instrucciones, podrás vincular tu WhatsApp escaneando el código QR 
+              y comenzar a utilizar todas las funcionalidades de la plataforma.
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Button 
+              className="bg-whatsapp hover:bg-whatsapp-dark" 
+              onClick={() => navigate('/dashboard/settings')}
+            >
+              Ir a configuración
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     );
   }

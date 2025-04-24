@@ -28,8 +28,10 @@ const DashboardLayout = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // Verificar si el usuario tiene acceso completo
+  // Verificar si el usuario tiene acceso completo Y está vinculado
   const hasFullAccess = userData?.hasFullAccess || false;
+  const isVinculado = userData?.vinculado || false;
+  const hasCompleteAccess = hasFullAccess && isVinculado;
 
   // Asegurarnos de que el componente esté montado antes de renderizar
   // para evitar discrepancias entre servidor y cliente
@@ -42,25 +44,25 @@ const DashboardLayout = () => {
       name: "Dashboard",
       path: "/dashboard",
       icon: <LayoutDashboard className="mr-3 h-5 w-5" />,
-      restricted: !hasFullAccess // Dashboard está restringido para usuarios sin acceso completo
+      restricted: !hasCompleteAccess // Dashboard está restringido para usuarios sin acceso completo o sin vincular
     },
     {
       name: "Conversaciones",
       path: "/dashboard/conversations",
       icon: <MessageSquare className="mr-3 h-5 w-5" />,
-      restricted: !hasFullAccess
+      restricted: !hasCompleteAccess
     },
     {
       name: "Analytics",
       path: "/dashboard/analytics",
       icon: <BarChart3 className="mr-3 h-5 w-5" />,
-      restricted: !hasFullAccess
+      restricted: !hasCompleteAccess
     },
     {
       name: "Base de conocimiento",
       path: "/dashboard/knowledge-base",
       icon: <Database className="mr-3 h-5 w-5" />,
-      restricted: !hasFullAccess
+      restricted: !hasCompleteAccess
     },
     {
       name: "Configuración",
@@ -96,6 +98,13 @@ const DashboardLayout = () => {
 
     // Si está restringido, mostrar tooltip, si no, usar Link normal
     if (item.restricted) {
+      // Mensaje personalizado según el estado del usuario
+      let tooltipMessage = "Necesitas una suscripción para acceder a esta función";
+      
+      if (userData?.freeTier && !userData?.vinculado) {
+        tooltipMessage = "Necesitas vincular tu WhatsApp para acceder a esta función";
+      }
+      
       return (
         <TooltipProvider key={key}>
           <Tooltip>
@@ -111,7 +120,7 @@ const DashboardLayout = () => {
               </div>
             </TooltipTrigger>
             <TooltipContent>
-              <p>Necesitas una suscripción para acceder a esta función</p>
+              <p>{tooltipMessage}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -259,30 +268,30 @@ const DashboardLayout = () => {
         <div className="grid h-full grid-cols-4">
           <Button 
             variant="ghost" 
-            className={`flex flex-col items-center justify-center ${!hasFullAccess ? 'opacity-50' : ''}`} 
-            onClick={() => hasFullAccess ? navigate('/dashboard') : navigate('/dashboard/settings')}
+            className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
+            onClick={() => hasCompleteAccess ? navigate('/dashboard') : navigate('/dashboard/settings')}
           >
             <Home size={20} />
             <span className="text-xs mt-1">Inicio</span>
-            {!hasFullAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
+            {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
           </Button>
           <Button 
             variant="ghost" 
-            className={`flex flex-col items-center justify-center ${!hasFullAccess ? 'opacity-50' : ''}`} 
-            onClick={() => hasFullAccess ? navigate('/dashboard/conversations') : navigate('/dashboard/settings')}
+            className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
+            onClick={() => hasCompleteAccess ? navigate('/dashboard/conversations') : navigate('/dashboard/settings')}
           >
             <MessageSquare size={20} />
             <span className="text-xs mt-1">Chats</span>
-            {!hasFullAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
+            {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
           </Button>
           <Button 
             variant="ghost" 
-            className={`flex flex-col items-center justify-center ${!hasFullAccess ? 'opacity-50' : ''}`} 
-            onClick={() => hasFullAccess ? navigate('/dashboard/analytics') : navigate('/dashboard/settings')}
+            className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
+            onClick={() => hasCompleteAccess ? navigate('/dashboard/analytics') : navigate('/dashboard/settings')}
           >
             <BarChart3 size={20} />
             <span className="text-xs mt-1">Análisis</span>
-            {!hasFullAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
+            {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
           </Button>
           <Button 
             variant="ghost" 
