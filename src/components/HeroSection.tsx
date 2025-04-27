@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "./ui/button";
-import { ChevronRight, MessageCircle, Shield, Bot, Clock, BriefcaseBusiness, BarChart3, Smartphone, Globe, Zap, Users, Sparkles, ArrowRight, Check, LayoutDashboard, BrainCircuit, HeartHandshake, Instagram, Facebook, Twitter, Star } from "lucide-react";
+import { ChevronRight, MessageCircle, Shield, Bot, Clock, BriefcaseBusiness, BarChart3, Smartphone, Globe, Zap, Users, Sparkles, ArrowRight, Check, LayoutDashboard, BrainCircuit, HeartHandshake, Instagram, Facebook, Twitter } from "lucide-react";
 import { motion } from "framer-motion";
 
 const HeroSection: React.FC = () => {
@@ -80,30 +80,6 @@ const HeroSection: React.FC = () => {
       icon: <Sparkles className="h-8 w-8 text-cyan-600" />,
       title: "Marketing Integrado",
       description: "Lanza y monitorea campañas sincronizadas a través de WhatsApp y redes sociales desde un único panel."
-    }
-  ];
-
-  const testimonials = [
-    {
-      quote: "AURA transformó completamente nuestra estrategia digital. Ahorramos 15 horas semanales al gestionar WhatsApp, Instagram y Facebook desde una sola plataforma.",
-      author: "María Rodríguez",
-      company: "Boutique Elegance",
-      avatar: "M",
-      bgColor: "bg-teal-100"
-    },
-    {
-      quote: "Incrementamos nuestras conversiones en un 37% al poder responder consultas de clientes en tiempo real, en cualquier red social, incluso fuera de horario laboral.",
-      author: "Carlos Mendoza",
-      company: "TechSoluciones",
-      avatar: "C", 
-      bgColor: "bg-cyan-100"
-    },
-    {
-      quote: "El asistente IA ha transformado la forma en que atendemos a nuestros clientes. Ahora respondemos al instante y no perdemos ninguna oportunidad de venta.",
-      author: "María González",
-      company: "Boutique Flores",
-      avatar: "M",
-      bgColor: "bg-teal-100"
     }
   ];
 
@@ -325,49 +301,6 @@ const HeroSection: React.FC = () => {
                 </motion.div>
               ))}
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials - Diseño actualizado con estrellas */}
-      <section className="py-20 bg-white">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Lo que dicen nuestros clientes</h2>
-            <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-              PYMEs de todos los sectores ya están aprovechando el poder de AURA en WhatsApp y redes sociales
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {testimonials.map((testimonial, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-100"
-              >
-                <div className="flex items-center mb-3 px-6 pt-6">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-5 w-5 text-yellow-400 fill-yellow-400" />
-                  ))}
-                </div>
-                <div className="px-6 pb-6">
-                  <p className="text-gray-700 mb-6">{testimonial.quote}</p>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full ${testimonial.bgColor} text-center flex items-center justify-center text-teal-800 font-medium`}>
-                      {testimonial.avatar}
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">{testimonial.author}</h4>
-                      <p className="text-sm text-gray-500">{testimonial.company}</p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
           </div>
         </div>
       </section>
