@@ -62,6 +62,7 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
+import OAuthConnector from "@/components/OAuthConnector";
 
 // Interfaces para representar las suscripciones y configuraciones
 interface SocialNetworkSubscription {
@@ -728,7 +729,7 @@ const SocialNetworks = () => {
         batch.delete(doc.ref);
       });
       
-      // Generar cuentas de ejemplo
+      // Generar cuentas de ejemplo más completas
       const testAccounts = [
         {
           platform: "instagram",
@@ -757,6 +758,27 @@ const SocialNetworks = () => {
           url: "https://linkedin.com/company/miempresa",
           createdAt: serverTimestamp(),
           connected: false
+        },
+        {
+          platform: "instagram",
+          username: "miempresa_promociones",
+          url: "https://instagram.com/miempresa_promociones",
+          createdAt: serverTimestamp(),
+          connected: true
+        },
+        {
+          platform: "gmail",
+          username: "contacto@miempresa.com",
+          url: "mailto:contacto@miempresa.com",
+          createdAt: serverTimestamp(),
+          connected: true
+        },
+        {
+          platform: "googleReviews",
+          username: "Mi Empresa - Tienda Principal",
+          url: "https://g.page/miempresa-tienda",
+          createdAt: serverTimestamp(),
+          connected: true
         }
       ];
       
@@ -774,7 +796,7 @@ const SocialNetworks = () => {
       const endDate = new Date(today);
       endDate.setDate(today.getDate() + 30);
       
-      // Generar datos de suscripciones y configuraciones
+      // Generar datos de suscripciones y configuraciones más completos
       const testSocialNetworksData = {
         subscriptions: {
           instagram: {
@@ -786,12 +808,20 @@ const SocialNetworks = () => {
             active: true,
             activatedAt: Timestamp.now(),
             subscriptionEndDate: endDate.toISOString().split('T')[0]
+          },
+          googleReviews: {
+            active: true,
+            activatedAt: Timestamp.now(),
+            subscriptionEndDate: endDate.toISOString().split('T')[0]
           }
         },
         notificationPreferences: {
           instagram: true,
           gmail: true,
-          googleReviews: false
+          googleReviews: true,
+          facebook: false,
+          twitter: false,
+          linkedin: false
         },
         autoResponseSettings: {
           instagram: {
@@ -803,6 +833,18 @@ const SocialNetworks = () => {
             mode: 'autonomous'
           },
           googleReviews: {
+            enabled: true,
+            mode: 'draft'
+          },
+          facebook: {
+            enabled: false,
+            mode: 'draft'
+          },
+          twitter: {
+            enabled: false,
+            mode: 'draft'
+          },
+          linkedin: {
             enabled: false,
             mode: 'draft'
           }
@@ -837,12 +879,173 @@ const SocialNetworks = () => {
       // Recargar cuentas
       await loadAccounts();
       
-      // También cargar mensajes de prueba
-      loadMessages();
+      // Generar mensajes de prueba más variados y realistas
+      const mockMessages: SocialMediaMessage[] = [
+        // Instagram
+        {
+          id: "1",
+          platform: "instagram",
+          sender: {
+            name: "cliente_satisfecho",
+            avatar: "https://randomuser.me/api/portraits/women/32.jpg"
+          },
+          content: "Hola, ¿tienen disponible el modelo nuevo en color azul? Lo vi en su última publicación y me encantó.",
+          timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutos atrás
+          read: true,
+          replied: false,
+          accountId: "instagram1"
+        },
+        {
+          id: "2",
+          platform: "instagram",
+          sender: {
+            name: "nuevo_seguidor",
+            avatar: "https://randomuser.me/api/portraits/men/55.jpg"
+          },
+          content: "Acabo de descubrir su perfil y me encantan sus productos. ¿Hacen colaboraciones con influencers? Tengo 10K seguidores en mi cuenta de lifestyle.",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 día atrás
+          read: false,
+          replied: false,
+          accountId: "instagram1"
+        },
+        {
+          id: "3",
+          platform: "instagram",
+          sender: {
+            name: "fashion_lover22",
+            avatar: "https://randomuser.me/api/portraits/women/65.jpg"
+          },
+          content: "¿Tienen envíos internacionales? Me encantaría comprar varios de sus productos pero vivo en México.",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4), // 4 horas atrás
+          read: false,
+          replied: false,
+          accountId: "instagram1"
+        },
+        
+        // Facebook
+        {
+          id: "4",
+          platform: "facebook",
+          sender: {
+            name: "Juan Pérez",
+            avatar: "https://randomuser.me/api/portraits/men/42.jpg"
+          },
+          content: "Me encantó su producto, ¿hacen envíos a Canarias? Tengo familia allí y quiero enviarles un regalo.",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 horas atrás
+          read: true,
+          replied: true,
+          accountId: "facebook1"
+        },
+        {
+          id: "5",
+          platform: "facebook",
+          sender: {
+            name: "María Rodríguez",
+            avatar: "https://randomuser.me/api/portraits/women/45.jpg"
+          },
+          content: "¿Cuál es el horario de atención de su tienda física? Quiero pasar este fin de semana.",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12), // 12 horas atrás
+          read: false,
+          replied: false,
+          accountId: "facebook1"
+        },
+        
+        // Twitter
+        {
+          id: "6",
+          platform: "twitter",
+          sender: {
+            name: "@usuario_interesado",
+            avatar: "https://randomuser.me/api/portraits/women/22.jpg"
+          },
+          content: "¿Cuándo estará disponible la próxima colección? ¡Estoy muy emocionada! #NuevaColeccion #Moda #Ansiosa",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4), // 4 horas atrás
+          read: false,
+          replied: false,
+          accountId: "twitter1"
+        },
+        
+        // Gmail
+        {
+          id: "7",
+          platform: "gmail",
+          sender: {
+            name: "cliente_corporativo@empresa.com",
+            avatar: ""
+          },
+          content: "Estimados señores,\n\nEstamos interesados en realizar un pedido mayorista para nuestra cadena de tiendas. ¿Podrían enviarnos su catálogo actual con precios para distribuidores?\n\nAgradecemos su atención.\n\nAtentamente,\nDpto. Compras - Empresa S.A.",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 días atrás
+          read: true,
+          replied: false,
+          accountId: "gmail1"
+        },
+        {
+          id: "8",
+          platform: "gmail",
+          sender: {
+            name: "prensa@revistamodaactual.com",
+            avatar: ""
+          },
+          content: "Asunto: Solicitud de entrevista para artículo\n\nHola equipo de Mi Empresa,\n\nEstamos preparando un artículo sobre marcas emergentes en el sector y nos encantaría incluirlos. ¿Estarían disponibles para una breve entrevista esta semana?\n\nSaludos cordiales,\nLaura Martínez\nRedactora - Revista Moda Actual",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 8), // 8 horas atrás
+          read: false,
+          replied: false,
+          accountId: "gmail1"
+        },
+        
+        // Google Reviews
+        {
+          id: "9",
+          platform: "googleReviews",
+          sender: {
+            name: "Carlos García",
+            avatar: "https://randomuser.me/api/portraits/men/72.jpg"
+          },
+          content: "⭐⭐⭐⭐⭐ Excelente atención y productos de alta calidad. El personal muy amable y profesional. Volveré seguro.",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3), // 3 días atrás
+          read: true,
+          replied: true,
+          accountId: "googleReviews1"
+        },
+        {
+          id: "10",
+          platform: "googleReviews",
+          sender: {
+            name: "Ana Martín",
+            avatar: "https://randomuser.me/api/portraits/women/33.jpg"
+          },
+          content: "⭐⭐⭐ La tienda está bien, pero el tiempo de espera para la entrega fue más largo de lo prometido. Por lo demás todo correcto.",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 36), // 36 horas atrás
+          read: false,
+          replied: false,
+          accountId: "googleReviews1"
+        }
+      ];
+      
+      setMessages(mockMessages);
+      
+      // Generar analíticas actualizadas
+      const mockAnalytics = {
+        totalInteractions: 1248,
+        totalAccounts: testAccounts.length,
+        activeSubscriptions: Object.values(testSocialNetworksData.subscriptions).filter(sub => sub.active).length,
+        responseRate: 87,
+        pendingMessages: mockMessages.filter(m => !m.replied).length,
+        accountsByPlatform: {
+          instagram: testAccounts.filter(acc => acc.platform === "instagram").length,
+          facebook: testAccounts.filter(acc => acc.platform === "facebook").length,
+          twitter: testAccounts.filter(acc => acc.platform === "twitter").length,
+          linkedin: testAccounts.filter(acc => acc.platform === "linkedin").length,
+          gmail: testAccounts.filter(acc => acc.platform === "gmail").length,
+          googleReviews: testAccounts.filter(acc => acc.platform === "googleReviews").length
+        }
+      };
+      
+      setAnalytics(mockAnalytics);
       
       toast({
         title: "Datos de prueba generados",
-        description: "Se han creado cuentas, suscripciones y configuraciones de prueba."
+        description: "Se han creado cuentas, suscripciones, mensajes y configuraciones de prueba."
       });
     } catch (error) {
       console.error("Error al generar datos de prueba:", error);
@@ -877,7 +1080,7 @@ const SocialNetworks = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mb-8">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="accounts">Mis Cuentas</TabsTrigger>
           <TabsTrigger value="subscriptions">Suscripciones</TabsTrigger>
           <TabsTrigger value="settings">Configuración</TabsTrigger>
@@ -890,6 +1093,7 @@ const SocialNetworks = () => {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="integration">Integración</TabsTrigger>
         </TabsList>
         
         {/* Pestaña de Cuentas */}
@@ -1020,6 +1224,16 @@ const SocialNetworks = () => {
                           >
                             {account.connected ? "Conectado" : "Pendiente"}
                           </span>
+                          {!account.connected && (
+                            <div className="mt-2">
+                              <OAuthConnector 
+                                platform={account.platform} 
+                                accountId={account.id}
+                                size="sm"
+                                onConnected={loadAccounts}
+                              />
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end space-x-2">
@@ -1514,6 +1728,132 @@ const SocialNetworks = () => {
               )}
             </Card>
           </div>
+        </TabsContent>
+        
+        {/* Pestaña de Integración */}
+        <TabsContent value="integration">
+          <Card>
+            <CardHeader>
+              <CardTitle>Integración n8n para Webhooks</CardTitle>
+              <CardDescription>
+                Configura los webhooks para recibir eventos en tiempo real de tus redes sociales
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="p-4 border rounded-md bg-yellow-50 border-yellow-200">
+                <p className="text-sm text-yellow-800">
+                  <strong>Nota:</strong> La integración con n8n está en desarrollo. Actualmente se muestran datos de prueba.
+                </p>
+              </div>
+              
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium">URLs de Webhook</h3>
+                <p className="text-sm text-gray-500">
+                  Estas URLs deben configurarse en el flujo de trabajo de n8n para recibir eventos de tus redes sociales.
+                </p>
+                
+                <div className="space-y-3">
+                  {platforms.map(platform => {
+                    const isSubscribed = subscriptions[platform.id]?.active || false;
+                    
+                    return (
+                      <div key={platform.id} className="p-4 border rounded-md">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className={`p-2 rounded-full ${platform.color} text-white`}>
+                              {React.cloneElement(platform.icon, { className: 'h-5 w-5' })}
+                            </div>
+                            <span className="font-medium">{platform.name}</span>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            isSubscribed ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                          }`}>
+                            {isSubscribed ? "Activo" : "No activado"}
+                          </span>
+                        </div>
+                        
+                        {isSubscribed ? (
+                          <div className="mt-3">
+                            <div className="flex items-center mt-2">
+                              <Input 
+                                value={`https://n8n.whatspyme.com/webhook/${currentUser?.uid}/${platform.id}`}
+                                readOnly
+                                className="flex-1 bg-gray-50"
+                              />
+                              <Button 
+                                variant="ghost"
+                                size="icon"
+                                className="ml-2"
+                                onClick={() => copyToClipboard(`https://n8n.whatspyme.com/webhook/${currentUser?.uid}/${platform.id}`)}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Esta URL te permite configurar webhooks en {platform.name} para enviar datos a n8n.
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500 mt-3">
+                            Activa la suscripción a {platform.name} para obtener la URL de webhook.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              <div className="space-y-4 mt-6">
+                <h3 className="text-lg font-medium">Configuración de Webhooks</h3>
+                <p className="text-sm text-gray-500">
+                  Sigue estos pasos para configurar los webhooks en cada plataforma:
+                </p>
+                
+                <div className="space-y-2">
+                  <div>
+                    <h4 className="font-medium">Instagram</h4>
+                    <ol className="list-decimal list-inside text-sm text-gray-600 ml-2">
+                      <li>Accede al panel de desarrolladores de Facebook</li>
+                      <li>Configura los webhooks para tu aplicación de Instagram</li>
+                      <li>Introduce la URL proporcionada arriba</li>
+                      <li>Selecciona los eventos: comments, messages, mentions</li>
+                    </ol>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium">Gmail</h4>
+                    <ol className="list-decimal list-inside text-sm text-gray-600 ml-2">
+                      <li>Configura Google Pub/Sub para tu cuenta de Gmail</li>
+                      <li>Configura la URL de notificación push</li>
+                      <li>Selecciona los eventos: new_email, reply</li>
+                    </ol>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium">Google Reviews</h4>
+                    <ol className="list-decimal list-inside text-sm text-gray-600 ml-2">
+                      <li>Accede a Google My Business API</li>
+                      <li>Configura notificaciones para nuevas reseñas</li>
+                      <li>Introduce la URL proporcionada arriba</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                variant="outline" 
+                className="mr-2"
+                onClick={() => window.open("https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.webhook/", "_blank")}
+              >
+                Ver documentación n8n
+              </Button>
+              <Button disabled={Object.values(subscriptions).filter(sub => sub.active).length === 0}>
+                Probar webhooks
+              </Button>
+            </CardFooter>
+          </Card>
         </TabsContent>
       </Tabs>
 
