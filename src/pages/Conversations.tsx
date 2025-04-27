@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Card, 
   CardContent, 
@@ -9,7 +9,8 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, MessageSquare, User, Calendar, Clock, Filter, MessageCircle, Bot } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Search, MessageSquare, User, Calendar, Clock, Filter, MessageCircle, Bot, Send, X } from "lucide-react";
 import { 
   Facebook, 
   Instagram, 
@@ -28,7 +29,11 @@ import {
   orderBy, 
   Timestamp,
   limit,
-  or
+  or,
+  doc,
+  updateDoc,
+  addDoc,
+  serverTimestamp
 } from "firebase/firestore";
 import { WhatsAppMessage, getAgentRespondedMessages } from "@/lib/whatsappService";
 import { format } from "date-fns";
@@ -36,6 +41,7 @@ import { es } from "date-fns/locale";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Conversation {
   id: string;
@@ -79,7 +85,12 @@ const Conversations = () => {
     googleReviews: 0,
     linkedin: 0
   });
+  const [replyingTo, setReplyingTo] = useState<Conversation | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const { currentUser } = useAuth();
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchConversations = async () => {
@@ -317,6 +328,107 @@ const Conversations = () => {
     }));
   };
 
+  // Manejar clic en enviar respuesta
+  const handleReply = async () => {
+    if (!replyingTo || !replyText.trim() || !currentUser) {
+      return;
+    }
+
+    setSendingReply(true);
+    try {
+      // La respuesta depende de la plataforma
+      if (replyingTo.platform === 'whatsapp') {
+        // Para WhatsApp: Guardar respuesta en Firestore
+        const whatsappMsg = replyingTo.originalMessage as WhatsAppMessage;
+        const responseMessage = {
+          messageId: `response_${new Date().getTime()}`,
+          body: replyText,
+          from: whatsappMsg.to, // Inverso del mensaje original
+          to: whatsappMsg.from,
+          timestamp: serverTimestamp(),
+          isFromMe: true,
+          senderName: 'Asistente',
+          messageType: 'chat',
+          responded: false,
+          originalMessageId: whatsappMsg.messageId
+        };
+
+        // Guardar la respuesta como nuevo mensaje
+        await addDoc(collection(db, 'users', currentUser.uid, 'whatsapp'), responseMessage);
+
+        // Actualizar el mensaje original para marcarlo como respondido
+        if (whatsappMsg.id) {
+          const originalMessageRef = doc(db, 'users', currentUser.uid, 'whatsapp', whatsappMsg.id);
+          await updateDoc(originalMessageRef, {
+            responded: true
+          });
+        }
+      } else {
+        // Para redes sociales: En un escenario real, esto enviaría la respuesta a través de API
+        // En esta versión de demostración, simularemos la respuesta
+
+        // Simular un identificador único para la respuesta
+        const responseId = `resp_${Date.now()}`;
+        
+        // Construir una respuesta simulada
+        const socialResponse = {
+          id: responseId,
+          platform: replyingTo.platform,
+          sender: {
+            name: "Mi Empresa",
+            avatar: "https://ui-avatars.com/api/?name=Mi+Empresa"
+          },
+          content: replyText,
+          timestamp: new Date(),
+          read: true,
+          replied: false,
+          accountId: (replyingTo.originalMessage as SocialMediaMessage).accountId
+        };
+
+        // Actualizar la conversación localmente para mostrar la respuesta
+        const updatedConversations = conversations.map(conv => {
+          if (conv.id === replyingTo.id) {
+            return {
+              ...conv,
+              responseMessage: socialResponse,
+              isReplied: true
+            };
+          }
+          return conv;
+        });
+
+        // Actualizar estado
+        setConversations(updatedConversations);
+      }
+
+      // Mostrar confirmación
+      toast({
+        title: "Respuesta enviada",
+        description: "Tu respuesta ha sido enviada correctamente.",
+      });
+
+      // Limpiar estado de respuesta
+      setReplyText("");
+      setReplyingTo(null);
+    } catch (error) {
+      console.error("Error al enviar respuesta:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo enviar la respuesta. Intenta nuevamente.",
+        variant: "destructive"
+      });
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
+  // Efecto para enfocar el campo de texto cuando se empieza a responder
+  useEffect(() => {
+    if (replyingTo && replyInputRef.current) {
+      replyInputRef.current.focus();
+    }
+  }, [replyingTo]);
+
   // Filtrar conversaciones por búsqueda y pestaña activa
   const getFilteredConversations = () => {
     return conversations.filter(conversation => {
@@ -550,6 +662,8 @@ const Conversations = () => {
                     : ('timestamp' in conversation.originalMessage ? conversation.originalMessage.timestamp : new Date()))
                 : null;
               
+              const isReplying = replyingTo?.id === conversation.id;
+              
               return (
                 <Card 
                   key={conversation.id} 
@@ -598,7 +712,7 @@ const Conversations = () => {
                     {/* Mensaje original */}
                     <div className={`flex gap-3 items-start ${getPlatformBgColor(conversation.platform)} p-3 rounded-lg`}>
                       {getPlatformIcon(conversation.platform)}
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm text-gray-700">{messageContent}</p>
                         <p className="text-xs text-gray-500 mt-1">{originalTime.formatted}</p>
                       </div>
@@ -608,7 +722,7 @@ const Conversations = () => {
                     {conversation.responseMessage && (
                       <div className="flex gap-3 items-start bg-green-50 p-3 rounded-lg ml-6">
                         <Bot className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                        <div>
+                        <div className="flex-1">
                           <p className="text-sm text-gray-700">
                             {isWhatsApp 
                               ? (conversation.responseMessage as WhatsAppMessage).body 
@@ -621,10 +735,64 @@ const Conversations = () => {
                         </div>
                       </div>
                     )}
+                    
+                    {/* Formulario de respuesta */}
+                    {isReplying && (
+                      <div className="flex flex-col gap-2 p-3 border rounded-lg ml-6 bg-blue-50">
+                        <div className="flex justify-between items-center mb-1">
+                          <h4 className="text-sm font-medium">Responder a {conversation.user}</h4>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6"
+                            onClick={() => setReplyingTo(null)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <Textarea
+                          ref={replyInputRef}
+                          placeholder={`Escribe tu respuesta para ${conversation.user}...`}
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          className="min-h-[80px]"
+                        />
+                        <div className="flex justify-end mt-2">
+                          <Button 
+                            onClick={handleReply} 
+                            disabled={sendingReply || !replyText.trim()}
+                            className="flex items-center gap-2"
+                          >
+                            {sendingReply ? (
+                              <>
+                                <div className="h-4 w-4 border-t-2 border-r-2 border-white rounded-full animate-spin"></div>
+                                Enviando...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4" />
+                                Enviar
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                   
-                  <CardFooter>
-                    <div className="w-full flex justify-end">
+                  <CardFooter className="flex justify-between">
+                    <div className="flex">
+                      {!conversation.isReplied && !isReplying && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setReplyingTo(conversation)}
+                        >
+                          Responder
+                        </Button>
+                      )}
+                    </div>
+                    <div className="flex justify-end">
                       <span 
                         className={`text-xs px-2 py-1 rounded-full ${
                           conversation.isReplied 

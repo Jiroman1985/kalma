@@ -144,6 +144,84 @@ const SocialNetworks = () => {
       linkedin: 0,
       gmail: 0,
       googleReviews: 0
+    },
+    // Datos de análisis extendidos
+    platformAnalytics: {
+      instagram: {
+        dailyInteractions: [15, 22, 19, 28, 32, 25, 38],
+        followersGrowth: [1200, 1250, 1310, 1390, 1420, 1490, 1550],
+        engagementRate: 4.2,
+        reachRate: 25.7,
+        peakHours: [14, 19, 21], // Horas del día con más actividad
+        sentimentDistribution: { positive: 68, neutral: 24, negative: 8 },
+        topHashtags: ['moda', 'tendencia', 'estilo', 'primavera']
+      },
+      facebook: {
+        dailyInteractions: [10, 15, 12, 18, 14, 22, 16],
+        followersGrowth: [5200, 5230, 5250, 5290, 5320, 5370, 5400],
+        engagementRate: 2.8,
+        reachRate: 18.5,
+        peakHours: [12, 17, 20],
+        sentimentDistribution: { positive: 52, neutral: 39, negative: 9 },
+        topHashtags: ['oferta', 'nuevacoleccion', 'descuento']
+      },
+      twitter: {
+        dailyInteractions: [25, 18, 30, 22, 28, 35, 29],
+        followersGrowth: [980, 995, 1010, 1050, 1080, 1110, 1150],
+        engagementRate: 3.5,
+        reachRate: 15.2,
+        peakHours: [9, 13, 22],
+        sentimentDistribution: { positive: 45, neutral: 42, negative: 13 },
+        topHashtags: ['news', 'fashion', 'ootd', 'trendy']
+      },
+      gmail: {
+        dailyInteractions: [8, 12, 9, 7, 15, 10, 11],
+        responseRate: 87,
+        averageResponseTime: 2.5, // Horas
+        sentimentDistribution: { positive: 72, neutral: 20, negative: 8 },
+        categories: {
+          consultas: 45,
+          ventas: 32,
+          soporte: 18,
+          otros: 5
+        }
+      },
+      googleReviews: {
+        averageRating: 4.2,
+        ratingDistribution: [2, 5, 12, 38, 45], // 1-5 estrellas
+        responseRate: 92,
+        reviewsPerMonth: [12, 15, 9, 18, 14, 20, 16, 24, 19, 22, 28, 35],
+        sentimentDistribution: { positive: 75, neutral: 15, negative: 10 }
+      }
+    },
+    // Datos agregados
+    aggregated: {
+      totalInteractions: 1248,
+      weeklyInteractions: [58, 67, 70, 75, 89, 92, 94],
+      monthlyInteractions: [980, 1050, 1120, 1180, 1220, 1248],
+      engagementByDay: {
+        lunes: 15,
+        martes: 18,
+        miércoles: 22,
+        jueves: 19,
+        viernes: 14,
+        sábado: 8,
+        domingo: 4
+      },
+      responseTimeByPlatform: {
+        instagram: 1.8, // horas
+        facebook: 2.2,
+        twitter: 1.5,
+        gmail: 3.5,
+        googleReviews: 4.2
+      },
+      interactionsByType: {
+        mensajes: 520,
+        comentarios: 345,
+        menciones: 215,
+        reseñas: 98,
+        correos: 70
+      }
     }
   });
   
@@ -198,14 +276,92 @@ const SocialNetworks = () => {
         totalAccounts: accounts.length,
         activeSubscriptions: Object.values(subscriptions).filter(sub => sub.active).length,
         responseRate: 87,
-        pendingMessages: 14,
+        pendingMessages: messages.filter(m => !m.replied).length,
         accountsByPlatform: {
           instagram: accounts.filter(acc => acc.platform === "instagram").length,
           facebook: accounts.filter(acc => acc.platform === "facebook").length,
           twitter: accounts.filter(acc => acc.platform === "twitter").length,
           linkedin: accounts.filter(acc => acc.platform === "linkedin").length,
-          gmail: 0,
-          googleReviews: 0
+          gmail: accounts.filter(acc => acc.platform === "gmail").length,
+          googleReviews: accounts.filter(acc => acc.platform === "googleReviews").length
+        },
+        // Datos de análisis extendidos
+        platformAnalytics: {
+          instagram: {
+            dailyInteractions: [15, 22, 19, 28, 32, 25, 38],
+            followersGrowth: [1200, 1250, 1310, 1390, 1420, 1490, 1550],
+            engagementRate: 4.2,
+            reachRate: 25.7,
+            peakHours: [14, 19, 21], // Horas del día con más actividad
+            sentimentDistribution: { positive: 68, neutral: 24, negative: 8 },
+            topHashtags: ['moda', 'tendencia', 'estilo', 'primavera']
+          },
+          facebook: {
+            dailyInteractions: [10, 15, 12, 18, 14, 22, 16],
+            followersGrowth: [5200, 5230, 5250, 5290, 5320, 5370, 5400],
+            engagementRate: 2.8,
+            reachRate: 18.5,
+            peakHours: [12, 17, 20],
+            sentimentDistribution: { positive: 52, neutral: 39, negative: 9 },
+            topHashtags: ['oferta', 'nuevacoleccion', 'descuento']
+          },
+          twitter: {
+            dailyInteractions: [25, 18, 30, 22, 28, 35, 29],
+            followersGrowth: [980, 995, 1010, 1050, 1080, 1110, 1150],
+            engagementRate: 3.5,
+            reachRate: 15.2,
+            peakHours: [9, 13, 22],
+            sentimentDistribution: { positive: 45, neutral: 42, negative: 13 },
+            topHashtags: ['news', 'fashion', 'ootd', 'trendy']
+          },
+          gmail: {
+            dailyInteractions: [8, 12, 9, 7, 15, 10, 11],
+            responseRate: 87,
+            averageResponseTime: 2.5, // Horas
+            sentimentDistribution: { positive: 72, neutral: 20, negative: 8 },
+            categories: {
+              consultas: 45,
+              ventas: 32,
+              soporte: 18,
+              otros: 5
+            }
+          },
+          googleReviews: {
+            averageRating: 4.2,
+            ratingDistribution: [2, 5, 12, 38, 45], // 1-5 estrellas
+            responseRate: 92,
+            reviewsPerMonth: [12, 15, 9, 18, 14, 20, 16, 24, 19, 22, 28, 35],
+            sentimentDistribution: { positive: 75, neutral: 15, negative: 10 }
+          }
+        },
+        // Datos agregados
+        aggregated: {
+          totalInteractions: 1248,
+          weeklyInteractions: [58, 67, 70, 75, 89, 92, 94],
+          monthlyInteractions: [980, 1050, 1120, 1180, 1220, 1248],
+          engagementByDay: {
+            lunes: 15,
+            martes: 18,
+            miércoles: 22,
+            jueves: 19,
+            viernes: 14,
+            sábado: 8,
+            domingo: 4
+          },
+          responseTimeByPlatform: {
+            instagram: 1.8, // horas
+            facebook: 2.2,
+            twitter: 1.5,
+            gmail: 3.5,
+            googleReviews: 4.2
+          },
+          interactionsByType: {
+            mensajes: 520,
+            comentarios: 345,
+            menciones: 215,
+            reseñas: 98,
+            correos: 70
+          }
         }
       };
       
