@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { doc, updateDoc, setDoc, collection } from "firebase/firestore";
+import { doc, getDoc, updateDoc, setDoc, collection } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { 
   Facebook, 
@@ -13,6 +13,7 @@ import {
   Star,
   Loader2
 } from "lucide-react";
+import { initiateOAuthFlow, isConnectedToPlatform, disconnectPlatform } from "@/lib/n8nService";
 
 interface OAuthConnectorProps {
   platform: string;
@@ -32,6 +33,29 @@ const OAuthConnector: React.FC<OAuthConnectorProps> = ({
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const [connecting, setConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Verificar estado de conexión al cargar el componente
+  useEffect(() => {
+    if (!currentUser) {
+      setIsLoading(false);
+      return;
+    }
+
+    const checkConnectionStatus = async () => {
+      try {
+        const connected = await isConnectedToPlatform(currentUser.uid, platform);
+        setIsConnected(connected);
+      } catch (error) {
+        console.error("Error al verificar estado de conexión:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkConnectionStatus();
+  }, [currentUser, platform]);
 
   // Obtener información de configuración según la plataforma
   const getPlatformConfig = () => {
@@ -97,13 +121,20 @@ const OAuthConnector: React.FC<OAuthConnectorProps> = ({
     setConnecting(true);
 
     try {
-      // Simular un proceso OAuth - En producción, aquí iría la redirección a la página de autorización
+      // Iniciar el flujo OAuth
       toast({
         title: "Conectando...",
-        description: `Iniciando conexión con ${config.name}`,
+        description: `Redirigiendo a la página de autorización de ${config.name}`,
       });
 
-      // Simulamos un retraso para el demo
+      // Obtener URL de autorización
+      const authUrl = initiateOAuthFlow(platform, currentUser.uid);
+      
+      // Simular redireccionamiento (para el MVP)
+      // En producción, esto sería window.location.href = authUrl;
+      console.log("Redirigiendo a:", authUrl);
+      
+      // Simulamos un retraso para el demo y luego éxito
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Si se proporcionó un accountId, actualizar el estado de conexión de esa cuenta
@@ -114,19 +145,11 @@ const OAuthConnector: React.FC<OAuthConnectorProps> = ({
         });
       }
 
-      // Simular el almacenamiento de token (en un entorno real, esto se manejaría en el servidor)
-      const tokensRef = doc(collection(db, "users", currentUser.uid, "socialTokens"), platform.toLowerCase());
-      await setDoc(tokensRef, {
-        accessToken: "simulated_access_token_" + Math.random().toString(36).substring(2),
-        refreshToken: "simulated_refresh_token_" + Math.random().toString(36).substring(2),
-        tokenExpiry: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 días
-        scope: "read_" + platform + ",write_" + platform,
-        lastSynced: new Date().toISOString()
-      }, { merge: true });
-
+      setIsConnected(true);
+      
       toast({
         title: "Conexión exitosa",
-        description: `Tu cuenta de ${config.name} ha sido conectada correctamente`
+        description: `Tu cuenta de ${config.name} ha sido conectada correctamente a AURA`
       });
 
       // Notificar al componente padre si se completó la conexión
@@ -134,10 +157,10 @@ const OAuthConnector: React.FC<OAuthConnectorProps> = ({
         onConnected();
       }
     } catch (error) {
-      console.error("Error en el proceso OAuth:", error);
+      console.error("Error al iniciar OAuth:", error);
       toast({
         title: "Error de conexión",
-        description: `No se pudo conectar con ${config.name}. Por favor, intenta de nuevo.`,
+        description: `No se pudo conectar con ${config.name}. Por favor, inténtalo de nuevo.`,
         variant: "destructive"
       });
     } finally {
@@ -145,25 +168,97 @@ const OAuthConnector: React.FC<OAuthConnectorProps> = ({
     }
   };
 
-  // Generar clases según el tamaño
-  const sizeClasses = {
-    sm: "px-2 py-1 text-xs",
-    default: "px-4 py-2",
-    lg: "px-6 py-3 text-lg"
+  // Desconectar la plataforma
+  const handleDisconnect = async () => {
+    if (!currentUser) return;
+    
+    setConnecting(true);
+    
+    try {
+      await disconnectPlatform(currentUser.uid, platform);
+      
+      setIsConnected(false);
+      
+      toast({
+        title: "Desconexión exitosa",
+        description: `Se ha desconectado tu cuenta de ${config.name}.`
+      });
+      
+    } catch (error) {
+      console.error("Error al desconectar:", error);
+      toast({
+        title: "Error de desconexión",
+        description: `No se pudo desconectar de ${config.name}. Por favor, inténtalo de nuevo.`,
+        variant: "destructive"
+      });
+    } finally {
+      setConnecting(false);
+    }
   };
 
+  // Clases según el tamaño
+  const getSizeClasses = () => {
+    switch (size) {
+      case "sm":
+        return "px-2.5 py-1.5 text-xs";
+      case "lg":
+        return "px-5 py-3 text-lg";
+      default:
+        return "px-4 py-2 text-sm";
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Button 
+        disabled
+        className={`${getSizeClasses()} bg-gray-300 text-gray-700`}
+      >
+        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        Verificando...
+      </Button>
+    );
+  }
+
+  if (isConnected) {
+    return (
+      <Button 
+        onClick={handleDisconnect}
+        className={`${getSizeClasses()} bg-green-600 hover:bg-red-600 transition-colors duration-300 text-white`}
+        disabled={connecting}
+      >
+        {connecting ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Desconectando...
+          </>
+        ) : (
+          <>
+            {config.icon}
+            Conectado
+          </>
+        )}
+      </Button>
+    );
+  }
+
   return (
-    <Button
-      className={`${config.color} ${sizeClasses[size]}`}
-      onClick={initiateOAuth}
+    <Button 
+      onClick={initiateOAuth} 
+      className={`${getSizeClasses()} ${config.color}`}
       disabled={connecting}
     >
       {connecting ? (
-        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        <>
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          Conectando...
+        </>
       ) : (
-        config.icon
+        <>
+          {config.icon}
+          Conectar {config.name}
+        </>
       )}
-      Conectar con {config.name}
     </Button>
   );
 };

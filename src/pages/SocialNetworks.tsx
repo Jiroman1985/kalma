@@ -63,6 +63,14 @@ import {
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import OAuthConnector from "@/components/OAuthConnector";
+import { getN8nWebhookUrl } from "@/lib/n8nService";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertCircle } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 // Interfaces para representar las suscripciones y configuraciones
 interface SocialNetworkSubscription {
@@ -112,6 +120,200 @@ interface SocialMediaMessage {
   replied: boolean;
   accountId: string;
 }
+
+// Contenido de la pestaña de integración
+const IntegrationTab = ({ platforms, subscriptions, currentUser, refresh }: {
+  platforms: Platform[],
+  subscriptions: Record<string, SocialNetworkSubscription>,
+  currentUser: any,
+  refresh: () => void
+}) => {
+  const { toast } = useToast();
+  
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Copiado al portapapeles",
+      description: "La URL ha sido copiada al portapapeles",
+    });
+  };
+  
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Integración con Redes Sociales</CardTitle>
+        <CardDescription>
+          Conecta tus redes sociales con AURA para gestionar todas tus conversaciones desde un solo lugar
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="p-4 border rounded-md bg-blue-50 border-blue-200">
+          <div className="flex items-start space-x-2">
+            <AlertCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm text-blue-800 font-medium">
+                ¿Cómo funciona la integración?
+              </p>
+              <p className="text-sm text-blue-700 mt-1">
+                AURA utiliza n8n como motor de automatización para conectarse con tus redes sociales. Esta conexión permite recibir y enviar mensajes en tiempo real desde una sola interfaz.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="text-lg font-medium mb-4">Conectar plataformas</h3>
+            <div className="space-y-4">
+              {platforms.map(platform => (
+                <div key={platform.id} className="p-4 border rounded-md hover:shadow-md transition-shadow">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className={`p-2 rounded-full ${platform.color} text-white`}>
+                        {React.cloneElement(platform.icon, { className: 'h-5 w-5' })}
+                      </div>
+                      <div>
+                        <h4 className="font-medium">{platform.name}</h4>
+                        <p className="text-xs text-gray-500">{
+                          subscriptions[platform.id]?.active 
+                            ? "Suscripción activa" 
+                            : "No conectado"
+                        }</p>
+                      </div>
+                    </div>
+                    <OAuthConnector 
+                      platform={platform.id}
+                      onConnected={refresh}
+                      size="sm"
+                    />
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {platform.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div>
+            <h3 className="text-lg font-medium mb-4">Configuración de Webhooks</h3>
+            <div className="space-y-4">
+              {platforms.filter(p => subscriptions[p.id]?.active).map(platform => {
+                const webhookUrl = getN8nWebhookUrl(currentUser.uid, platform.id);
+                
+                return (
+                  <div key={platform.id} className="p-4 border rounded-md bg-gray-50">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <div className={`p-2 rounded-full ${platform.color} text-white`}>
+                        {React.cloneElement(platform.icon, { className: 'h-5 w-5' })}
+                      </div>
+                      <h4 className="font-medium">{platform.name}</h4>
+                      <Badge variant="outline" className="ml-auto bg-green-50 text-green-700 border-green-200">
+                        <ShieldCheck className="h-3 w-3 mr-1" />
+                        Conectado
+                      </Badge>
+                    </div>
+                    
+                    <div className="bg-white p-2 rounded border mt-2">
+                      <p className="text-xs font-medium text-gray-500 mb-1">Webhook URL:</p>
+                      <div className="flex items-center">
+                        <Input 
+                          value={webhookUrl}
+                          readOnly
+                          className="flex-1 text-xs bg-gray-50"
+                        />
+                        <Button 
+                          variant="ghost"
+                          size="icon"
+                          className="ml-2"
+                          onClick={() => copyToClipboard(webhookUrl)}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3">
+                      <a 
+                        href={`https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.${platform.id}/`} 
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline flex items-center"
+                      >
+                        Ver guía de configuración
+                        <ChevronRight className="h-3 w-3 ml-1" />
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {!platforms.some(p => subscriptions[p.id]?.active) && (
+                <div className="flex flex-col items-center justify-center h-60 text-center p-6 border rounded-md border-dashed">
+                  <AlertCircle className="h-10 w-10 text-gray-300 mb-2" />
+                  <p className="text-gray-500">No tienes plataformas conectadas</p>
+                  <p className="text-sm text-gray-400 mt-1 mb-4">
+                    Conecta al menos una plataforma para ver su configuración de webhook
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            <div className="mt-6 p-4 border rounded-md">
+              <h4 className="font-medium flex items-center">
+                <RefreshCw className="h-4 w-4 mr-2 text-teal-600" />
+                Estado de la integración
+              </h4>
+              <p className="text-sm text-gray-600 mt-2">
+                La integración con n8n está {platforms.some(p => subscriptions[p.id]?.active) ? 'activa' : 'pendiente'}. 
+                Los webhooks se actualizarán automáticamente cuando conectes o desconectes plataformas.
+              </p>
+              
+              <div className="mt-4">
+                <Button variant="outline" size="sm" onClick={refresh}>
+                  <RefreshCw className="h-3.5 w-3.5 mr-2" />
+                  Actualizar estado
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <Separator />
+        
+        <div>
+          <h3 className="text-lg font-medium mb-4">Documentación y recursos</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
+              <CardContent className="p-4">
+                <h4 className="font-medium">Guía de inicio rápido</h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  Aprende a configurar tus primeras integraciones con n8n
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
+              <CardContent className="p-4">
+                <h4 className="font-medium">Ejemplos de workflows</h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  Plantillas pre-configuradas para integrar redes sociales
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
+              <CardContent className="p-4">
+                <h4 className="font-medium">Problemas comunes</h4>
+                <p className="text-sm text-gray-600 mt-1">
+                  Soluciones a los problemas más frecuentes
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const SocialNetworks = () => {
   const { currentUser, userData } = useAuth();
@@ -2255,128 +2457,12 @@ const SocialNetworks = () => {
         
         {/* Pestaña de Integración */}
         <TabsContent value="integration">
-          <Card>
-            <CardHeader>
-              <CardTitle>Integración n8n para Webhooks</CardTitle>
-              <CardDescription>
-                Configura los webhooks para recibir eventos en tiempo real de tus redes sociales
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="p-4 border rounded-md bg-yellow-50 border-yellow-200">
-                <p className="text-sm text-yellow-800">
-                  <strong>Nota:</strong> La integración con n8n está en desarrollo. Actualmente se muestran datos de prueba.
-                </p>
-              </div>
-              
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">URLs de Webhook</h3>
-                <p className="text-sm text-gray-500">
-                  Estas URLs deben configurarse en el flujo de trabajo de n8n para recibir eventos de tus redes sociales.
-                </p>
-                
-                <div className="space-y-3">
-                  {platforms.map(platform => {
-                    const isSubscribed = subscriptions[platform.id]?.active || false;
-                    
-                    return (
-                      <div key={platform.id} className="p-4 border rounded-md">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <div className={`p-2 rounded-full ${platform.color} text-white`}>
-                              {React.cloneElement(platform.icon, { className: 'h-5 w-5' })}
-                            </div>
-                            <span className="font-medium">{platform.name}</span>
-                          </div>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            isSubscribed ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                          }`}>
-                            {isSubscribed ? "Activo" : "No activado"}
-                          </span>
-                        </div>
-                        
-                        {isSubscribed ? (
-                          <div className="mt-3">
-                            <div className="flex items-center mt-2">
-                              <Input 
-                                value={`https://n8n.whatspyme.com/webhook/${currentUser?.uid}/${platform.id}`}
-                                readOnly
-                                className="flex-1 bg-gray-50"
-                              />
-                              <Button 
-                                variant="ghost"
-                                size="icon"
-                                className="ml-2"
-                                onClick={() => copyToClipboard(`https://n8n.whatspyme.com/webhook/${currentUser?.uid}/${platform.id}`)}
-                              >
-                                <Copy className="h-4 w-4" />
-                              </Button>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Esta URL te permite configurar webhooks en {platform.name} para enviar datos a n8n.
-                            </p>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-500 mt-3">
-                            Activa la suscripción a {platform.name} para obtener la URL de webhook.
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              
-              <div className="space-y-4 mt-6">
-                <h3 className="text-lg font-medium">Configuración de Webhooks</h3>
-                <p className="text-sm text-gray-500">
-                  Sigue estos pasos para configurar los webhooks en cada plataforma:
-                </p>
-                
-                <div className="space-y-2">
-                  <div>
-                    <h4 className="font-medium">Instagram</h4>
-                    <ol className="list-decimal list-inside text-sm text-gray-600 ml-2">
-                      <li>Accede al panel de desarrolladores de Facebook</li>
-                      <li>Configura los webhooks para tu aplicación de Instagram</li>
-                      <li>Introduce la URL proporcionada arriba</li>
-                      <li>Selecciona los eventos: comments, messages, mentions</li>
-                    </ol>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-medium">Gmail</h4>
-                    <ol className="list-decimal list-inside text-sm text-gray-600 ml-2">
-                      <li>Configura Google Pub/Sub para tu cuenta de Gmail</li>
-                      <li>Configura la URL de notificación push</li>
-                      <li>Selecciona los eventos: new_email, reply</li>
-                    </ol>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-medium">Google Reviews</h4>
-                    <ol className="list-decimal list-inside text-sm text-gray-600 ml-2">
-                      <li>Accede a Google My Business API</li>
-                      <li>Configura notificaciones para nuevas reseñas</li>
-                      <li>Introduce la URL proporcionada arriba</li>
-                    </ol>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button 
-                variant="outline" 
-                className="mr-2"
-                onClick={() => window.open("https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.webhook/", "_blank")}
-              >
-                Ver documentación n8n
-              </Button>
-              <Button disabled={Object.values(subscriptions).filter(sub => sub.active).length === 0}>
-                Probar webhooks
-              </Button>
-            </CardFooter>
-          </Card>
+          <IntegrationTab 
+            platforms={platforms}
+            subscriptions={subscriptions}
+            currentUser={currentUser}
+            refresh={loadSubscriptionsAndSettings}
+          />
         </TabsContent>
       </Tabs>
 
