@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "./ui/button";
-import { ChevronRight, MessageCircle, Shield, Bot, Clock, BriefcaseBusiness, BarChart3, Smartphone, Globe, Zap, Users, Sparkles, ArrowRight, Check, LayoutDashboard, BrainCircuit, HeartHandshake } from "lucide-react";
+import { ChevronRight, MessageCircle, Shield, Bot, Clock, BriefcaseBusiness, BarChart3, Smartphone, Globe, Zap, Users, Sparkles, ArrowRight, Check, LayoutDashboard, BrainCircuit, HeartHandshake, Instagram, Facebook, Twitter } from "lucide-react";
 import { motion } from "framer-motion";
 
 const HeroSection: React.FC = () => {
@@ -28,38 +28,38 @@ const HeroSection: React.FC = () => {
 
   const chatExamples = [
     {
-      question: "Necesito ver cómo están funcionando mis redes sociales",
-      answer: "¡Claro! En tu dashboard de AURA encontrarás un resumen unificado de todas tus redes sociales con métricas clave como engagement, alcance y conversiones en un solo lugar.",
-      icon: <BarChart3 size={16} className="text-teal-600" />
+      question: "Necesito gestionar varios perfiles de redes sociales y WhatsApp",
+      answer: "¡Claro! Con AURA puedes administrar todas tus redes (Instagram, Facebook, Twitter) y WhatsApp desde un único panel. Verás todas las conversaciones centralizadas y podrás responder sin cambiar de plataforma.",
+      icon: <Globe size={16} className="text-teal-600" />
     },
     {
       question: "Tengo muchos mensajes sin responder en diferentes plataformas",
-      answer: "AURA puede automatizar respuestas en todas tus redes sociales. Configuremos reglas personalizadas para respuestas instantáneas mientras mantienes el control total de la comunicación.",
+      answer: "AURA puede automatizar respuestas en WhatsApp y todas tus redes sociales. Configuremos reglas personalizadas para respuestas instantáneas mientras mantienes el control total de la comunicación.",
       icon: <Zap size={16} className="text-teal-600" />
     },
     {
       question: "¿Cómo puedo saber qué canal es más efectivo para mi negocio?",
-      answer: "Nuestras analíticas avanzadas comparan el rendimiento de todos tus canales. Te mostraré exactamente dónde invierte mejor tu tiempo y recursos para maximizar conversiones.",
-      icon: <Globe size={16} className="text-teal-600" />
+      answer: "Nuestras analíticas avanzadas comparan el rendimiento de WhatsApp, Instagram, Facebook y otros canales. Te mostraré exactamente dónde invierte mejor tu tiempo y recursos para maximizar conversiones.",
+      icon: <BarChart3 size={16} className="text-teal-600" />
     }
   ];
 
   const features = [
     {
-      title: "Gestión Multicanal",
-      description: "Centraliza toda tu comunicación digital: WhatsApp, Instagram, Facebook, Twitter y más en una sola interfaz intuitiva.",
+      title: "Gestión Multicanal Unificada",
+      description: "Centraliza toda tu comunicación digital: WhatsApp, Instagram, Facebook, Twitter y más en una sola interfaz intuitiva sin necesidad de cambiar entre apps.",
       icon: <Globe className="h-12 w-12 text-teal-600" />,
       bgColor: "bg-teal-50"
     },
     {
       title: "Automatización Inteligente",
-      description: "Implementa respuestas automáticas personalizadas basadas en IA que evolucionan con cada interacción con tus clientes.",
+      description: "Implementa respuestas automáticas personalizadas basadas en IA que evolucionan con cada interacción con tus clientes en cualquier plataforma.",
       icon: <BrainCircuit className="h-12 w-12 text-violet-600" />,
       bgColor: "bg-violet-50"
     },
     {
-      title: "Analítica Avanzada",
-      description: "Visualiza patrones de comunicación, identifica oportunidades de negocio y optimiza tu estrategia con datos procesables.",
+      title: "Analítica Multi-Plataforma",
+      description: "Visualiza patrones de comunicación entre todas tus redes sociales, compara rendimiento entre canales y optimiza tu estrategia con datos procesables.",
       icon: <LayoutDashboard className="h-12 w-12 text-cyan-600" />,
       bgColor: "bg-cyan-50"
     }
@@ -68,30 +68,30 @@ const HeroSection: React.FC = () => {
   const useCases = [
     {
       icon: <HeartHandshake className="h-8 w-8 text-teal-600" />,
-      title: "Soporte al Cliente",
-      description: "Respuestas inmediatas 24/7 que resuelven dudas y solicitudes sin intervención humana"
+      title: "Atención al Cliente Omnicanal",
+      description: "Respuestas inmediatas 24/7 en WhatsApp, Messenger e Instagram sin necesidad de monitorear cada plataforma individualmente."
     },
     {
       icon: <BriefcaseBusiness className="h-8 w-8 text-violet-600" />,
       title: "Generación de Leads",
-      description: "Califica prospectos automáticamente y programa seguimientos para tu equipo de ventas"
+      description: "Califica prospectos automáticamente de diferentes canales y programa seguimientos unificados para tu equipo de ventas."
     },
     {
       icon: <Sparkles className="h-8 w-8 text-cyan-600" />,
-      title: "Marketing Omnicanal",
-      description: "Lanza y monitorea campañas sincronizadas a través de múltiples plataformas"
+      title: "Marketing Integrado",
+      description: "Lanza y monitorea campañas sincronizadas a través de WhatsApp y redes sociales desde un único panel."
     }
   ];
 
   const testimonials = [
     {
-      quote: "AURA transformó completamente nuestra estrategia de comunicación digital. Ahorramos 15 horas semanales en gestión de mensajes.",
+      quote: "AURA transformó completamente nuestra estrategia digital. Ahorramos 15 horas semanales al gestionar WhatsApp, Instagram y Facebook desde una sola plataforma.",
       author: "María Rodríguez",
       company: "Boutique Elegance",
       icon: <Users className="h-10 w-10 text-teal-600/40" />
     },
     {
-      quote: "Incrementamos nuestras conversiones en un 37% al poder responder consultas de clientes en tiempo real, incluso fuera de horario laboral.",
+      quote: "Incrementamos nuestras conversiones en un 37% al poder responder consultas de clientes en tiempo real, en cualquier red social, incluso fuera de horario laboral.",
       author: "Carlos Mendoza",
       company: "TechSoluciones",
       icon: <Bot className="h-10 w-10 text-violet-600/40" />
@@ -114,15 +114,14 @@ const HeroSection: React.FC = () => {
           >
             <motion.div className="order-2 md:order-1" variants={itemVariants}>
               <div className="inline-block px-3 py-1 rounded-full bg-teal-100 text-teal-700 font-medium text-sm mb-6">
-                Comunicación Empresarial Inteligente
+                Plataforma Unificada de Comunicación
               </div>
               <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-6">
-                Gestión integral con 
+                Gestiona WhatsApp y todas tus redes con
                 <span className="text-gradient bg-gradient-to-r from-teal-600 to-cyan-600"> AURA </span> 
-                para tu empresa
               </h1>
               <p className="text-lg text-gray-700 mb-8 leading-relaxed">
-                Unifica todos tus canales de comunicación, automatiza respuestas con IA y obtén analíticas avanzadas para optimizar tu negocio. Ahorra tiempo y mejora la gestión de tu comunicación empresarial.
+                Unifica WhatsApp, Instagram, Facebook, Twitter y más en un solo lugar. Automatiza respuestas con IA y obtén analíticas avanzadas para optimizar tu comunicación empresarial.
               </p>
               
               <div className="flex flex-wrap items-center gap-4 mb-10">
@@ -139,9 +138,27 @@ const HeroSection: React.FC = () => {
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
-                    <Globe size={18} className="text-teal-600" />
+                    <Smartphone size={18} className="text-teal-600" />
                   </div>
-                  <span className="text-sm text-gray-700">Multiredes integradas</span>
+                  <span className="text-sm text-gray-700">WhatsApp Business</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
+                    <Instagram size={18} className="text-violet-600" />
+                  </div>
+                  <span className="text-sm text-gray-700">Instagram DM</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center">
+                    <Facebook size={18} className="text-cyan-600" />
+                  </div>
+                  <span className="text-sm text-gray-700">Facebook Messenger</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
+                    <Twitter size={18} className="text-teal-600" />
+                  </div>
+                  <span className="text-sm text-gray-700">Twitter/X DM</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
@@ -151,27 +168,9 @@ const HeroSection: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center">
-                    <Clock size={18} className="text-cyan-600" />
-                  </div>
-                  <span className="text-sm text-gray-700">Ahorro de tiempo</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
-                    <BarChart3 size={18} className="text-teal-600" />
+                    <BarChart3 size={18} className="text-cyan-600" />
                   </div>
                   <span className="text-sm text-gray-700">Analíticas unificadas</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
-                    <Zap size={18} className="text-violet-600" />
-                  </div>
-                  <span className="text-sm text-gray-700">Automatización total</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center">
-                    <Smartphone size={18} className="text-cyan-600" />
-                  </div>
-                  <span className="text-sm text-gray-700">Acceso móvil 24/7</span>
                 </div>
               </div>
             </motion.div>
@@ -220,7 +219,7 @@ const HeroSection: React.FC = () => {
                   </div>
                   
                   <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">Gestión inteligente en todos tus canales</span>
+                    <span className="text-xs text-gray-500">Una plataforma para todas tus comunicaciones</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-teal-600 font-medium">AURA</span>
                       <div className="w-6 h-6 rounded-full bg-teal-100 flex items-center justify-center text-xs text-teal-700">✓</div>
@@ -237,9 +236,9 @@ const HeroSection: React.FC = () => {
       <section className="py-20 bg-gray-50" id="como-funciona">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Herramientas AI completas para tu negocio</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Plataforma unificada para todas tus comunicaciones</h2>
             <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-              Optimiza tu comunicación empresarial, retención de usuarios e interacciones con clientes con nuestras herramientas de IA diseñadas para cualquier tipo de negocio
+              Gestiona WhatsApp, Instagram, Facebook, Twitter y más en un solo lugar. Optimiza tu comunicación empresarial y evita saltar entre aplicaciones.
             </p>
           </div>
 
@@ -281,7 +280,7 @@ const HeroSection: React.FC = () => {
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">Soluciones adaptadas a tus necesidades</h2>
               <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-                Descubre cómo AURA se adapta a diferentes escenarios empresariales para maximizar resultados
+                Descubre cómo AURA integra WhatsApp y todas tus redes sociales para maximizar los resultados de tu negocio
               </p>
             </div>
 
@@ -327,7 +326,7 @@ const HeroSection: React.FC = () => {
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Lo que dicen nuestros clientes</h2>
             <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-              Empresas de todos los tamaños están transformando su comunicación con AURA
+              Empresas de todos los tamaños están unificando su comunicación en WhatsApp y redes sociales con AURA
             </p>
           </div>
 
@@ -362,9 +361,9 @@ const HeroSection: React.FC = () => {
       <section className="py-20 bg-gradient-to-br from-teal-600 to-cyan-700 text-white" id="prueba-gratis">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">Potencia tu negocio con AURA hoy mismo</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">Gestiona todas tus comunicaciones con AURA hoy mismo</h2>
             <p className="text-xl mb-8 text-white/90">
-              Únete a miles de empresas que están elevando su comunicación digital con AURA
+              Unifica WhatsApp, Instagram, Facebook y Twitter en una sola plataforma y ahorra tiempo con automatizaciones inteligentes
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
               <Button asChild size="lg" className="bg-white text-teal-600 hover:bg-gray-100 transition-all">
