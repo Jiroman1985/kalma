@@ -6,7 +6,7 @@ import TestimonialSection from "@/components/TestimonialSection";
 import PricingSection from "@/components/PricingSection";
 import CtaSection from "@/components/CtaSection";
 import Footer from "@/components/Footer";
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation } from "react-router-dom";
 import Dashboard from "./Dashboard";
 import Conversations from "./Conversations";
 import Analytics from "./Analytics";
@@ -18,26 +18,33 @@ import SocialNetworks from "./SocialNetworks";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 const Index = () => {
+  const location = useLocation();
+  const isDashboardRoute = location.pathname.includes('/dashboard');
+  
   return (
     <div className="min-h-screen">
       <Navbar />
       <Routes>
-        <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-        <Route path="/conversations" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
-        <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
-        <Route path="/knowledge-base" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
-        <Route path="/social-networks" element={<ProtectedRoute><SocialNetworks /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/" element={
+          <>
+            <HeroSection />
+            <FeaturesSection />
+            <HowItWorksSection />
+            <TestimonialSection />
+            <PricingSection />
+            <CtaSection />
+          </>
+        } />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/dashboard/conversations" element={<ProtectedRoute><Conversations /></ProtectedRoute>} />
+        <Route path="/dashboard/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+        <Route path="/dashboard/knowledge-base" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
+        <Route path="/dashboard/social-networks" element={<ProtectedRoute><SocialNetworks /></ProtectedRoute>} />
+        <Route path="/dashboard/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/login" element={<Login />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
-      <HeroSection />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <TestimonialSection />
-      <PricingSection />
-      <CtaSection />
-      <Footer />
+      {!isDashboardRoute && <Footer />}
     </div>
   );
 };
