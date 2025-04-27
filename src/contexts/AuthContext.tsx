@@ -16,6 +16,45 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { initializeWhatsAppData } from "@/lib/whatsappService";
 
+// Interfaces para representar la información de redes sociales
+interface SocialNetworkSubscription {
+  active: boolean;
+  activatedAt: any | null; // Timestamp de Firebase o null
+  subscriptionEndDate: string | null; // formato YYYY-MM-DD
+}
+
+interface SocialNetworkSubscriptions {
+  instagram?: SocialNetworkSubscription;
+  gmail?: SocialNetworkSubscription;
+  googleReviews?: SocialNetworkSubscription;
+  [key: string]: SocialNetworkSubscription | undefined; // Para futuras plataformas
+}
+
+interface NotificationPreferences {
+  instagram?: boolean;
+  gmail?: boolean;
+  googleReviews?: boolean;
+  [key: string]: boolean | undefined;
+}
+
+interface AutoResponseSetting {
+  enabled: boolean;
+  mode: 'autonomous' | 'draft';
+}
+
+interface AutoResponseSettings {
+  instagram?: AutoResponseSetting;
+  gmail?: AutoResponseSetting;
+  googleReviews?: AutoResponseSetting;
+  [key: string]: AutoResponseSetting | undefined;
+}
+
+interface SocialNetworksData {
+  subscriptions: SocialNetworkSubscriptions;
+  notificationPreferences: NotificationPreferences;
+  autoResponseSettings: AutoResponseSettings;
+}
+
 // Interface para representar los datos extendidos del usuario
 interface UserData {
   isPaid: boolean;
@@ -24,6 +63,7 @@ interface UserData {
   hasFullAccess: boolean;
   isTrialExpired: boolean;
   vinculado: boolean;
+  socialNetworks?: SocialNetworksData;
 }
 
 interface AuthContextProps {
@@ -46,7 +86,12 @@ const defaultUserData: UserData = {
   freeTierFinishDate: null,
   hasFullAccess: false,
   isTrialExpired: false,
-  vinculado: false
+  vinculado: false,
+  socialNetworks: {
+    subscriptions: {},
+    notificationPreferences: {},
+    autoResponseSettings: {}
+  }
 };
 
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
@@ -106,12 +151,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const freeTier = data.freeTier ?? defaultUserData.freeTier;
         const freeTierFinishDate = data.freeTierFinishDate ?? defaultUserData.freeTierFinishDate;
         const vinculado = data.vinculado ?? defaultUserData.vinculado;
+        const socialNetworks = data.socialNetworks ?? defaultUserData.socialNetworks;
         
-        console.log("Campos extraídos:", { isPaid, freeTier, freeTierFinishDate, vinculado });
+        console.log("Campos extraídos:", { isPaid, freeTier, freeTierFinishDate, vinculado, socialNetworks });
         
         // Si alguno de los campos no existe, inicializarlos en Firestore
         if (!data.hasOwnProperty('isPaid') || !data.hasOwnProperty('freeTier') || 
-            !data.hasOwnProperty('freeTierFinishDate') || !data.hasOwnProperty('vinculado')) {
+            !data.hasOwnProperty('freeTierFinishDate') || !data.hasOwnProperty('vinculado') ||
+            !data.hasOwnProperty('socialNetworks')) {
           console.log("Inicializando campos de acceso faltantes para usuario:", userId);
           
           // Preparar un objeto con los campos que faltan
@@ -120,6 +167,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           if (!data.hasOwnProperty('freeTier')) fieldsToUpdate.freeTier = freeTier;
           if (!data.hasOwnProperty('freeTierFinishDate')) fieldsToUpdate.freeTierFinishDate = freeTierFinishDate;
           if (!data.hasOwnProperty('vinculado')) fieldsToUpdate.vinculado = vinculado;
+          if (!data.hasOwnProperty('socialNetworks')) fieldsToUpdate.socialNetworks = defaultUserData.socialNetworks;
           
           console.log("Campos a actualizar:", fieldsToUpdate);
           
@@ -157,7 +205,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           freeTierFinishDate,
           hasFullAccess,
           isTrialExpired,
-          vinculado
+          vinculado,
+          socialNetworks
         });
         
         // Actualizar el estado con todos los datos
@@ -167,7 +216,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           freeTierFinishDate,
           hasFullAccess,
           isTrialExpired,
-          vinculado
+          vinculado,
+          socialNetworks
         });
         
         return {
@@ -176,7 +226,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           freeTierFinishDate,
           hasFullAccess,
           isTrialExpired,
-          vinculado
+          vinculado,
+          socialNetworks
         };
       } else {
         console.log("No existe documento del usuario, usando valores por defecto");
@@ -282,7 +333,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           isPaid: defaultUserData.isPaid,
           freeTier: defaultUserData.freeTier,
           freeTierFinishDate: defaultUserData.freeTierFinishDate,
-          vinculado: defaultUserData.vinculado
+          vinculado: defaultUserData.vinculado,
+          socialNetworks: defaultUserData.socialNetworks
         });
         
         // Inicializar estructura de datos para WhatsApp para nuevos usuarios

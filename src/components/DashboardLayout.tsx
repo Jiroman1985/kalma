@@ -16,7 +16,8 @@ import {
   MessageSquare,
   BarChart3,
   Database,
-  Lock
+  Lock,
+  Share2
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -62,6 +63,12 @@ const DashboardLayout = () => {
       name: "Base de conocimiento",
       path: "/dashboard/knowledge-base",
       icon: <Database className="mr-3 h-5 w-5" />,
+      restricted: !hasCompleteAccess
+    },
+    {
+      name: "Redes Sociales",
+      path: "/dashboard/social-networks",
+      icon: <Share2 className="mr-3 h-5 w-5" />,
       restricted: !hasCompleteAccess
     },
     {

@@ -11,6 +11,7 @@ import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
 import Conversations from "./pages/Conversations";
 import KnowledgeBase from "./pages/KnowledgeBase";
+import SocialNetworks from "./pages/SocialNetworks";
 import DashboardLayout from "./components/DashboardLayout";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -28,6 +29,13 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             
+            {/* Ruta de configuración accesible directamente */}
+            <Route path="/settings" element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            } />
+            
             {/* Rutas protegidas del Dashboard */}
             <Route path="/dashboard" element={
               <ProtectedRoute>
@@ -39,6 +47,7 @@ const App = () => (
               <Route path="analytics" element={<Analytics />} />
               <Route path="conversations" element={<Conversations />} />
               <Route path="knowledge-base" element={<KnowledgeBase />} />
+              <Route path="social-networks" element={<SocialNetworks />} />
             </Route>
             
             {/* Ruta para 404 */}
