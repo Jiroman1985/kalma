@@ -1,0 +1,6 @@
+/* Añadir clase para el efecto gradiente de texto */
+.text-gradient {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+} 
