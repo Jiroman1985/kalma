@@ -1080,19 +1080,11 @@ const SocialNetworks = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mb-8">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="accounts">Mis Cuentas</TabsTrigger>
           <TabsTrigger value="subscriptions">Suscripciones</TabsTrigger>
           <TabsTrigger value="settings">Configuración</TabsTrigger>
           <TabsTrigger value="analytics">Analíticas</TabsTrigger>
-          <TabsTrigger value="messages" className="relative">
-            Mensajes
-            {messages.filter(m => !m.read).length > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
-                {messages.filter(m => !m.read).length}
-              </span>
-            )}
-          </TabsTrigger>
           <TabsTrigger value="integration">Integración</TabsTrigger>
         </TabsList>
         
@@ -1437,110 +1429,485 @@ const SocialNetworks = () => {
         
         {/* Pestaña de Analíticas */}
         <TabsContent value="analytics">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Cuentas Activas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{analytics.totalAccounts}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {analytics.activeSubscriptions} suscripciones activas
-                </p>
-              </CardContent>
-            </Card>
+          <Tabs defaultValue="overview">
+            <TabsList className="mb-4">
+              <TabsTrigger value="overview">General</TabsTrigger>
+              <TabsTrigger value="instagram">Instagram</TabsTrigger>
+              <TabsTrigger value="facebook">Facebook</TabsTrigger>
+              <TabsTrigger value="twitter">Twitter</TabsTrigger>
+              <TabsTrigger value="gmail">Gmail</TabsTrigger>
+              <TabsTrigger value="googleReviews">Google Reviews</TabsTrigger>
+            </TabsList>
             
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Interacciones Totales
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{analytics.totalInteractions}</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Últimos 30 días
-                </p>
-              </CardContent>
-            </Card>
+            {/* Vista general */}
+            <TabsContent value="overview">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Cuentas Activas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{analytics.totalAccounts}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {analytics.activeSubscriptions} suscripciones activas
+                    </p>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Interacciones Totales
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{analytics.totalInteractions}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Últimos 30 días
+                    </p>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Tasa de Respuesta
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-3xl font-bold">{analytics.responseRate}%</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {analytics.pendingMessages} mensajes pendientes
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Distribución por Plataforma</CardTitle>
+                    <CardDescription>
+                      Distribución de tus cuentas conectadas por plataforma
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {Object.entries(analytics.accountsByPlatform).filter(([_, count]) => count > 0).length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No hay cuentas conectadas para mostrar distribución.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {Object.entries(analytics.accountsByPlatform).map(([platform, count]) => {
+                          if (count === 0) return null;
+                          
+                          // Calcular porcentaje
+                          const percentage = analytics.totalAccounts > 0 
+                            ? Math.round((count / analytics.totalAccounts) * 100) 
+                            : 0;
+                          
+                          // Definir color según plataforma
+                          let color;
+                          switch(platform) {
+                            case 'instagram':
+                              color = 'bg-gradient-to-r from-purple-500 to-pink-500';
+                              break;
+                            case 'facebook':
+                              color = 'bg-blue-600';
+                              break;
+                            case 'twitter':
+                              color = 'bg-blue-400';
+                              break;
+                            case 'linkedin':
+                              color = 'bg-blue-800';
+                              break;
+                            case 'gmail':
+                              color = 'bg-red-500';
+                              break;
+                            case 'googleReviews':
+                              color = 'bg-yellow-500';
+                              break;
+                            default:
+                              color = 'bg-gray-500';
+                          }
+                          
+                          return (
+                            <div key={platform}>
+                              <div className="flex justify-between mb-1">
+                                <span className="text-sm font-medium capitalize">{platform}</span>
+                                <span className="text-sm font-medium">{count}</span>
+                              </div>
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className={`${color} h-2 rounded-full`} 
+                                  style={{ width: `${percentage}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Interacciones Semanales</CardTitle>
+                    <CardDescription>
+                      Evolución de interacciones en los últimos 7 días
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[200px] w-full">
+                      <div className="flex items-end justify-between h-[180px] gap-1">
+                        {analytics.aggregated.weeklyInteractions.map((value, index) => {
+                          const maxValue = Math.max(...analytics.aggregated.weeklyInteractions);
+                          const percentage = (value / maxValue) * 100;
+                          
+                          const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+                          
+                          return (
+                            <div key={index} className="flex flex-col items-center w-full">
+                              <div 
+                                className="bg-blue-500 rounded-t-sm w-full" 
+                                style={{ height: `${percentage}%` }}
+                              ></div>
+                              <div className="text-xs text-muted-foreground mt-2">{days[index]}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Interacciones por Tipo</CardTitle>
+                    <CardDescription>
+                      Distribución de interacciones según su categoría
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {Object.entries(analytics.aggregated.interactionsByType).map(([type, count]) => {
+                        const total = Object.values(analytics.aggregated.interactionsByType).reduce((a, b) => a + b, 0);
+                        const percentage = total > 0 ? Math.round((count / total) * 100) : 0;
+                        
+                        let color;
+                        switch(type) {
+                          case 'mensajes':
+                            color = 'bg-green-500';
+                            break;
+                          case 'comentarios':
+                            color = 'bg-blue-500';
+                            break;
+                          case 'menciones':
+                            color = 'bg-purple-500';
+                            break;
+                          case 'reseñas':
+                            color = 'bg-yellow-500';
+                            break;
+                          case 'correos':
+                            color = 'bg-red-500';
+                            break;
+                          default:
+                            color = 'bg-gray-500';
+                        }
+                        
+                        return (
+                          <div key={type}>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm font-medium capitalize">{type}</span>
+                              <span className="text-sm font-medium">{count} ({percentage}%)</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className={`${color} h-2 rounded-full`} 
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Tiempo de Respuesta Promedio</CardTitle>
+                    <CardDescription>
+                      Tiempo promedio de respuesta por plataforma (en horas)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {Object.entries(analytics.aggregated.responseTimeByPlatform).map(([platform, time]) => {
+                        // Color según velocidad (verde rápido, rojo lento)
+                        const isQuick = time < 2;
+                        const isModerate = time >= 2 && time < 4;
+                        const color = isQuick ? 'bg-green-500' : (isModerate ? 'bg-yellow-500' : 'bg-red-500');
+                        
+                        // Normalizar para visualización (máximo 100%)
+                        const maxTime = Math.max(...Object.values(analytics.aggregated.responseTimeByPlatform));
+                        const percentage = (time / maxTime) * 100;
+                        
+                        return (
+                          <div key={platform}>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm font-medium capitalize">{platform}</span>
+                              <span className="text-sm font-medium">{time.toFixed(1)}h</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div 
+                                className={`${color} h-2 rounded-full`} 
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
             
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Tasa de Respuesta
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{analytics.responseRate}%</div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {analytics.pendingMessages} mensajes pendientes
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Distribución de Plataformas</CardTitle>
-              <CardDescription>
-                Distribución de tus cuentas conectadas por plataforma
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {Object.entries(analytics.accountsByPlatform).filter(([_, count]) => count > 0).length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No hay cuentas conectadas para mostrar distribución.</p>
+            {/* Vista de Instagram */}
+            <TabsContent value="instagram">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Seguidores
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold">{analytics.platformAnalytics.instagram.followersGrowth[6]}</div>
+                      <p className="text-xs text-green-500 mt-1">
+                        +{analytics.platformAnalytics.instagram.followersGrowth[6] - analytics.platformAnalytics.instagram.followersGrowth[0]} últimos 7 días
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Engagement Rate
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold">{analytics.platformAnalytics.instagram.engagementRate}%</div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Promedio últimos 30 días
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Reach Rate
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold">{analytics.platformAnalytics.instagram.reachRate}%</div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Del total de seguidores
+                      </p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Interacciones Diarias
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-3xl font-bold">{analytics.platformAnalytics.instagram.dailyInteractions[6]}</div>
+                      <p className="text-xs text-green-500 mt-1">
+                        +{analytics.platformAnalytics.instagram.dailyInteractions[6] - analytics.platformAnalytics.instagram.dailyInteractions[5]} vs ayer
+                      </p>
+                    </CardContent>
+                  </Card>
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {Object.entries(analytics.accountsByPlatform).map(([platform, count]) => {
-                    if (count === 0) return null;
-                    
-                    // Calcular porcentaje
-                    const percentage = analytics.totalAccounts > 0 
-                      ? Math.round((count / analytics.totalAccounts) * 100) 
-                      : 0;
-                    
-                    // Definir color según plataforma
-                    let color;
-                    switch(platform) {
-                      case 'instagram':
-                        color = 'bg-gradient-to-r from-purple-500 to-pink-500';
-                        break;
-                      case 'facebook':
-                        color = 'bg-blue-600';
-                        break;
-                      case 'twitter':
-                        color = 'bg-blue-400';
-                        break;
-                      case 'linkedin':
-                        color = 'bg-blue-800';
-                        break;
-                      default:
-                        color = 'bg-gray-500';
-                    }
-                    
-                    return (
-                      <div key={platform}>
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium capitalize">{platform}</span>
-                          <span className="text-sm font-medium">{count}</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className={`${color} h-2 rounded-full`} 
-                            style={{ width: `${percentage}%` }}
-                          ></div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Evolución de Seguidores</CardTitle>
+                      <CardDescription>
+                        Crecimiento en los últimos 7 días
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[200px] w-full">
+                        <div className="flex items-end justify-between h-[180px] gap-1">
+                          {analytics.platformAnalytics.instagram.followersGrowth.map((value, index) => {
+                            const minValue = Math.min(...analytics.platformAnalytics.instagram.followersGrowth);
+                            const maxDiff = Math.max(...analytics.platformAnalytics.instagram.followersGrowth) - minValue;
+                            // Ajustamos para que el mínimo sea visible
+                            const percentage = maxDiff > 0 ? ((value - minValue) / maxDiff) * 80 + 20 : 20;
+                            
+                            const days = ['D-6', 'D-5', 'D-4', 'D-3', 'D-2', 'D-1', 'Hoy'];
+                            
+                            return (
+                              <div key={index} className="flex flex-col items-center w-full">
+                                <div 
+                                  className="bg-gradient-to-t from-purple-500 to-pink-500 rounded-t-sm w-full" 
+                                  style={{ height: `${percentage}%` }}
+                                ></div>
+                                <div className="text-xs text-muted-foreground mt-2">{days[index]}</div>
+                                <div className="text-xs text-muted-foreground mt-1 rotate-90 -scale-y-100 origin-center lg:rotate-0 lg:scale-y-100">
+                                  {value}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
-                    );
-                  })}
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Sentimiento de Interacciones</CardTitle>
+                      <CardDescription>
+                        Análisis de sentimiento en comentarios y mensajes
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center py-8">
+                        <div className="w-1/3 text-center">
+                          <div className="inline-flex items-center justify-center rounded-full w-12 h-12 bg-green-100 text-green-500 mb-2">
+                            <span className="text-xl">😊</span>
+                          </div>
+                          <div className="text-2xl font-bold">{analytics.platformAnalytics.instagram.sentimentDistribution.positive}%</div>
+                          <div className="text-sm text-muted-foreground">Positivo</div>
+                        </div>
+                        
+                        <div className="w-1/3 text-center">
+                          <div className="inline-flex items-center justify-center rounded-full w-12 h-12 bg-blue-100 text-blue-500 mb-2">
+                            <span className="text-xl">😐</span>
+                          </div>
+                          <div className="text-2xl font-bold">{analytics.platformAnalytics.instagram.sentimentDistribution.neutral}%</div>
+                          <div className="text-sm text-muted-foreground">Neutral</div>
+                        </div>
+                        
+                        <div className="w-1/3 text-center">
+                          <div className="inline-flex items-center justify-center rounded-full w-12 h-12 bg-red-100 text-red-500 mb-2">
+                            <span className="text-xl">😞</span>
+                          </div>
+                          <div className="text-2xl font-bold">{analytics.platformAnalytics.instagram.sentimentDistribution.negative}%</div>
+                          <div className="text-sm text-muted-foreground">Negativo</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Hashtags Populares</CardTitle>
+                      <CardDescription>
+                        Hashtags más utilizados en tu contenido
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {analytics.platformAnalytics.instagram.topHashtags.map((tag, index) => (
+                          <div 
+                            key={index}
+                            className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-1 rounded-full text-sm"
+                          >
+                            #{tag}
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Horas Pico</CardTitle>
+                      <CardDescription>
+                        Horas con mayor actividad de tus seguidores
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="h-[160px] w-full">
+                        <div className="flex items-end justify-between h-[140px] gap-1">
+                          {Array.from({ length: 24 }, (_, i) => i).map((hour) => {
+                            const isPeakHour = analytics.platformAnalytics.instagram.peakHours.includes(hour);
+                            const height = isPeakHour ? '80%' : '20%';
+                            const color = isPeakHour ? 'bg-pink-500' : 'bg-gray-200';
+                            
+                            return (
+                              <div key={hour} className="flex flex-col items-center w-full">
+                                <div 
+                                  className={`${color} rounded-t-sm w-full`}
+                                  style={{ height }}
+                                ></div>
+                                {hour % 3 === 0 && (
+                                  <div className="text-xs text-muted-foreground mt-2">{hour}h</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
+            
+            {/* Vistas similares para Facebook, Twitter, Gmail, Google Reviews */}
+            <TabsContent value="facebook">
+              <div className="p-8 text-center">
+                <h3 className="text-lg font-medium">Análisis de Facebook</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Las analíticas detalladas de Facebook son similares a las de Instagram, con datos específicos adaptados a esta plataforma.
+                </p>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="twitter">
+              <div className="p-8 text-center">
+                <h3 className="text-lg font-medium">Análisis de Twitter</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Las analíticas detalladas de Twitter son similares a las de Instagram, con datos específicos adaptados a esta plataforma.
+                </p>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="gmail">
+              <div className="p-8 text-center">
+                <h3 className="text-lg font-medium">Análisis de Gmail</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Las analíticas detalladas de Gmail son similares a las de Instagram, con datos específicos adaptados a esta plataforma.
+                </p>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="googleReviews">
+              <div className="p-8 text-center">
+                <h3 className="text-lg font-medium">Análisis de Google Reviews</h3>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Las analíticas detalladas de Google Reviews son similares a las de Instagram, con datos específicos adaptados a esta plataforma.
+                </p>
+              </div>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
         
         {/* Pestaña de Mensajes */}
