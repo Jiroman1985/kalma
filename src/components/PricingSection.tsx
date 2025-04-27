@@ -33,14 +33,14 @@ const PricingSection: React.FC = () => {
                   "Personalización de tu asistente (tono, tipo de preguntas a responder, idiomas, etc)"
                 ].map((feature, i) => (
                   <div key={i} className="flex items-start gap-2">
-                    <Check size={18} className="text-whatsapp flex-shrink-0 mt-1" />
+                    <Check size={18} className="text-teal-600 flex-shrink-0 mt-1" />
                     <span className="text-gray-700">{feature}</span>
                   </div>
                 ))}
               </div>
               
               <div className="mt-8">
-                <Button asChild size="lg" className="w-full bg-whatsapp hover:bg-whatsapp-dark">
+                <Button asChild size="lg" className="w-full bg-teal-600 hover:bg-teal-700">
                   <Link to="/login">Seleccionar Plan</Link>
                 </Button>
                 <p className="text-center text-sm text-gray-500 mt-3">
@@ -51,15 +51,15 @@ const PricingSection: React.FC = () => {
           </div>
           
           {/* Plan Pro - Destacado */}
-          <div className="bg-white rounded-2xl overflow-hidden shadow-xl border-2 border-whatsapp/40 flex flex-col h-full relative transform md:-translate-y-4 scale-105">
-            <div className="absolute top-0 right-0 bg-whatsapp text-white text-xs font-semibold px-4 py-1 rounded-bl-lg">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-xl border-2 border-teal-400/40 flex flex-col h-full relative transform md:-translate-y-4 scale-105">
+            <div className="absolute top-0 right-0 bg-teal-600 text-white text-xs font-semibold px-4 py-1 rounded-bl-lg">
               <div className="flex items-center gap-1">
                 <Crown size={14} />
                 <span>El más elegido</span>
               </div>
             </div>
             
-            <div className="bg-gradient-to-r from-whatsapp/20 to-blue-light/20 p-8 text-center">
+            <div className="bg-gradient-to-r from-teal-100/20 to-cyan-100/20 p-8 text-center">
               <h3 className="text-2xl font-bold mb-2">Plan Pro</h3>
               <div className="flex items-center justify-center gap-1 mb-4">
                 <span className="text-4xl font-bold">19,99€</span>
@@ -76,14 +76,14 @@ const PricingSection: React.FC = () => {
                   "Acceso al calendario por parte de la IA para contestar preguntas sobre horarios y disponibilidad"
                 ].map((feature, i) => (
                   <div key={i} className="flex items-start gap-2">
-                    <Star size={18} className="text-whatsapp flex-shrink-0 mt-1" />
+                    <Star size={18} className="text-teal-600 flex-shrink-0 mt-1" />
                     <span className="text-gray-700">{feature}</span>
                   </div>
                 ))}
               </div>
               
               <div className="mt-8">
-                <Button asChild size="lg" className="w-full bg-whatsapp hover:bg-whatsapp-dark">
+                <Button asChild size="lg" className="w-full bg-teal-600 hover:bg-teal-700">
                   <Link to="/login">Seleccionar Plan</Link>
                 </Button>
                 <p className="text-center text-sm text-gray-500 mt-3">
@@ -113,7 +113,7 @@ const PricingSection: React.FC = () => {
                   "Soluciones a medida"
                 ].map((feature, i) => (
                   <div key={i} className="flex items-start gap-2">
-                    <Check size={18} className="text-blue-600 flex-shrink-0 mt-1" />
+                    <Check size={18} className="text-teal-600 flex-shrink-0 mt-1" />
                     <span className="text-gray-700">{feature}</span>
                   </div>
                 ))}
@@ -122,7 +122,7 @@ const PricingSection: React.FC = () => {
               <div className="mt-8">
                 <Button 
                   size="lg" 
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                  className="w-full bg-gradient-to-r from-teal-600 to-purple-600 hover:from-teal-700 hover:to-purple-700 text-white"
                   onClick={() => window.open('https://wa.me/34648258558', '_blank')}
                 >
                   Contactar

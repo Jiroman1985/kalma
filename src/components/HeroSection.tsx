@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "./ui/button";
-import { ChevronRight, MessageCircle, Shield, Bot, Clock, BriefcaseBusiness, BarChart3, Smartphone, Globe, Zap, Users, Sparkles, ArrowRight, Check, LayoutDashboard, BrainCircuit, HeartHandshake, Instagram, Facebook, Twitter } from "lucide-react";
+import { ChevronRight, MessageCircle, Shield, Bot, Clock, BriefcaseBusiness, BarChart3, Smartphone, Globe, Zap, Users, Sparkles, ArrowRight, Check, LayoutDashboard, BrainCircuit, HeartHandshake, Instagram, Facebook, Twitter, Star } from "lucide-react";
 import { motion } from "framer-motion";
 
 const HeroSection: React.FC = () => {
@@ -88,13 +88,22 @@ const HeroSection: React.FC = () => {
       quote: "AURA transformó completamente nuestra estrategia digital. Ahorramos 15 horas semanales al gestionar WhatsApp, Instagram y Facebook desde una sola plataforma.",
       author: "María Rodríguez",
       company: "Boutique Elegance",
-      icon: <Users className="h-10 w-10 text-teal-600/40" />
+      avatar: "M",
+      bgColor: "bg-teal-100"
     },
     {
       quote: "Incrementamos nuestras conversiones en un 37% al poder responder consultas de clientes en tiempo real, en cualquier red social, incluso fuera de horario laboral.",
       author: "Carlos Mendoza",
       company: "TechSoluciones",
-      icon: <Bot className="h-10 w-10 text-violet-600/40" />
+      avatar: "C", 
+      bgColor: "bg-cyan-100"
+    },
+    {
+      quote: "El asistente IA ha transformado la forma en que atendemos a nuestros clientes. Ahora respondemos al instante y no perdemos ninguna oportunidad de venta.",
+      author: "María González",
+      company: "Boutique Flores",
+      avatar: "M",
+      bgColor: "bg-teal-100"
     }
   ];
 
@@ -320,17 +329,17 @@ const HeroSection: React.FC = () => {
         </div>
       </section>
 
-      {/* Testimonials */}
+      {/* Testimonials - Diseño actualizado con estrellas */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Lo que dicen nuestros clientes</h2>
             <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-              Empresas de todos los tamaños están unificando su comunicación en WhatsApp y redes sociales con AURA
+              PYMEs de todos los sectores ya están aprovechando el poder de AURA en WhatsApp y redes sociales
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {testimonials.map((testimonial, index) => (
               <motion.div 
                 key={index}
@@ -338,17 +347,23 @@ const HeroSection: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 viewport={{ once: true }}
-                className="bg-gradient-to-br from-teal-50 to-violet-50 p-8 rounded-xl relative"
+                className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all border border-gray-100"
               >
-                <div className="absolute -top-5 -left-2 text-6xl text-teal-200">"</div>
-                <p className="text-gray-700 mb-6 relative z-10">{testimonial.quote}</p>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-white/70 overflow-hidden flex items-center justify-center">
-                    {testimonial.icon}
-                  </div>
-                  <div>
-                    <h4 className="font-semibold">{testimonial.author}</h4>
-                    <p className="text-sm text-gray-500">{testimonial.company}</p>
+                <div className="flex items-center mb-3 px-6 pt-6">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-5 w-5 text-yellow-400 fill-yellow-400" />
+                  ))}
+                </div>
+                <div className="px-6 pb-6">
+                  <p className="text-gray-700 mb-6">{testimonial.quote}</p>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full ${testimonial.bgColor} text-center flex items-center justify-center text-teal-800 font-medium`}>
+                      {testimonial.avatar}
+                    </div>
+                    <div>
+                      <h4 className="font-semibold">{testimonial.author}</h4>
+                      <p className="text-sm text-gray-500">{testimonial.company}</p>
+                    </div>
                   </div>
                 </div>
               </motion.div>

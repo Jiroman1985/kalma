@@ -113,12 +113,12 @@ const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            {isRegistering ? "Registro para WhatsPyme" : "Acceso para WhatsPyme"}
+            {isRegistering ? "Registro para AURA" : "Acceso para AURA"}
           </CardTitle>
           <CardDescription className="text-center">
             {isRegistering 
-              ? "Crea una cuenta para administrar tu agente IA" 
-              : "Inicia sesión en tu cuenta para administrar tu agente IA"}
+              ? "Crea una cuenta para administrar tu plataforma de comunicación" 
+              : "Inicia sesión en tu cuenta para administrar tu plataforma de comunicación"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

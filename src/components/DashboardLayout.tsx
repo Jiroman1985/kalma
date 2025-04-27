@@ -174,9 +174,9 @@ const DashboardLayout = () => {
             <div className="relative flex-1 flex flex-col max-w-xs w-full pt-5 pb-4 bg-white">
               <div className="flex items-center justify-center h-16 border-b border-gray-200">
                 <div className="flex items-center gap-2">
-                  <FileText size={20} className="text-whatsapp" />
+                  <FileText size={20} className="text-teal-600" />
                   <h2 className="text-lg font-medium">
-                    Whats<span className="text-blue-dark">Pyme</span> Panel
+                    AU<span className="text-cyan-600">RA</span> Panel
                   </h2>
                 </div>
               </div>
@@ -219,9 +219,9 @@ const DashboardLayout = () => {
           <div className="flex flex-col h-0 flex-1 border-r border-gray-200 bg-white">
             <div className="flex items-center justify-center h-16 flex-shrink-0 px-4 border-b border-gray-200">
               <div className="flex items-center gap-2">
-                <FileText size={20} className="text-whatsapp" />
+                <FileText size={20} className="text-teal-600" />
                 <h2 className="text-lg font-medium">
-                  Whats<span className="text-blue-dark">Pyme</span> Panel
+                  AU<span className="text-cyan-600">RA</span> Panel
                 </h2>
               </div>
             </div>
@@ -349,7 +349,7 @@ const DashboardLayout = () => {
           <div className="w-64 h-full bg-white p-4 flex flex-col">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-lg font-medium">
-                Whats<span className="text-blue-dark">Pyme</span> Panel
+                AU<span className="text-cyan-600">RA</span> Panel
               </h2>
               <Button variant="ghost" size="icon" onClick={toggleMobileMenu}>
                 <X size={20} />
