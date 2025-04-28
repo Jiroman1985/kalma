@@ -19,7 +19,7 @@ const N8N_SECRET = process.env.REACT_APP_N8N_SECRET || "local_development_secret
 const OAUTH_CONFIG = {
   instagram: {
     authorizeUrl: "https://api.instagram.com/oauth/authorize",
-    clientId: process.env.REACT_APP_INSTAGRAM_CLIENT_ID || "",
+    clientId: process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '925270751978648',
     redirectUri: `${window.location.origin}/auth/callback/instagram`,
     scopes: ["user_profile", "user_media", "instagram_basic", "instagram_manage_comments", "instagram_manage_messages"]
   },

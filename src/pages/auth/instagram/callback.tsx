@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import axios from 'axios';
 
 // Constantes de Instagram
-const INSTAGRAM_CLIENT_ID = '2191864117935540';
-const INSTAGRAM_CLIENT_SECRET = process.env.REACT_APP_INSTAGRAM_CLIENT_SECRET || '';
+const INSTAGRAM_CLIENT_ID = '925270751978648';
+const INSTAGRAM_CLIENT_SECRET = '5ed60bb513324c22a3ec1db6faf9e92f';
 const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/instagram/callback`;
 
 // Estados de conexión
