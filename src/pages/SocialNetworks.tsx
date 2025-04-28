@@ -58,7 +58,9 @@ import {
   BellOff,
   Bot,
   MessageSquare,
-  X
+  X,
+  CheckCircle,
+  Clock
 } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
@@ -73,6 +75,23 @@ import { ChevronRight } from "lucide-react";
 import { RefreshCw } from "lucide-react";
 import InstagramAuthModal from "@/components/InstagramAuthModal";
 import { format } from "date-fns";
+import {
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  Bar,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer
+} from "recharts";
+
+// Definición de colores
+const CHART_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 // Interfaces para representar las suscripciones y configuraciones
 interface SocialNetworkSubscription {
@@ -495,83 +514,9 @@ const SocialNetworks = () => {
           googleReviews: accounts.filter(acc => acc.platform === "googleReviews").length
         },
         // Datos de análisis extendidos
-        platformAnalytics: {
-          instagram: {
-            dailyInteractions: [15, 22, 19, 28, 32, 25, 38],
-            followersGrowth: [1200, 1250, 1310, 1390, 1420, 1490, 1550],
-            engagementRate: 4.2,
-            reachRate: 25.7,
-            peakHours: [14, 19, 21], // Horas del día con más actividad
-            sentimentDistribution: { positive: 68, neutral: 24, negative: 8 },
-            topHashtags: ['moda', 'tendencia', 'estilo', 'primavera']
-          },
-          facebook: {
-            dailyInteractions: [10, 15, 12, 18, 14, 22, 16],
-            followersGrowth: [5200, 5230, 5250, 5290, 5320, 5370, 5400],
-            engagementRate: 2.8,
-            reachRate: 18.5,
-            peakHours: [12, 17, 20],
-            sentimentDistribution: { positive: 52, neutral: 39, negative: 9 },
-            topHashtags: ['oferta', 'nuevacoleccion', 'descuento']
-          },
-          twitter: {
-            dailyInteractions: [25, 18, 30, 22, 28, 35, 29],
-            followersGrowth: [980, 995, 1010, 1050, 1080, 1110, 1150],
-            engagementRate: 3.5,
-            reachRate: 15.2,
-            peakHours: [9, 13, 22],
-            sentimentDistribution: { positive: 45, neutral: 42, negative: 13 },
-            topHashtags: ['news', 'fashion', 'ootd', 'trendy']
-          },
-          gmail: {
-            dailyInteractions: [8, 12, 9, 7, 15, 10, 11],
-            responseRate: 87,
-            averageResponseTime: 2.5, // Horas
-            sentimentDistribution: { positive: 72, neutral: 20, negative: 8 },
-            categories: {
-              consultas: 45,
-              ventas: 32,
-              soporte: 18,
-              otros: 5
-            }
-          },
-          googleReviews: {
-            averageRating: 4.2,
-            ratingDistribution: [2, 5, 12, 38, 45], // 1-5 estrellas
-            responseRate: 92,
-            reviewsPerMonth: [12, 15, 9, 18, 14, 20, 16, 24, 19, 22, 28, 35],
-            sentimentDistribution: { positive: 75, neutral: 15, negative: 10 }
-          }
-        },
+        platformAnalytics: analytics.platformAnalytics,
         // Datos agregados
-        aggregated: {
-          totalInteractions: 1248,
-          weeklyInteractions: [58, 67, 70, 75, 89, 92, 94],
-          monthlyInteractions: [980, 1050, 1120, 1180, 1220, 1248],
-          engagementByDay: {
-            lunes: 15,
-            martes: 18,
-            miércoles: 22,
-            jueves: 19,
-            viernes: 14,
-            sábado: 8,
-            domingo: 4
-          },
-          responseTimeByPlatform: {
-            instagram: 1.8, // horas
-            facebook: 2.2,
-            twitter: 1.5,
-            gmail: 3.5,
-            googleReviews: 4.2
-          },
-          interactionsByType: {
-            mensajes: 520,
-            comentarios: 345,
-            menciones: 215,
-            reseñas: 98,
-            correos: 70
-          }
-        }
+        aggregated: analytics.aggregated
       };
       
       setAnalytics(mockAnalytics);
@@ -1554,114 +1499,386 @@ const SocialNetworks = () => {
       </div>
       
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="accounts">Cuentas</TabsTrigger>
           <TabsTrigger value="messages">Mensajes</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="subscriptions">Suscripciones</TabsTrigger>
           <TabsTrigger value="settings">Configuración</TabsTrigger>
           <TabsTrigger value="integration">Integración</TabsTrigger>
         </TabsList>
         
-        {/* Resto de TabsContent sin cambios */}
-        
-        {/* Modificar la pestaña de mensajes para mostrar mensajes de Instagram */}
-        <TabsContent value="messages">
-          <div className="grid grid-cols-12 gap-6">
-            <div className="col-span-12 md:col-span-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Mensajes recientes</CardTitle>
-                  <CardDescription>
-                    Mensajes de todas tus redes sociales
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {loadingInstagramMessages ? (
-                    <div className="flex justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                    </div>
-                  ) : instagramMessages.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <MessageSquare className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                      <p>No hay mensajes recientes</p>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="mt-4"
-                        onClick={loadInstagramMessages}
-                      >
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        Cargar mensajes
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {instagramMessages.map(message => (
-                        <div 
-                          key={message.id}
-                          className={`p-3 rounded-lg cursor-pointer transition-colors hover:bg-gray-50 border ${
-                            selectedAccount && message.id === selectedAccount.id 
-                              ? "bg-blue-50 border-blue-200" 
-                              : message.read ? "border-gray-100" : "border-blue-100 bg-blue-50/30"
-                          }`}
-                          onClick={() => setSelectedAccount(message as any)}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <Avatar>
-                              <AvatarImage src={message.sender.avatar} />
-                              <AvatarFallback>
-                                {message.sender.name.substring(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <p className="font-medium truncate">{message.sender.name}</p>
-                                <span className="text-xs text-gray-500">
-                                  {format(message.timestamp, "HH:mm")}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-500 truncate">
-                                {message.content}
-                              </p>
-                            </div>
-                            {!message.read && (
-                              <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                            )}
-                          </div>
-                          <div className="flex items-center mt-2 justify-between">
-                            <div className="flex items-center space-x-1">
-                              <div className={`p-1 rounded-full ${
-                                message.platform === 'instagram' 
-                                  ? 'bg-gradient-to-r from-purple-100 to-pink-100' 
-                                  : 'bg-gray-100'
-                              }`}>
-                                {getPlatformIcon(message.platform)}
-                              </div>
-                              <span className="text-xs text-gray-500">
-                                {getPlatformName(message.platform)}
-                              </span>
-                            </div>
-                            <div>
-                              {message.replied ? (
-                                <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">
-                                  Respondido
-                                </span>
-                              ) : (
-                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full">
-                                  Pendiente
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+        {/* Pestaña de Analytics */}
+        <TabsContent value="analytics">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Total de Interacciones
+                </CardTitle>
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{analytics.aggregated.totalInteractions.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">
+                  +{Math.round((analytics.aggregated.weeklyInteractions[6] - analytics.aggregated.weeklyInteractions[0]) / analytics.aggregated.weeklyInteractions[0] * 100)}% desde la semana pasada
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Tasa de Respuesta
+                </CardTitle>
+                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{analytics.responseRate}%</div>
+                <p className="text-xs text-muted-foreground">
+                  +2.1% desde el mes pasado
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">
+                  Tiempo de Respuesta
+                </CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {Object.values(analytics.aggregated.responseTimeByPlatform).reduce((acc, curr) => acc + curr, 0) / Object.values(analytics.aggregated.responseTimeByPlatform).length}h
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  -15min desde el mes pasado
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Interacciones por Día</CardTitle>
+                <CardDescription>
+                  Distribución de interacciones durante la semana
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={[
+                    { name: 'Lun', valor: analytics.aggregated.engagementByDay.lunes },
+                    { name: 'Mar', valor: analytics.aggregated.engagementByDay.martes },
+                    { name: 'Mié', valor: analytics.aggregated.engagementByDay.miércoles },
+                    { name: 'Jue', valor: analytics.aggregated.engagementByDay.jueves },
+                    { name: 'Vie', valor: analytics.aggregated.engagementByDay.viernes },
+                    { name: 'Sáb', valor: analytics.aggregated.engagementByDay.sábado },
+                    { name: 'Dom', valor: analytics.aggregated.engagementByDay.domingo },
+                  ]}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <RechartsTooltip 
+                      formatter={(value) => [`${value}%`, 'Interacciones']}
+                      cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
+                    />
+                    <Bar dataKey="valor" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Tipos de Interacción</CardTitle>
+                <CardDescription>
+                  Distribución por tipo de interacción
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={Object.entries(analytics.aggregated.interactionsByType).map(([name, value]) => ({ name, value }))}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {Object.entries(analytics.aggregated.interactionsByType).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                       ))}
+                    </Pie>
+                    <RechartsTooltip formatter={(value) => [`${value}`, '']} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="mb-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Análisis por Plataforma</CardTitle>
+                <CardDescription>
+                  Selecciona una plataforma para ver estadísticas detalladas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="instagram" className="w-full">
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="instagram" className="flex items-center">
+                      <Instagram className="h-4 w-4 mr-2" />
+                      Instagram
+                    </TabsTrigger>
+                    <TabsTrigger value="facebook" className="flex items-center">
+                      <Facebook className="h-4 w-4 mr-2" />
+                      Facebook
+                    </TabsTrigger>
+                    <TabsTrigger value="twitter" className="flex items-center">
+                      <Twitter className="h-4 w-4 mr-2" />
+                      Twitter
+                    </TabsTrigger>
+                    <TabsTrigger value="gmail" className="flex items-center">
+                      <Mail className="h-4 w-4 mr-2" />
+                      Gmail
+                    </TabsTrigger>
+                    <TabsTrigger value="googleReviews" className="flex items-center">
+                      <Star className="h-4 w-4 mr-2" />
+                      Google
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="instagram">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Seguidores</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{analytics.platformAnalytics.instagram.followersGrowth[analytics.platformAnalytics.instagram.followersGrowth.length - 1].toLocaleString()}</div>
+                          <p className="text-xs text-muted-foreground">
+                            +{analytics.platformAnalytics.instagram.followersGrowth[analytics.platformAnalytics.instagram.followersGrowth.length - 1] - analytics.platformAnalytics.instagram.followersGrowth[0]} nuevos seguidores
+                          </p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Engagement</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{analytics.platformAnalytics.instagram.engagementRate}%</div>
+                          <p className="text-xs text-muted-foreground">
+                            Del alcance total
+                          </p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Alcance</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{analytics.platformAnalytics.instagram.reachRate}%</div>
+                          <p className="text-xs text-muted-foreground">
+                            De los seguidores totales
+                          </p>
+                        </CardContent>
+                      </Card>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-            
-            {/* Resto del contenido de las tabs sin cambios */}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Interacciones Diarias</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-[250px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={analytics.platformAnalytics.instagram.dailyInteractions.map((value, index) => ({ name: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][index], valor: value }))}>
+                              <defs>
+                                <linearGradient id="colorInstagram" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                                  <stop offset="95%" stopColor="#8884d8" stopOpacity={0.1}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                              <XAxis dataKey="name" />
+                              <YAxis />
+                              <RechartsTooltip />
+                              <Area type="monotone" dataKey="valor" stroke="#8884d8" fillOpacity={1} fill="url(#colorInstagram)" />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Sentimiento de Audiencia</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-[250px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={[
+                                  { name: 'Positivo', value: analytics.platformAnalytics.instagram.sentimentDistribution.positive },
+                                  { name: 'Neutral', value: analytics.platformAnalytics.instagram.sentimentDistribution.neutral },
+                                  { name: 'Negativo', value: analytics.platformAnalytics.instagram.sentimentDistribution.negative },
+                                ]}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              >
+                                <Cell fill="#4ade80" />
+                                <Cell fill="#94a3b8" />
+                                <Cell fill="#f87171" />
+                              </Pie>
+                              <RechartsTooltip formatter={(value) => [`${value}%`, '']} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">Hashtags Populares</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-wrap gap-2">
+                          {analytics.platformAnalytics.instagram.topHashtags.map((tag) => (
+                            <div key={tag} className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm">
+                              #{tag}
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  <TabsContent value="facebook">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Seguidores</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{analytics.platformAnalytics.facebook.followersGrowth[analytics.platformAnalytics.facebook.followersGrowth.length - 1].toLocaleString()}</div>
+                          <p className="text-xs text-muted-foreground">
+                            +{analytics.platformAnalytics.facebook.followersGrowth[analytics.platformAnalytics.facebook.followersGrowth.length - 1] - analytics.platformAnalytics.facebook.followersGrowth[0]} nuevos seguidores
+                          </p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Engagement</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{analytics.platformAnalytics.facebook.engagementRate}%</div>
+                          <p className="text-xs text-muted-foreground">
+                            Del alcance total
+                          </p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">Alcance</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">{analytics.platformAnalytics.facebook.reachRate}%</div>
+                          <p className="text-xs text-muted-foreground">
+                            De los seguidores totales
+                          </p>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Interacciones Diarias</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-[250px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={analytics.platformAnalytics.facebook.dailyInteractions.map((value, index) => ({ name: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'][index], valor: value }))}>
+                              <defs>
+                                <linearGradient id="colorFacebook" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#1877f2" stopOpacity={0.8}/>
+                                  <stop offset="95%" stopColor="#1877f2" stopOpacity={0.1}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                              <XAxis dataKey="name" />
+                              <YAxis />
+                              <RechartsTooltip />
+                              <Area type="monotone" dataKey="valor" stroke="#1877f2" fillOpacity={1} fill="url(#colorFacebook)" />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-base">Sentimiento de Audiencia</CardTitle>
+                        </CardHeader>
+                        <CardContent className="h-[250px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={[
+                                  { name: 'Positivo', value: analytics.platformAnalytics.facebook.sentimentDistribution.positive },
+                                  { name: 'Neutral', value: analytics.platformAnalytics.facebook.sentimentDistribution.neutral },
+                                  { name: 'Negativo', value: analytics.platformAnalytics.facebook.sentimentDistribution.negative },
+                                ]}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                              >
+                                <Cell fill="#4ade80" />
+                                <Cell fill="#94a3b8" />
+                                <Cell fill="#f87171" />
+                              </Pie>
+                              <RechartsTooltip formatter={(value) => [`${value}%`, '']} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="twitter">
+                    {/* Contenido similar para Twitter */}
+                    <div className="text-center py-6 text-gray-500">
+                      Selecciona otra plataforma para ver sus estadísticas detalladas
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="gmail">
+                    {/* Contenido similar para Gmail */}
+                    <div className="text-center py-6 text-gray-500">
+                      Selecciona otra plataforma para ver sus estadísticas detalladas
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="googleReviews">
+                    {/* Contenido similar para Google Reviews */}
+                    <div className="text-center py-6 text-gray-500">
+                      Selecciona otra plataforma para ver sus estadísticas detalladas
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
         
