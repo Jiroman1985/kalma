@@ -33,6 +33,9 @@ const DashboardLayout = () => {
   const hasFullAccess = userData?.hasFullAccess || false;
   const isVinculado = userData?.vinculado || false;
   const hasCompleteAccess = hasFullAccess && isVinculado;
+  
+  // Para algunas funciones solo requerimos acceso completo, no vinculación
+  const hasOnlyFullAccess = hasFullAccess;
 
   // Asegurarnos de que el componente esté montado antes de renderizar
   // para evitar discrepancias entre servidor y cliente
@@ -57,7 +60,7 @@ const DashboardLayout = () => {
       name: "Analytics",
       path: "/dashboard/analytics",
       icon: <BarChart3 className="mr-3 h-5 w-5" />,
-      restricted: !hasCompleteAccess
+      restricted: !hasOnlyFullAccess // Solo requiere acceso completo, no vinculación
     },
     {
       name: "Base de conocimiento",
@@ -69,7 +72,7 @@ const DashboardLayout = () => {
       name: "Redes Sociales",
       path: "/dashboard/social-networks",
       icon: <Share2 className="mr-3 h-5 w-5" />,
-      restricted: !hasCompleteAccess
+      restricted: !hasOnlyFullAccess // Solo requiere acceso completo, no vinculación
     },
     {
       name: "Configuración",
@@ -105,8 +108,13 @@ const DashboardLayout = () => {
 
     // Si está restringido, mostrar tooltip, si no, usar Link normal
     if (item.restricted) {
-      // Mensaje fijo para todas las secciones bloqueadas
-      const tooltipMessage = "Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función";
+      // Determinar el mensaje del tooltip según la sección
+      let tooltipMessage = "";
+      if (item.name === "Analytics" || item.name === "Redes Sociales") {
+        tooltipMessage = "Necesitas tener una suscripción activa para acceder a esta función";
+      } else {
+        tooltipMessage = "Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función";
+      }
       
       return (
         <TooltipProvider key={key}>
