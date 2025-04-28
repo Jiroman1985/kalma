@@ -17,6 +17,10 @@ import DashboardLayout from "./components/DashboardLayout";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
+// Importar componentes de autenticación de Instagram
+import InstagramAuthStart from "./pages/auth/instagram/start";
+import InstagramAuthCallback from "./pages/auth/instagram/callback";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -29,6 +33,18 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
+            
+            {/* Rutas de autenticación de Instagram */}
+            <Route path="/auth/instagram/start" element={
+              <ProtectedRoute>
+                <InstagramAuthStart />
+              </ProtectedRoute>
+            } />
+            <Route path="/auth/instagram/callback" element={
+              <ProtectedRoute>
+                <InstagramAuthCallback />
+              </ProtectedRoute>
+            } />
             
             {/* Rutas de callback para OAuth de redes sociales */}
             <Route path="/auth/callback/:platform" element={

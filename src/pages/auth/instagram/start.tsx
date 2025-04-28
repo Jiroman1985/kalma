@@ -52,6 +52,11 @@ const InstagramAuthStart = () => {
     return () => clearTimeout(timer);
   }, [currentUser, navigate, toast]);
   
+  // Botón para cancelar y volver al dashboard
+  const handleCancel = () => {
+    navigate('/dashboard/social-networks');
+  };
+  
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-lg">
@@ -64,6 +69,12 @@ const InstagramAuthStart = () => {
           <div className="mt-4">
             <Loader2 className="h-8 w-8 text-pink-500 animate-spin mx-auto" />
           </div>
+          <button 
+            onClick={handleCancel}
+            className="mt-4 text-sm text-gray-500 hover:text-gray-700"
+          >
+            Cancelar y volver al Dashboard
+          </button>
         </div>
       </div>
     </div>

@@ -22,6 +22,7 @@ const InstagramAuthCallback = () => {
   const { toast } = useToast();
   const [status, setStatus] = useState<ConnectionStatus>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [redirectTimer, setRedirectTimer] = useState<number | null>(null);
 
   useEffect(() => {
     const handleCallback = async () => {
@@ -111,6 +112,13 @@ const InstagramAuthCallback = () => {
           description: `Tu cuenta de Instagram (@${username}) ha sido conectada correctamente`,
           variant: "default",
         });
+
+        // Redirigir automáticamente después de 2 segundos
+        const timer = window.setTimeout(() => {
+          navigate('/dashboard/social-networks');
+        }, 2000);
+        
+        setRedirectTimer(timer);
       } catch (error) {
         console.error('Error al procesar callback de Instagram:', error);
         setStatus('error');
@@ -129,11 +137,18 @@ const InstagramAuthCallback = () => {
     };
 
     handleCallback();
-  }, [currentUser, location.search, toast]);
+
+    // Limpieza del timer al desmontar
+    return () => {
+      if (redirectTimer) {
+        window.clearTimeout(redirectTimer);
+      }
+    };
+  }, [currentUser, location.search, toast, navigate]);
 
   // Función para volver a la página de redes sociales
   const goToSocialNetworks = () => {
-    navigate('/social-networks');
+    navigate('/dashboard/social-networks');
   };
 
   // Función para reintentar la conexión
@@ -162,12 +177,15 @@ const InstagramAuthCallback = () => {
             <p className="text-gray-600">
               Tu cuenta de Instagram ha sido conectada correctamente a AURA.
             </p>
+            <p className="text-sm text-gray-500">
+              Serás redirigido automáticamente al dashboard en unos segundos...
+            </p>
             <Button 
               onClick={goToSocialNetworks}
               className="w-full mt-4 bg-teal-600 hover:bg-teal-700"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver a Redes Sociales
+              Volver ahora al Dashboard
             </Button>
           </div>
         )}
@@ -191,7 +209,7 @@ const InstagramAuthCallback = () => {
                 variant="outline"
                 className="w-full"
               >
-                Volver a Redes Sociales
+                Volver al Dashboard
               </Button>
             </div>
           </div>
