@@ -2,12 +2,26 @@
 [build]
   publish = "dist"
   command = "npm run build"
+  base = "/"
 
 # Configuración de despliegue para la rama principal
 [context.production]
   command = "npm run build"
+  environment = { NODE_VERSION = "18" }
+
+# Configuración de despliegue para desarrollo
+[context.deploy-preview]
+  command = "npm run build:dev"
+  environment = { NODE_VERSION = "18" }
 
 # Forzar siempre la limpieza del caché para los nuevos despliegues
 [build.environment]
   NETLIFY_USE_YARN = "false"
-  NETLIFY_FORCE_CLEAR_CACHE = "true" 
+  NETLIFY_FORCE_CLEAR_CACHE = "true"
+  NODE_VERSION = "18"
+
+# Configuración de redirecciones
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200 
