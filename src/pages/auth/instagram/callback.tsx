@@ -54,18 +54,14 @@ const InstagramAuthCallback = () => {
         }
 
         // Intercambiar código por token de acceso
-        const tokenResponse = await axios.post(
-          'https://api.instagram.com/oauth/access_token',
+        const tokenResponse = await axios.get(
+          'https://graph.facebook.com/v18.0/oauth/access_token',
           {
-            client_id: INSTAGRAM_CLIENT_ID,
-            client_secret: INSTAGRAM_CLIENT_SECRET,
-            grant_type: 'authorization_code',
-            redirect_uri: REDIRECT_URI,
-            code: code
-          },
-          {
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
+            params: {
+              client_id: INSTAGRAM_CLIENT_ID,
+              client_secret: INSTAGRAM_CLIENT_SECRET,
+              redirect_uri: REDIRECT_URI,
+              code: code
             }
           }
         );
@@ -75,7 +71,6 @@ const InstagramAuthCallback = () => {
         }
 
         const accessToken = tokenResponse.data.access_token;
-        const userId = tokenResponse.data.user_id;
 
         // Obtener información del perfil de usuario
         const profileResponse = await axios.get(
@@ -96,7 +91,7 @@ const InstagramAuthCallback = () => {
         await updateDoc(userRef, {
           'socialNetworks.instagram': {
             connected: true,
-            userId: userId,
+            userId: profileResponse.data.id,
             username: username,
             accessToken: accessToken,
             connectedAt: new Date(),

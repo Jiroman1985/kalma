@@ -24,7 +24,15 @@ export const N8N_CONFIG = {
   devOAuthCredentials: {
     instagram: {
       appId: process.env.REACT_APP_INSTAGRAM_APP_ID || "instagram-dev-app-id",
-      appSecret: process.env.REACT_APP_INSTAGRAM_APP_SECRET || "instagram-dev-app-secret"
+      appSecret: process.env.REACT_APP_INSTAGRAM_APP_SECRET || "instagram-dev-app-secret",
+      // Nuevos scopes para Instagram Business
+      scopes: [
+        "instagram_basic",
+        "pages_show_list",
+        "instagram_manage_messages",
+        "instagram_manage_comments",
+        "instagram_manage_insights"
+      ].join(",")
     }
   }
 };

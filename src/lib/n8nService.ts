@@ -18,10 +18,16 @@ const N8N_SECRET = process.env.REACT_APP_N8N_SECRET || "local_development_secret
 // Configuración específica de cada plataforma para OAuth
 const OAUTH_CONFIG = {
   instagram: {
-    authorizeUrl: "https://api.instagram.com/oauth/authorize",
+    authorizeUrl: "https://www.facebook.com/v18.0/dialog/oauth",
     clientId: process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '925270751978648',
     redirectUri: `${window.location.origin}/auth/callback/instagram`,
-    scopes: ["user_profile", "user_media", "instagram_basic", "instagram_manage_comments", "instagram_manage_messages"]
+    scopes: [
+      "instagram_basic",
+      "pages_show_list",
+      "instagram_manage_messages",
+      "instagram_manage_comments",
+      "instagram_manage_insights"
+    ]
   },
   facebook: {
     authorizeUrl: "https://www.facebook.com/v16.0/dialog/oauth",
@@ -70,15 +76,9 @@ export const initiateOAuthFlow = (platform: string, userId: string): string => {
   const authUrl = new URL(platformConfig.authorizeUrl);
   authUrl.searchParams.append("client_id", platformConfig.clientId);
   authUrl.searchParams.append("redirect_uri", platformConfig.redirectUri);
-  authUrl.searchParams.append("scope", platformConfig.scopes.join(" "));
+  authUrl.searchParams.append("scope", platformConfig.scopes.join(","));
   authUrl.searchParams.append("response_type", "code");
   authUrl.searchParams.append("state", state);
-  
-  // Para Instagram y Facebook, añadir parámetros adicionales
-  if (platform === "instagram" || platform === "facebook") {
-    // Instagram requiere que se especifique el tipo de respuesta como código
-    authUrl.searchParams.append("response_type", "code");
-  }
   
   return authUrl.toString();
 };
