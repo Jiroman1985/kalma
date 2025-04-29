@@ -25,23 +25,35 @@ const InstagramAuthStart = () => {
       }
       
       // Construir URL de autenticación Instagram con parámetros requeridos
-      const authURL = new URL('https://api.instagram.com/oauth/authorize');
+      const authURL = new URL('https://www.facebook.com/v18.0/dialog/oauth');
       
       // Agregar parámetros requeridos
       const params = {
         client_id: INSTAGRAM_CLIENT_ID,
         redirect_uri: REDIRECT_URI,
-        scope: 'user_profile,user_media', // Permisos básicos requeridos
+        scope: 'instagram_basic,pages_show_list,instagram_manage_messages,instagram_manage_comments,instagram_manage_insights',
         response_type: 'code',
-        state: currentUser.uid, // Usar el ID del usuario como estado para verificar después
+        state: currentUser.uid,
+        display: 'popup',
+        auth_type: 'rerequest',
+        sdk: 'joey'
       };
       
       Object.entries(params).forEach(([key, value]) => {
         authURL.searchParams.append(key, value);
       });
       
-      // Redireccionar al usuario a la URL de autenticación de Instagram
-      window.location.href = authURL.toString();
+      // Abrir en una ventana emergente
+      const width = 600;
+      const height = 600;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+      
+      window.open(
+        authURL.toString(),
+        'Instagram Auth',
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
+      );
     };
     
     // Iniciar flujo de autenticación después de un breve retraso

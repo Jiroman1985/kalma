@@ -38,6 +38,15 @@ const InstagramAuthCallback = () => {
         const urlParams = new URLSearchParams(location.search);
         const code = urlParams.get('code');
         const state = urlParams.get('state');
+        const error = urlParams.get('error');
+        const errorDescription = urlParams.get('error_description');
+
+        // Verificar si hay errores de Facebook
+        if (error) {
+          setStatus('error');
+          setErrorMessage(errorDescription || `Error de Facebook: ${error}`);
+          return;
+        }
 
         // Verificar que recibimos un código válido
         if (!code) {

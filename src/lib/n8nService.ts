@@ -27,7 +27,14 @@ const OAUTH_CONFIG = {
       "instagram_manage_messages",
       "instagram_manage_comments",
       "instagram_manage_insights"
-    ]
+    ],
+    // Parámetros adicionales para Facebook Login
+    additionalParams: {
+      display: "popup",
+      auth_type: "rerequest",
+      response_type: "code",
+      sdk: "joey"
+    }
   },
   facebook: {
     authorizeUrl: "https://www.facebook.com/v16.0/dialog/oauth",
@@ -79,6 +86,13 @@ export const initiateOAuthFlow = (platform: string, userId: string): string => {
   authUrl.searchParams.append("scope", platformConfig.scopes.join(","));
   authUrl.searchParams.append("response_type", "code");
   authUrl.searchParams.append("state", state);
+  
+  // Agregar parámetros adicionales específicos de la plataforma
+  if (platformConfig.additionalParams) {
+    Object.entries(platformConfig.additionalParams).forEach(([key, value]) => {
+      authUrl.searchParams.append(key, value as string);
+    });
+  }
   
   return authUrl.toString();
 };
