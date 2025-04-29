@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import axios from 'axios';
 
 // Constantes de Instagram
-const INSTAGRAM_CLIENT_ID = '925270751978648';
-const INSTAGRAM_CLIENT_SECRET = '5ed60bb513324c22a3ec1db6faf9e92f';
+const INSTAGRAM_CLIENT_ID = process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '925270751978648';
+const INSTAGRAM_CLIENT_SECRET = process.env.REACT_APP_INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f';
 const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/instagram/callback`;
 
 // Estados de conexión
@@ -51,7 +51,7 @@ const InstagramAuthCallback = () => {
         // Verificar que recibimos un código válido
         if (!code) {
           setStatus('error');
-          setErrorMessage('No se recibió un código válido de Instagram.');
+          setErrorMessage('No se recibió un código válido de autenticación.');
           return;
         }
 
@@ -62,47 +62,79 @@ const InstagramAuthCallback = () => {
           return;
         }
 
-        // Intercambiar código por token de acceso
-        const tokenResponse = await axios.get(
-          'https://graph.facebook.com/v18.0/oauth/access_token',
+        // 1. Intercambiar código por token de acceso
+        const tokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+          params: {
+            client_id: INSTAGRAM_CLIENT_ID,
+            client_secret: INSTAGRAM_CLIENT_SECRET,
+            redirect_uri: REDIRECT_URI,
+            code: code
+          }
+        });
+
+        const { access_token, expires_in } = tokenResponse.data;
+
+        // 2. Obtener páginas de Facebook
+        const pagesResponse = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
+          params: { access_token }
+        });
+
+        if (!pagesResponse.data.data || pagesResponse.data.data.length === 0) {
+          throw new Error('No se encontraron páginas de Facebook asociadas');
+        }
+
+        // 3. Obtener la primera página
+        const page = pagesResponse.data.data[0];
+        const pageAccessToken = page.access_token;
+        const pageId = page.id;
+
+        // 4. Obtener la cuenta de Instagram Business asociada
+        const igAccountResponse = await axios.get(`https://graph.facebook.com/v18.0/${pageId}`, {
+          params: {
+            fields: 'instagram_business_account',
+            access_token: pageAccessToken
+          }
+        });
+
+        if (!igAccountResponse.data.instagram_business_account) {
+          throw new Error('No se encontró una cuenta de Instagram Business asociada');
+        }
+
+        const igBusinessAccountId = igAccountResponse.data.instagram_business_account.id;
+
+        // 5. Suscribir la cuenta al webhook
+        await axios.post(
+          `https://graph.facebook.com/v18.0/${igBusinessAccountId}/subscribed_apps`,
+          null,
+          { params: { access_token: pageAccessToken } }
+        );
+
+        // 6. Obtener información del perfil de Instagram
+        const profileResponse = await axios.get(
+          `https://graph.facebook.com/v18.0/${igBusinessAccountId}`,
           {
             params: {
-              client_id: INSTAGRAM_CLIENT_ID,
-              client_secret: INSTAGRAM_CLIENT_SECRET,
-              redirect_uri: REDIRECT_URI,
-              code: code
+              fields: 'id,username,profile_picture_url,name',
+              access_token: pageAccessToken
             }
           }
         );
 
-        if (!tokenResponse.data || !tokenResponse.data.access_token) {
-          throw new Error('No se pudo obtener el token de acceso');
-        }
-
-        const accessToken = tokenResponse.data.access_token;
-
-        // Obtener información del perfil de usuario
-        const profileResponse = await axios.get(
-          `https://graph.instagram.com/me?fields=id,username&access_token=${accessToken}`
-        );
-
-        if (!profileResponse.data || !profileResponse.data.username) {
-          throw new Error('No se pudo obtener la información del perfil');
-        }
-
-        const username = profileResponse.data.username;
-
-        // Guardar los datos en Firestore
+        // 7. Guardar los datos en Firestore
         const db = getFirestore();
         const userRef = doc(db, 'users', currentUser.uid);
 
-        // Actualizar documento del usuario con los datos de Instagram
         await updateDoc(userRef, {
           'socialNetworks.instagram': {
             connected: true,
-            userId: profileResponse.data.id,
-            username: username,
-            accessToken: accessToken,
+            pageId,
+            pageName: page.name,
+            igBusinessAccountId,
+            username: profileResponse.data.username,
+            name: profileResponse.data.name,
+            profilePicture: profileResponse.data.profile_picture_url,
+            accessToken: pageAccessToken,
+            tokenExpiry: new Date(Date.now() + expires_in * 1000),
             connectedAt: new Date(),
           }
         });
@@ -113,7 +145,7 @@ const InstagramAuthCallback = () => {
         // Mostrar notificación de éxito
         toast({
           title: "Conexión exitosa",
-          description: `Tu cuenta de Instagram (@${username}) ha sido conectada correctamente`,
+          description: `Tu cuenta de Instagram Business (@${profileResponse.data.username}) ha sido conectada correctamente`,
           variant: "default",
         });
 
@@ -129,12 +161,12 @@ const InstagramAuthCallback = () => {
         setErrorMessage(
           error instanceof Error 
             ? error.message 
-            : 'Ocurrió un error al conectar tu cuenta de Instagram'
+            : 'Ocurrió un error al conectar tu cuenta de Instagram Business'
         );
         
         toast({
           title: "Error de conexión",
-          description: "No se pudo conectar tu cuenta de Instagram",
+          description: "No se pudo conectar tu cuenta de Instagram Business",
           variant: "destructive",
         });
       }
@@ -150,25 +182,15 @@ const InstagramAuthCallback = () => {
     };
   }, [currentUser, location.search, toast, navigate]);
 
-  // Función para volver a la página de redes sociales
-  const goToSocialNetworks = () => {
-    navigate('/dashboard/social-networks');
-  };
-
-  // Función para reintentar la conexión
-  const retryConnection = () => {
-    navigate('/auth/instagram/start');
-  };
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-lg">
         {status === 'loading' && (
           <div className="flex flex-col items-center text-center space-y-3">
             <Instagram className="h-12 w-12 text-pink-500" />
-            <h1 className="text-2xl font-bold">Conectando con Instagram</h1>
+            <h1 className="text-2xl font-bold">Conectando con Instagram Business</h1>
             <p className="text-gray-500">
-              Estamos verificando y guardando tu conexión con Instagram...
+              Estamos configurando tu cuenta de Instagram Business...
             </p>
             <Loader2 className="h-8 w-8 text-pink-500 animate-spin mx-auto mt-4" />
           </div>
@@ -179,13 +201,13 @@ const InstagramAuthCallback = () => {
             <CheckCircle className="h-12 w-12 text-green-500" />
             <h1 className="text-2xl font-bold">¡Conexión exitosa!</h1>
             <p className="text-gray-600">
-              Tu cuenta de Instagram ha sido conectada correctamente a AURA.
+              Tu cuenta de Instagram Business ha sido conectada correctamente a AURA.
             </p>
             <p className="text-sm text-gray-500">
               Serás redirigido automáticamente al dashboard en unos segundos...
             </p>
             <Button 
-              onClick={goToSocialNetworks}
+              onClick={() => navigate('/dashboard/social-networks')}
               className="w-full mt-4 bg-teal-600 hover:bg-teal-700"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -199,17 +221,17 @@ const InstagramAuthCallback = () => {
             <AlertCircle className="h-12 w-12 text-red-500" />
             <h1 className="text-2xl font-bold">Error de conexión</h1>
             <p className="text-gray-600">
-              {errorMessage || 'No se pudo conectar tu cuenta de Instagram. Por favor, intenta nuevamente.'}
+              {errorMessage || 'No se pudo conectar tu cuenta de Instagram Business. Por favor, intenta nuevamente.'}
             </p>
             <div className="flex flex-col w-full gap-2 mt-4">
               <Button 
-                onClick={retryConnection}
+                onClick={() => navigate('/auth/instagram/start')}
                 className="w-full bg-pink-500 hover:bg-pink-600"
               >
                 Reintentar conexión
               </Button>
               <Button 
-                onClick={goToSocialNetworks}
+                onClick={() => navigate('/dashboard/social-networks')}
                 variant="outline"
                 className="w-full"
               >
