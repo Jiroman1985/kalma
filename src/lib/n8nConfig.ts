@@ -5,7 +5,7 @@
  */
 export const N8N_CONFIG = {
   // URL base del servidor n8n
-  baseUrl: process.env.REACT_APP_N8N_BASE_URL || "https://n8n.aura-social.com",
+  baseUrl: process.env.REACT_APP_N8N_BASE_URL || "https://n8n.delphos.ai",
   
   // Token secreto compartido para la autenticación de webhooks
   webhookSecret: process.env.REACT_APP_N8N_WEBHOOK_SECRET || "shared-secret-token",
@@ -32,7 +32,12 @@ export const N8N_CONFIG = {
         "instagram_manage_messages",
         "instagram_manage_comments",
         "instagram_manage_insights"
-      ].join(",")
+      ].join(","),
+      workflow: {
+        settings: {
+          "projectId": "=delphos-platform",
+        }
+      }
     }
   }
 };
@@ -402,12 +407,13 @@ export interface NormalizedMessage {
  * Directrices para despliegue de n8n
  */
 export const N8N_DEPLOYMENT_GUIDE = `
-# Guía de Despliegue de n8n para AURA
+# Guía de Despliegue de n8n para Delphos
 
 ## Requisitos
-- Servidor con Docker y Docker Compose
-- Dominio configurado (ej: n8n.aura-social.com)
-- Certificado SSL
+- Servidor Linux (Ubuntu recomendado)
+- Docker y Docker Compose instalados
+- Dominio configurado (ej: n8n.delphos.ai)
+- Certificado SSL (Let's Encrypt recomendado)
 
 ## Instrucciones de Despliegue
 
@@ -459,14 +465,14 @@ networks:
 
 2. Crear Caddyfile para reverse proxy:
 \`\`\`
-n8n.aura-social.com {
+n8n.delphos.ai {
   reverse_proxy n8n:5678
 }
 \`\`\`
 
 3. Crear archivo .env con las variables necesarias:
 \`\`\`
-N8N_HOST=n8n.aura-social.com
+N8N_HOST=n8n.delphos.ai
 ENCRYPTION_KEY=encryption-key-random-string
 JWT_SECRET=jwt-secret-random-string
 \`\`\`
@@ -477,7 +483,7 @@ docker-compose up -d
 \`\`\`
 
 5. Importar workflows preconstruidos:
-   - Acceder a la interfaz en https://n8n.aura-social.com
+   - Acceder a la interfaz en https://n8n.delphos.ai
    - Ir a "Workflows" > "Import from File"
    - Pegar el JSON de los workflows definidos en N8N_WORKFLOWS
 `;

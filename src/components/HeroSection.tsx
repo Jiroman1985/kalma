@@ -2,6 +2,7 @@ import React from "react";
 import { Button } from "./ui/button";
 import { ChevronRight, MessageCircle, Shield, Bot, Clock, BriefcaseBusiness, BarChart3, Smartphone, Globe, Zap, Users, Sparkles, ArrowRight, Check, LayoutDashboard, BrainCircuit, HeartHandshake, Instagram, Facebook, Twitter } from "lucide-react";
 import { motion } from "framer-motion";
+import { Avatar, AvatarImage, AvatarFallback } from "./ui/avatar";
 
 const HeroSection: React.FC = () => {
   const containerVariants = {
@@ -26,22 +27,23 @@ const HeroSection: React.FC = () => {
     }
   };
 
-  const chatExamples = [
+  const chatMessages = [
     {
-      question: "Necesito gestionar varios perfiles de redes sociales y WhatsApp",
-      answer: "¡Claro! Con AURA puedes administrar todas tus redes (Instagram, Facebook, Twitter) y WhatsApp desde un único panel. Verás todas las conversaciones centralizadas y podrás responder sin cambiar de plataforma.",
-      icon: <Globe size={16} className="text-teal-600" />
+      type: "user",
+      message: "¿Puedo gestionar todas mis redes sociales desde aquí?",
     },
     {
-      question: "Tengo muchos mensajes sin responder en diferentes plataformas",
-      answer: "AURA puede automatizar respuestas en WhatsApp y todas tus redes sociales. Configuremos reglas personalizadas para respuestas instantáneas mientras mantienes el control total de la comunicación.",
-      icon: <Zap size={16} className="text-teal-600" />
+      type: "assistant",
+      message: "¡Claro! Con Delphos puedes administrar todas tus redes (Instagram, Facebook, Twitter) y WhatsApp desde un único panel. Verás todas las conversaciones centralizadas y podrás responder sin cambiar de plataforma.",
     },
     {
-      question: "¿Cómo puedo saber qué canal es más efectivo para mi negocio?",
-      answer: "Nuestras analíticas avanzadas comparan el rendimiento de WhatsApp, Instagram, Facebook y otros canales. Te mostraré exactamente dónde invierte mejor tu tiempo y recursos para maximizar conversiones.",
-      icon: <BarChart3 size={16} className="text-teal-600" />
-    }
+      type: "user",
+      message: "¿Y puedo automatizar respuestas?",
+    },
+    {
+      type: "assistant",
+      message: "Delphos puede automatizar respuestas en WhatsApp y todas tus redes sociales. Configuremos reglas personalizadas para respuestas instantáneas mientras mantienes el control total de la comunicación.",
+    },
   ];
 
   const features = [
@@ -102,8 +104,8 @@ const HeroSection: React.FC = () => {
                 Plataforma Unificada de Comunicación
               </div>
               <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-6">
-                Gestiona WhatsApp y todas tus redes con
-                <span className="text-gradient bg-gradient-to-r from-teal-600 to-cyan-600"> AURA </span> 
+                Gestiona todas tus redes con{" "}
+                <span className="text-gradient bg-gradient-to-r from-teal-600 to-cyan-600"> Delphos </span>
               </h1>
               <p className="text-lg text-gray-700 mb-8 leading-relaxed">
                 Unifica WhatsApp, Instagram, Facebook, Twitter y más en un solo lugar. Automatiza respuestas con IA y obtén analíticas avanzadas para optimizar tu comunicación empresarial.
@@ -167,48 +169,23 @@ const HeroSection: React.FC = () => {
                 
                 <div className="relative lg:w-[120%] bg-white/90 backdrop-blur-sm border border-white/20 p-6 rounded-2xl shadow-xl md:transform md:-rotate-1 hover:rotate-0 transition-all duration-300 hover:shadow-2xl">
                   <div className="bg-gradient-to-br from-teal-50 to-cyan-50 p-4 rounded-xl mb-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <MessageCircle className="text-teal-600" />
-                      <h3 className="font-semibold">AURA Assistant</h3>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      {chatExamples.map((example, index) => (
-                        <motion.div 
-                          key={index}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ 
-                            opacity: 1, 
-                            y: 0,
-                            transition: { delay: 0.3 + (index * 0.2) }
-                          }}
-                          className="space-y-3"
-                        >
-                          <div className="flex gap-3 items-start">
-                            <div className="bg-gray-200 w-8 h-8 rounded-full flex-shrink-0"></div>
-                            <div className="bg-gray-100 rounded-lg p-3 text-sm">
-                              {example.question}
-                            </div>
-                          </div>
-                          <div className="flex gap-3 items-start flex-row-reverse">
-                            <div className="bg-teal-100 w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center">
-                              {example.icon}
-                            </div>
-                            <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg p-3 text-sm">
-                              {example.answer}
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
+                    <div className="flex items-center space-x-4">
+                      <div className="flex-shrink-0">
+                        <Avatar>
+                          <AvatarImage src="/avatar.png" />
+                          <AvatarFallback>AI</AvatarFallback>
+                        </Avatar>
+                      </div>
+                      <div className="flex-grow">
+                        <h3 className="font-semibold">Delphos Assistant</h3>
+                        <p className="text-sm text-gray-500">Asistente virtual</p>
+                      </div>
+                      <span className="text-xs text-teal-600 font-medium">Delphos</span>
                     </div>
                   </div>
                   
                   <div className="flex justify-between items-center">
                     <span className="text-xs text-gray-500">Una plataforma para todas tus comunicaciones</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-teal-600 font-medium">AURA</span>
-                      <div className="w-6 h-6 rounded-full bg-teal-100 flex items-center justify-center text-xs text-teal-700">✓</div>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -265,7 +242,7 @@ const HeroSection: React.FC = () => {
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">Soluciones adaptadas a tus necesidades</h2>
               <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-                Descubre cómo AURA integra WhatsApp y todas tus redes sociales para maximizar los resultados de tu negocio
+                Descubre cómo Delphos integra WhatsApp y todas tus redes sociales para maximizar los resultados de tu negocio
               </p>
             </div>
 
@@ -309,7 +286,7 @@ const HeroSection: React.FC = () => {
       <section className="py-20 bg-gradient-to-br from-teal-600 to-cyan-700 text-white" id="prueba-gratis">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">Gestiona todas tus comunicaciones con AURA hoy mismo</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">Gestiona todas tus comunicaciones con Delphos hoy mismo</h2>
             <p className="text-xl mb-8 text-white/90">
               Unifica WhatsApp, Instagram, Facebook y Twitter en una sola plataforma y ahorra tiempo con automatizaciones inteligentes
             </p>
