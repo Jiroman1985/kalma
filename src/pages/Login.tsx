@@ -151,7 +151,10 @@ const Login = () => {
                           type="email" 
                           autoComplete="email"
                           disabled={isSubmitting}
-                          {...field} 
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          value={field.value}
+                          name={field.name}
                         />
                       </FormControl>
                       <FormMessage />
@@ -170,7 +173,10 @@ const Login = () => {
                           type="password" 
                           autoComplete="new-password"
                           disabled={isSubmitting}
-                          {...field} 
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          value={field.value}
+                          name={field.name}
                         />
                       </FormControl>
                       <FormMessage />
@@ -188,7 +194,10 @@ const Login = () => {
                           placeholder="Tu Empresa S.L." 
                           autoComplete="organization"
                           disabled={isSubmitting}
-                          {...field} 
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          value={field.value}
+                          name={field.name}
                         />
                       </FormControl>
                       <FormMessage />
@@ -205,7 +214,10 @@ const Login = () => {
                         <Input 
                           placeholder="Ej: Tienda de ropa, Restaurante..." 
                           disabled={isSubmitting}
-                          {...field} 
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          value={field.value}
+                          name={field.name}
                         />
                       </FormControl>
                       <FormMessage />
@@ -240,7 +252,10 @@ const Login = () => {
                           type="email" 
                           autoComplete="email"
                           disabled={isSubmitting}
-                          {...field} 
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          value={field.value}
+                          name={field.name}
                         />
                       </FormControl>
                       <FormMessage />
@@ -259,7 +274,10 @@ const Login = () => {
                           type="password" 
                           autoComplete="current-password"
                           disabled={isSubmitting}
-                          {...field} 
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          value={field.value}
+                          name={field.name}
                         />
                       </FormControl>
                       <FormMessage />
