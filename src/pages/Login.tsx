@@ -26,6 +26,9 @@ const registerSchema = z.object({
   businessType: z.string().optional(),
 });
 
+type LoginFormValues = z.infer<typeof loginSchema>;
+type RegisterFormValues = z.infer<typeof registerSchema>;
+
 const Login = () => {
   const { currentUser, signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
   const { toast } = useToast();
@@ -35,7 +38,7 @@ const Login = () => {
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Configuración del formulario de login con React Hook Form
-  const loginForm = useForm<z.infer<typeof loginSchema>>({
+  const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
@@ -44,7 +47,7 @@ const Login = () => {
   });
 
   // Configuración del formulario de registro con React Hook Form
-  const registerForm = useForm<z.infer<typeof registerSchema>>({
+  const registerForm = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
       email: "",
@@ -66,7 +69,6 @@ const Login = () => {
       setLoginError(null);
       await signInWithGoogle();
     } catch (error: any) {
-      // El error ya se maneja en el contexto de autenticación
       if (error.code === 'auth/unauthorized-domain') {
         setLoginError("Este dominio no está autorizado para iniciar sesión. Es necesario agregar este dominio en la consola de Firebase.");
       }
@@ -75,13 +77,12 @@ const Login = () => {
     }
   };
 
-  const onLoginSubmit = async (values: z.infer<typeof loginSchema>) => {
+  const onLoginSubmit = async (values: LoginFormValues) => {
     try {
       setIsSubmitting(true);
       setLoginError(null);
       await signInWithEmail(values.email, values.password);
     } catch (error: any) {
-      // El error ya se maneja en el contexto de autenticación
       if (error.code === 'auth/invalid-credential') {
         setLoginError("Credenciales inválidas. Verifica tu correo y contraseña.");
       }
@@ -90,7 +91,7 @@ const Login = () => {
     }
   };
 
-  const onRegisterSubmit = async (values: z.infer<typeof registerSchema>) => {
+  const onRegisterSubmit = async (values: RegisterFormValues) => {
     try {
       setIsSubmitting(true);
       setLoginError(null);
@@ -99,13 +100,20 @@ const Login = () => {
         businessType: values.businessType || ""
       });
     } catch (error: any) {
-      // El error ya se maneja en el contexto de autenticación
       if (error.code === 'auth/email-already-in-use') {
         setLoginError("Este correo ya está registrado. Intenta iniciar sesión.");
       }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const toggleForm = () => {
+    setIsRegistering(!isRegistering);
+    setLoginError(null);
+    // Resetear los formularios al cambiar
+    loginForm.reset();
+    registerForm.reset();
   };
 
   return (
@@ -141,6 +149,7 @@ const Login = () => {
                         <Input 
                           placeholder="tu@empresa.com" 
                           type="email" 
+                          autoComplete="email"
                           disabled={isSubmitting}
                           {...field} 
                         />
@@ -159,6 +168,7 @@ const Login = () => {
                         <Input 
                           placeholder="••••••••" 
                           type="password" 
+                          autoComplete="new-password"
                           disabled={isSubmitting}
                           {...field} 
                         />
@@ -176,6 +186,7 @@ const Login = () => {
                       <FormControl>
                         <Input 
                           placeholder="Tu Empresa S.L." 
+                          autoComplete="organization"
                           disabled={isSubmitting}
                           {...field} 
                         />
@@ -203,7 +214,7 @@ const Login = () => {
                 />
                 <Button 
                   type="submit" 
-                  className="w-full bg-whatsapp hover:bg-whatsapp-dark"
+                  className="w-full bg-teal-600 hover:bg-teal-700"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
@@ -227,6 +238,7 @@ const Login = () => {
                         <Input 
                           placeholder="tu@empresa.com" 
                           type="email" 
+                          autoComplete="email"
                           disabled={isSubmitting}
                           {...field} 
                         />
@@ -245,6 +257,7 @@ const Login = () => {
                         <Input 
                           placeholder="••••••••" 
                           type="password" 
+                          autoComplete="current-password"
                           disabled={isSubmitting}
                           {...field} 
                         />
@@ -255,7 +268,7 @@ const Login = () => {
                 />
                 <Button 
                   type="submit" 
-                  className="w-full bg-whatsapp hover:bg-whatsapp-dark"
+                  className="w-full bg-teal-600 hover:bg-teal-700"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
@@ -270,42 +283,31 @@ const Login = () => {
           
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
+              <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white px-2 text-gray-500">O continúa con</span>
+              <span className="bg-white px-2 text-muted-foreground">
+                O continúa con
+              </span>
             </div>
           </div>
           
           <Button
+            type="button"
             variant="outline"
-            className="w-full flex items-center gap-2 bg-white hover:bg-gray-50 border-gray-300"
+            className="w-full"
             onClick={handleGoogleLogin}
             disabled={isSubmitting}
           >
-            {isSubmitting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
-                <g transform="matrix(1, 0, 0, 1, 0, 0)">
-                  <path d="M23.745,12.27c0-.79-.07-1.54-.19-2.27H12.255v4.51h6.46c-.29,1.48-1.14,2.73-2.4,3.58v3h3.86c2.26-2.09,3.57-5.17,3.57-8.82Z" fill="#4285F4"></path>
-                  <path d="M12.255,24c3.24,0,5.95-1.08,7.93-2.91l-3.86-3c-1.08.72-2.45,1.16-4.07,1.16-3.13,0-5.78-2.11-6.73-4.96h-3.98v3.09C3.515,21.3,7.565,24,12.255,24Z" fill="#34A853"></path>
-                  <path d="M5.525,14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57,.38-2.29V6.62h-3.98c-.8,1.6-1.26,3.41-1.26,5.38s.46,3.78,1.26,5.38l3.98-3.09Z" fill="#FBBC05"></path>
-                  <path d="M12.255,4.75c1.77,0,3.35,.61,4.6,1.8l3.42-3.42C18.205,1.19,15.495,0,12.255,0c-4.69,0-8.74,2.7-10.68,6.62l3.98,3.09c.95-2.85,3.6-4.96,6.73-4.96Z" fill="#EA4335"></path>
-                </g>
-              </svg>
-            )}
-            <span>Iniciar sesión con Google</span>
+            <Mail className="mr-2 h-4 w-4" />
+            Google
           </Button>
         </CardContent>
         <CardFooter>
           <Button
             variant="link"
             className="w-full"
-            onClick={() => {
-              setIsRegistering(!isRegistering);
-              setLoginError(null);
-            }}
+            onClick={toggleForm}
             disabled={isSubmitting}
           >
             {isRegistering

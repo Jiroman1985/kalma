@@ -66,6 +66,15 @@ interface UserData {
   socialNetworks?: SocialNetworksData;
 }
 
+// Interfaz para datos adicionales del usuario
+interface AdditionalUserData {
+  provider?: string;
+  isNewUser?: boolean;
+  companyName?: string;
+  businessType?: string;
+  [key: string]: any;
+}
+
 interface AuthContextProps {
   currentUser: User | null;
   loading: boolean;
@@ -306,7 +315,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   // Función para guardar datos del usuario en Firestore
-  const saveUserToFirestore = async (user: User, additionalData = {}) => {
+  const saveUserToFirestore = async (user: User, additionalData: AdditionalUserData = {}) => {
     if (!user) return;
     
     try {
@@ -334,13 +343,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
           freeTier: defaultUserData.freeTier,
           freeTierFinishDate: defaultUserData.freeTierFinishDate,
           vinculado: defaultUserData.vinculado,
-          socialNetworks: defaultUserData.socialNetworks
+          socialNetworks: defaultUserData.socialNetworks,
+          companyName: additionalData.companyName || "",
+          businessType: additionalData.businessType || "",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
         });
         
         // Inicializar estructura de datos para WhatsApp para nuevos usuarios
         await initializeWhatsAppData(user.uid);
       } else {
         console.log("Actualizando usuario existente en Firestore");
+        userData.updatedAt = serverTimestamp();
       }
       
       // Usar merge: true para asegurar que no se sobrescriban datos existentes
@@ -351,12 +365,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return await loadUserData(user.uid);
     } catch (error) {
       console.error("Error al guardar datos en Firestore:", error);
-      // Notificar error amigable al usuario
       toast({
         title: "Error al guardar datos",
         description: "No se pudo guardar la información. Por favor, intenta nuevamente.",
         variant: "destructive"
       });
+      throw error;
     }
   };
 
@@ -473,7 +487,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   // Registrarse con Email y contraseña
-  async function signUpWithEmail(email: string, password: string, additionalData = {}) {
+  async function signUpWithEmail(email: string, password: string, additionalData: AdditionalUserData = {}) {
     try {
       const result = await createUserWithEmailAndPassword(auth, email, password);
       
@@ -484,15 +498,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         ...additionalData
       });
       
+      // Activar período de prueba gratuito automáticamente para nuevos usuarios
+      await activateFreeTrial();
+      
       toast({
         title: "¡Cuenta creada!",
-        description: `Te has registrado como ${result.user.email}`,
+        description: `Te has registrado como ${result.user.email}. Tu período de prueba gratuito ha sido activado.`,
+        duration: 5000
       });
+      
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Error al registrarse con email:", error);
       
-      // Mensajes de error específicos
       let errorMessage = "No se pudo crear la cuenta.";
       
       if (error.code === 'auth/email-already-in-use') {
