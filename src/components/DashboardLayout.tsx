@@ -183,9 +183,7 @@ const DashboardLayout = () => {
               <div className="flex items-center justify-center h-16 border-b border-gray-200">
                 <div className="flex items-center gap-2">
                   <FileText size={20} className="text-teal-600" />
-                  <h2 className="text-lg font-medium">
-                    AU<span className="text-cyan-600">RA</span> Panel
-                  </h2>
+                  <h2 className="text-lg font-medium">kalma Panel</h2>
                 </div>
               </div>
               <div className="flex-1 h-0 overflow-y-auto">
@@ -228,9 +226,7 @@ const DashboardLayout = () => {
             <div className="flex items-center justify-center h-16 flex-shrink-0 px-4 border-b border-gray-200">
               <div className="flex items-center gap-2">
                 <FileText size={20} className="text-teal-600" />
-                <h2 className="text-lg font-medium">
-                  AU<span className="text-cyan-600">RA</span> Panel
-                </h2>
+                <h2 className="text-lg font-medium">kalma Panel</h2>
               </div>
             </div>
             <div className="flex-1 flex flex-col overflow-y-auto">
@@ -356,9 +352,7 @@ const DashboardLayout = () => {
         <div className="md:hidden fixed inset-0 z-50 bg-black/50 flex justify-end">
           <div className="w-64 h-full bg-white p-4 flex flex-col">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-medium">
-                AU<span className="text-cyan-600">RA</span> Panel
-              </h2>
+              <h2 className="text-lg font-medium">kalma Panel</h2>
               <Button variant="ghost" size="icon" onClick={toggleMobileMenu}>
                 <X size={20} />
               </Button>

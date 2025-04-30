@@ -163,29 +163,69 @@ const HeroSection: React.FC = () => {
             </motion.div>
             
             <motion.div className="order-1 md:order-2" variants={itemVariants}>
-              <div className="relative">
-                <div className="absolute -top-20 -right-20 w-72 h-72 bg-violet-100/40 rounded-full filter blur-3xl"></div>
-                <div className="absolute -bottom-10 -left-10 w-80 h-80 bg-teal-100/40 rounded-full filter blur-3xl"></div>
+              <div className="bg-white rounded-2xl shadow-xl p-6 relative">
+                <div className="absolute -top-12 left-1/2 transform -translate-x-1/2">
+                  <div className="bg-gradient-to-r from-teal-500 to-cyan-500 rounded-xl p-4 shadow-lg">
+                    <BrainCircuit size={32} className="text-white" />
+                  </div>
+                </div>
                 
-                <div className="relative lg:w-[120%] bg-white/90 backdrop-blur-sm border border-white/20 p-6 rounded-2xl shadow-xl md:transform md:-rotate-1 hover:rotate-0 transition-all duration-300 hover:shadow-2xl">
-                  <div className="bg-gradient-to-br from-teal-50 to-cyan-50 p-4 rounded-xl mb-4">
-                    <div className="flex items-center space-x-4">
-                      <div className="flex-shrink-0">
-                        <Avatar>
-                          <AvatarImage src="/avatar.png" />
-                          <AvatarFallback>AI</AvatarFallback>
-                        </Avatar>
+                <div className="mt-8">
+                  <h3 className="text-xl font-semibold text-center mb-2">kalma Assistant</h3>
+                  <p className="text-gray-600 text-center mb-6">Tu asistente virtual inteligente</p>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-teal-100 rounded-full p-2">
+                        <MessageCircle size={20} className="text-teal-600" />
                       </div>
-                      <div className="flex-grow">
-                        <h3 className="font-semibold">kalma Assistant</h3>
-                        <p className="text-sm text-gray-500">Asistente virtual</p>
+                      <div>
+                        <h4 className="font-medium">Gestión Unificada</h4>
+                        <p className="text-sm text-gray-600">Centraliza todas tus conversaciones en un solo lugar</p>
                       </div>
-                      <span className="text-xs text-teal-600 font-medium">kalma</span>
+                    </div>
+                    
+                    <div className="flex items-start gap-3">
+                      <div className="bg-cyan-100 rounded-full p-2">
+                        <Bot size={20} className="text-cyan-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">Respuestas Automáticas</h4>
+                        <p className="text-sm text-gray-600">IA que aprende de tus respuestas frecuentes</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-3">
+                      <div className="bg-violet-100 rounded-full p-2">
+                        <BarChart3 size={20} className="text-violet-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-medium">Analíticas Avanzadas</h4>
+                        <p className="text-sm text-gray-600">Métricas detalladas de todas tus interacciones</p>
+                      </div>
                     </div>
                   </div>
                   
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-gray-500">Una plataforma para todas tus comunicaciones</span>
+                  <div className="mt-6 pt-6 border-t">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="flex -space-x-2">
+                          <Avatar className="border-2 border-white">
+                            <AvatarImage src="/avatars/business1.png" />
+                            <AvatarFallback>WA</AvatarFallback>
+                          </Avatar>
+                          <Avatar className="border-2 border-white">
+                            <AvatarImage src="/avatars/business2.png" />
+                            <AvatarFallback>FB</AvatarFallback>
+                          </Avatar>
+                          <Avatar className="border-2 border-white">
+                            <AvatarImage src="/avatars/business3.png" />
+                            <AvatarFallback>IG</AvatarFallback>
+                          </Avatar>
+                        </div>
+                        <span className="text-sm text-gray-600">+1000 negocios confían en nosotros</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

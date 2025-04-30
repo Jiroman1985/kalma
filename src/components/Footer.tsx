@@ -7,7 +7,7 @@ const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <div className="flex items-center mb-4">
-              <span className="text-2xl font-bold text-white">AU<span className="text-teal-400">RA</span></span>
+              <span className="text-2xl font-bold text-white">kalma</span>
             </div>
             <p className="text-gray-400 mb-6 max-w-xs">
               Plataforma de gestión unificada para WhatsApp y todas tus redes sociales con IA.
@@ -15,7 +15,7 @@ const Footer: React.FC = () => {
             <div className="space-y-3">
               <div className="flex items-center gap-3">
                 <Mail size={20} className="text-gray-400" />
-                <span>contacto@delphos.ai</span>
+                <span>contacto@kalma.ai</span>
               </div>
               <div className="flex items-center gap-3">
                 <PhoneCall size={18} className="text-teal-400" />

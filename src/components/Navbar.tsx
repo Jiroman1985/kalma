@@ -38,7 +38,7 @@ const Navbar: React.FC = () => {
     >
       <div className="container mx-auto flex items-center justify-between px-4">
         <div className="flex items-center">
-          <span className="text-2xl font-bold text-teal-600">AU<span className="text-cyan-600">RA</span></span>
+          <span className="text-2xl font-bold text-teal-600">kalma</span>
         </div>
         
         <nav className="hidden md:flex items-center space-x-6">
