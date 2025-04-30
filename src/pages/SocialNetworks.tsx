@@ -164,7 +164,7 @@ const IntegrationTab = ({ platforms, subscriptions, currentUser, refresh }: {
       <CardHeader>
         <CardTitle>Integración con Redes Sociales</CardTitle>
         <CardDescription>
-          Conecta tus redes sociales con AURA para gestionar todas tus conversaciones desde un solo lugar
+          Conecta tus redes sociales con kalma para gestionar todas tus conversaciones desde un solo lugar
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -176,7 +176,7 @@ const IntegrationTab = ({ platforms, subscriptions, currentUser, refresh }: {
                 ¿Cómo funciona la integración?
               </p>
               <p className="text-sm text-blue-700 mt-1">
-                AURA utiliza n8n como motor de automatización para conectarse con tus redes sociales. Esta conexión permite recibir y enviar mensajes en tiempo real desde una sola interfaz.
+                kalma utiliza n8n como motor de automatización para conectarse con tus redes sociales. Esta conexión permite recibir y enviar mensajes en tiempo real desde una sola interfaz.
               </p>
             </div>
           </div>

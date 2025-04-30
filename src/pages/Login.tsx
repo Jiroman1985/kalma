@@ -121,7 +121,7 @@ const Login = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            {isRegistering ? "Registro para Delphos" : "Acceso para Delphos"}
+            {isRegistering ? "Registro para kalma" : "Acceso para kalma"}
           </CardTitle>
           <CardDescription className="text-center">
             {isRegistering 

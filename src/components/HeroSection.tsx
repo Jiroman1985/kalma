@@ -34,7 +34,7 @@ const HeroSection: React.FC = () => {
     },
     {
       type: "assistant",
-      message: "¡Claro! Con Delphos puedes administrar todas tus redes (Instagram, Facebook, Twitter) y WhatsApp desde un único panel. Verás todas las conversaciones centralizadas y podrás responder sin cambiar de plataforma.",
+      message: "¡Claro! Con kalma puedes administrar todas tus redes (Instagram, Facebook, Twitter) y WhatsApp desde un único panel. Verás todas las conversaciones centralizadas y podrás responder sin cambiar de plataforma.",
     },
     {
       type: "user",
@@ -42,7 +42,7 @@ const HeroSection: React.FC = () => {
     },
     {
       type: "assistant",
-      message: "Delphos puede automatizar respuestas en WhatsApp y todas tus redes sociales. Configuremos reglas personalizadas para respuestas instantáneas mientras mantienes el control total de la comunicación.",
+      message: "kalma puede automatizar respuestas en WhatsApp y todas tus redes sociales. Configuremos reglas personalizadas para respuestas instantáneas mientras mantienes el control total de la comunicación.",
     },
   ];
 
@@ -105,7 +105,7 @@ const HeroSection: React.FC = () => {
               </div>
               <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-6">
                 Gestiona todas tus redes con{" "}
-                <span className="text-gradient bg-gradient-to-r from-teal-600 to-cyan-600"> Delphos </span>
+                <span className="text-gradient bg-gradient-to-r from-teal-600 to-cyan-600"> kalma </span>
               </h1>
               <p className="text-lg text-gray-700 mb-8 leading-relaxed">
                 Unifica WhatsApp, Instagram, Facebook, Twitter y más en un solo lugar. Automatiza respuestas con IA y obtén analíticas avanzadas para optimizar tu comunicación empresarial.
@@ -177,10 +177,10 @@ const HeroSection: React.FC = () => {
                         </Avatar>
                       </div>
                       <div className="flex-grow">
-                        <h3 className="font-semibold">Delphos Assistant</h3>
+                        <h3 className="font-semibold">kalma Assistant</h3>
                         <p className="text-sm text-gray-500">Asistente virtual</p>
                       </div>
-                      <span className="text-xs text-teal-600 font-medium">Delphos</span>
+                      <span className="text-xs text-teal-600 font-medium">kalma</span>
                     </div>
                   </div>
                   
@@ -242,7 +242,7 @@ const HeroSection: React.FC = () => {
             <div className="text-center mb-16">
               <h2 className="text-3xl md:text-4xl font-bold mb-4">Soluciones adaptadas a tus necesidades</h2>
               <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-                Descubre cómo Delphos integra WhatsApp y todas tus redes sociales para maximizar los resultados de tu negocio
+                Descubre cómo kalma integra WhatsApp y todas tus redes sociales para maximizar los resultados de tu negocio
               </p>
             </div>
 
@@ -286,7 +286,7 @@ const HeroSection: React.FC = () => {
       <section className="py-20 bg-gradient-to-br from-teal-600 to-cyan-700 text-white" id="prueba-gratis">
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">Gestiona todas tus comunicaciones con Delphos hoy mismo</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">Gestiona todas tus comunicaciones con kalma hoy mismo</h2>
             <p className="text-xl mb-8 text-white/90">
               Unifica WhatsApp, Instagram, Facebook y Twitter en una sola plataforma y ahorra tiempo con automatizaciones inteligentes
             </p>

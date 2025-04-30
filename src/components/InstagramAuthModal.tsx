@@ -91,8 +91,8 @@ const InstagramAuthModal: React.FC<InstagramAuthModalProps> = ({
                 <p className="font-medium">¿Cómo funciona?</p>
                 <ol className="list-decimal list-inside mt-1 space-y-1">
                   <li>Serás redirigido a Instagram para iniciar sesión</li>
-                  <li>Autoriza a AURA para acceder a mensajes y comentarios</li>
-                  <li>Volverás automáticamente a AURA una vez completado</li>
+                  <li>Autoriza a kalma para acceder a mensajes y comentarios</li>
+                  <li>Volverás automáticamente a kalma una vez completado</li>
                 </ol>
               </div>
             </div>
@@ -103,7 +103,7 @@ const InstagramAuthModal: React.FC<InstagramAuthModalProps> = ({
             <ul className="text-sm space-y-2">
               <li className="flex items-start">
                 <span className="bg-green-100 p-1 rounded-full mr-2 mt-0.5">✓</span>
-                <span>Recibir mensajes directos de Instagram en AURA</span>
+                <span>Recibir mensajes directos de Instagram en kalma</span>
               </li>
               <li className="flex items-start">
                 <span className="bg-green-100 p-1 rounded-full mr-2 mt-0.5">✓</span>

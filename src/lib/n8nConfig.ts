@@ -407,7 +407,7 @@ export interface NormalizedMessage {
  * Directrices para despliegue de n8n
  */
 export const N8N_DEPLOYMENT_GUIDE = `
-# Guía de Despliegue de n8n para Delphos
+# Guía de Despliegue de n8n para kalma
 
 ## Requisitos
 - Servidor Linux (Ubuntu recomendado)

@@ -145,7 +145,7 @@ const InstagramAuthCallback = () => {
         // Mostrar notificación de éxito
         toast({
           title: "Conexión exitosa",
-          description: `Tu cuenta de Instagram Business (@${profileResponse.data.username}) ha sido conectada correctamente`,
+          description: `Tu cuenta de Instagram Business (@${profileResponse.data.username}) ha sido conectada correctamente a kalma`,
           variant: "default",
         });
 
@@ -201,7 +201,7 @@ const InstagramAuthCallback = () => {
             <CheckCircle className="h-12 w-12 text-green-500" />
             <h1 className="text-2xl font-bold">¡Conexión exitosa!</h1>
             <p className="text-gray-600">
-              Tu cuenta de Instagram Business ha sido conectada correctamente a AURA.
+              Tu cuenta de Instagram Business ha sido conectada correctamente a kalma.
             </p>
             <p className="text-sm text-gray-500">
               Serás redirigido automáticamente al dashboard en unos segundos...

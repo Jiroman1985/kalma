@@ -149,7 +149,7 @@ const OAuthConnector: React.FC<OAuthConnectorProps> = ({
       
       toast({
         title: "Conexión exitosa",
-        description: `Tu cuenta de ${config.name} ha sido conectada correctamente a AURA`
+        description: `Tu cuenta de ${config.name} ha sido conectada correctamente a kalma`
       });
 
       // Notificar al componente padre si se completó la conexión

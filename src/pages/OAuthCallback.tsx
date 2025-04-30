@@ -99,7 +99,7 @@ const OAuthCallback: React.FC = () => {
                 </svg>
               </div>
               <p className="text-gray-600">
-                Tu cuenta de {platform} ha sido conectada exitosamente a AURA.
+                Tu cuenta de {platform} ha sido conectada exitosamente a kalma.
               </p>
               <p className="text-sm text-gray-500">
                 Serás redirigido automáticamente en unos segundos...
