@@ -40,11 +40,7 @@ export const googleProvider = new GoogleAuthProvider();
 
 // Configurar el comportamiento del proveedor de Google
 googleProvider.setCustomParameters({
-  prompt: 'select_account',
-  // Asegurarnos de que la URI de redirección coincida con la configurada en Google Cloud
-  redirect_uri: window.location.hostname === 'localhost' 
-    ? 'http://localhost:5173/__/auth/handler'
-    : 'https://kalma-lab.netlify.app/__/auth/handler'
+  prompt: 'select_account'
 });
 
 // Agregamos ámbitos adicionales para la autenticación de Google si es necesario
