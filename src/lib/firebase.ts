@@ -8,9 +8,9 @@ import { getStorage } from "firebase/storage";
 // Configuración de Firebase
 const firebaseConfig = {
   apiKey: "AIzaSyB_fjWDYiXtddbQnE-gxXCZoWcJDJt4KwA",
-  authDomain: "kalma-lab.firebaseapp.com",
-  projectId: "kalma-lab",
-  storageBucket: "kalma-lab.appspot.com",
+  authDomain: "pymai-5464d.firebaseapp.com",
+  projectId: "pymai-5464d",
+  storageBucket: "pymai-5464d.appspot.com",
   messagingSenderId: "928927480327",
   appId: "1:928927480327:web:d35319e4573b19605ac8a2",
   measurementId: "G-LSPQ5GGGME"
