@@ -5,7 +5,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Instagram } from 'lucide-react';
 
 const INSTAGRAM_CLIENT_ID = process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '674580881831928';
-const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/instagram/callback`;
+const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL}/auth/instagram/callback`;
 
 const InstagramAuthStart = () => {
   const navigate = useNavigate();
