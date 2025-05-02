@@ -17,11 +17,15 @@ exports.handler = async function(event, context) {
       };
     }
 
+    // Formatear el body como x-www-form-urlencoded
+    const params = new URLSearchParams();
+    params.append('access_token', accessToken);
+
     // Suscribir la cuenta al webhook usando la API de Instagram Graph
     const response = await fetch(`https://graph.facebook.com/v18.0/${instagramUserId}/subscribed_apps`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ access_token: accessToken })
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString()
     });
 
     const data = await response.json();
