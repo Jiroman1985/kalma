@@ -80,10 +80,16 @@ const InstagramAuthCallback = () => {
 
         const accountInfo = accountResponse.data;
 
-        // 3. Verificar que es una cuenta Business
-        if (accountInfo.account_type !== 'BUSINESS') {
-          throw new Error('Se requiere una cuenta de Instagram Business para continuar.');
-        }
+        // 3. Aceptar cualquier tipo de cuenta (BUSINESS, CREATOR, PERSONAL)
+        // Puedes mostrar un aviso si la cuenta no es BUSINESS, pero no lanzar error
+        // Ejemplo:
+        // if (accountInfo.account_type !== 'BUSINESS') {
+        //   toast({
+        //     title: "Aviso",
+        //     description: `Has conectado una cuenta de tipo ${accountInfo.account_type}. Algunas funciones pueden estar limitadas.`,
+        //     variant: "warning",
+        //   });
+        // }
 
         // 4. Suscribir la cuenta al webhook
         await axios.post(`${API_BASE_URL}/webhooks/instagram/subscribe`, {
