@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
-import { doc, getFirestore, updateDoc } from 'firebase/firestore';
+import { doc, getFirestore, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { AlertCircle, CheckCircle, ArrowLeft, Loader2, Instagram } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import axios from 'axios';
 
 // Constantes de Instagram
-const INSTAGRAM_CLIENT_ID = process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '925270751978648';
-const INSTAGRAM_CLIENT_SECRET = process.env.REACT_APP_INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f';
+const INSTAGRAM_CLIENT_ID = process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '674580881831928';
+const INSTAGRAM_CLIENT_SECRET = process.env.REACT_APP_INSTAGRAM_CLIENT_SECRET;
 const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/instagram/callback`;
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://api.kalma.io';
 
 // Estados de conexión
 type ConnectionStatus = 'loading' | 'success' | 'error';
@@ -41,10 +42,10 @@ const InstagramAuthCallback = () => {
         const error = urlParams.get('error');
         const errorDescription = urlParams.get('error_description');
 
-        // Verificar si hay errores de Facebook
+        // Verificar si hay errores de Instagram
         if (error) {
           setStatus('error');
-          setErrorMessage(errorDescription || `Error de Facebook: ${error}`);
+          setErrorMessage(errorDescription || `Error de Instagram: ${error}`);
           return;
         }
 
@@ -62,80 +63,57 @@ const InstagramAuthCallback = () => {
           return;
         }
 
-        // 1. Intercambiar código por token de acceso
-        const tokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
-          params: {
-            client_id: INSTAGRAM_CLIENT_ID,
-            client_secret: INSTAGRAM_CLIENT_SECRET,
-            redirect_uri: REDIRECT_URI,
-            code: code
+        // 1. Canjear el código por un token de acceso
+        const tokenResponse = await axios.post('https://api.instagram.com/oauth/access_token', {
+          client_id: INSTAGRAM_CLIENT_ID,
+          client_secret: INSTAGRAM_CLIENT_SECRET,
+          grant_type: 'authorization_code',
+          redirect_uri: REDIRECT_URI,
+          code: code
+        }, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
           }
         });
 
-        const { access_token, expires_in } = tokenResponse.data;
+        const { access_token, user_id } = tokenResponse.data;
 
-        // 2. Obtener páginas de Facebook
-        const pagesResponse = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
-          params: { access_token }
+        // 2. Obtener información detallada de la cuenta
+        const accountResponse = await axios.get(`https://graph.instagram.com/v12.0/me`, {
+          params: {
+            fields: 'id,username,account_type,media_count',
+            access_token: access_token
+          }
         });
 
-        if (!pagesResponse.data.data || pagesResponse.data.data.length === 0) {
-          throw new Error('No se encontraron páginas de Facebook asociadas');
+        const accountInfo = accountResponse.data;
+
+        // 3. Verificar que es una cuenta Business
+        if (accountInfo.account_type !== 'BUSINESS') {
+          throw new Error('Se requiere una cuenta de Instagram Business para continuar.');
         }
 
-        // 3. Obtener la primera página
-        const page = pagesResponse.data.data[0];
-        const pageAccessToken = page.access_token;
-        const pageId = page.id;
-
-        // 4. Obtener la cuenta de Instagram Business asociada
-        const igAccountResponse = await axios.get(`https://graph.facebook.com/v18.0/${pageId}`, {
-          params: {
-            fields: 'instagram_business_account',
-            access_token: pageAccessToken
-          }
+        // 4. Suscribir la cuenta al webhook
+        await axios.post(`${API_BASE_URL}/webhooks/instagram/subscribe`, {
+          userId: currentUser.uid,
+          instagramUserId: user_id,
+          accessToken: access_token
         });
 
-        if (!igAccountResponse.data.instagram_business_account) {
-          throw new Error('No se encontró una cuenta de Instagram Business asociada');
-        }
-
-        const igBusinessAccountId = igAccountResponse.data.instagram_business_account.id;
-
-        // 5. Suscribir la cuenta al webhook
-        await axios.post(
-          `https://graph.facebook.com/v18.0/${igBusinessAccountId}/subscribed_apps`,
-          null,
-          { params: { access_token: pageAccessToken } }
-        );
-
-        // 6. Obtener información del perfil de Instagram
-        const profileResponse = await axios.get(
-          `https://graph.facebook.com/v18.0/${igBusinessAccountId}`,
-          {
-            params: {
-              fields: 'id,username,profile_picture_url,name',
-              access_token: pageAccessToken
-            }
-          }
-        );
-
-        // 7. Guardar los datos en Firestore
+        // 5. Guardar los datos en Firestore
         const db = getFirestore();
         const userRef = doc(db, 'users', currentUser.uid);
 
         await updateDoc(userRef, {
           'socialNetworks.instagram': {
             connected: true,
-            pageId,
-            pageName: page.name,
-            igBusinessAccountId,
-            username: profileResponse.data.username,
-            name: profileResponse.data.name,
-            profilePicture: profileResponse.data.profile_picture_url,
-            accessToken: pageAccessToken,
-            tokenExpiry: new Date(Date.now() + expires_in * 1000),
-            connectedAt: new Date(),
+            instagramUserId: user_id,
+            username: accountInfo.username,
+            accountType: accountInfo.account_type,
+            mediaCount: accountInfo.media_count,
+            accessToken: access_token,
+            connectedAt: serverTimestamp(),
+            lastUpdated: serverTimestamp()
           }
         });
 
@@ -145,7 +123,7 @@ const InstagramAuthCallback = () => {
         // Mostrar notificación de éxito
         toast({
           title: "Conexión exitosa",
-          description: `Tu cuenta de Instagram Business (@${profileResponse.data.username}) ha sido conectada correctamente a kalma`,
+          description: `Tu cuenta de Instagram Business (@${accountInfo.username}) ha sido conectada correctamente a kalma`,
           variant: "default",
         });
 
@@ -155,7 +133,7 @@ const InstagramAuthCallback = () => {
         }, 2000);
         
         setRedirectTimer(timer);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error al procesar callback de Instagram:', error);
         setStatus('error');
         setErrorMessage(
