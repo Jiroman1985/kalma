@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Instagram } from 'lucide-react';
 
-const INSTAGRAM_CLIENT_ID = process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '925270751978648';
+const INSTAGRAM_CLIENT_ID = process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '674580881831928';
 const REDIRECT_URI = `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/auth/instagram/callback`;
 
 const InstagramAuthStart = () => {
@@ -24,23 +24,25 @@ const InstagramAuthStart = () => {
         return;
       }
       
-      // Construir URL de autenticación de Facebook para Instagram Business
-      const authURL = new URL('https://www.facebook.com/v18.0/dialog/oauth');
+      // Construir URL de autenticación de Instagram
+      const authURL = new URL('https://www.instagram.com/oauth/authorize');
       
       // Agregar parámetros requeridos
       const params = {
         client_id: INSTAGRAM_CLIENT_ID,
         redirect_uri: REDIRECT_URI,
-        scope: 'instagram_basic,pages_show_list,instagram_manage_messages',
         response_type: 'code',
-        state: currentUser.uid
+        scope: 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish,instagram_business_manage_insights',
+        state: currentUser.uid,
+        enable_fb_login: '0',
+        force_authentication: '1'
       };
       
       Object.entries(params).forEach(([key, value]) => {
         authURL.searchParams.append(key, value);
       });
       
-      // Redireccionar a Facebook para autenticación
+      // Redireccionar a Instagram para autenticación
       window.location.href = authURL.toString();
     };
     
@@ -59,7 +61,7 @@ const InstagramAuthStart = () => {
           <Instagram className="h-12 w-12 text-pink-500" />
           <h1 className="text-2xl font-bold">Conectando con Instagram Business</h1>
           <p className="text-gray-500">
-            Te estamos redirigiendo a Facebook para conectar tu cuenta de Instagram Business...
+            Te estamos redirigiendo a Instagram para conectar tu cuenta de Instagram Business...
           </p>
           <div className="mt-4">
             <Loader2 className="h-8 w-8 text-pink-500 animate-spin mx-auto" />
