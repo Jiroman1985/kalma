@@ -23,6 +23,7 @@ exports.handler = async function(event, context) {
     const client_secret = process.env.INSTAGRAM_CLIENT_SECRET;
     const redirect_uri = process.env.INSTAGRAM_REDIRECT_URI;
 
+    console.log('REDIRECT_URI usado en backend:', redirect_uri);
     console.log('Datos enviados a Instagram:', { client_id, redirect_uri });
 
     const params = new URLSearchParams();

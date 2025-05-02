@@ -23,7 +23,8 @@ const InstagramAuthStart = () => {
         navigate('/login');
         return;
       }
-      
+      // Log del redirect_uri
+      console.log('REDIRECT_URI usado en frontend:', REDIRECT_URI);
       // Construir URL de autenticación de Instagram
       const authURL = new URL('https://www.instagram.com/oauth/authorize');
       
