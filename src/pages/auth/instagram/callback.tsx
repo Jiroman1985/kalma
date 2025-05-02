@@ -57,7 +57,16 @@ const InstagramAuthCallback = () => {
         }
 
         // Verificar que el estado coincide con el ID del usuario actual
-        if (state !== currentUser.uid) {
+        let stateUserId = state;
+        try {
+          // Si el state es un objeto codificado en base64
+          const decoded = JSON.parse(atob(state!));
+          stateUserId = decoded.userId;
+        } catch (e) {
+          // Si falla, asumimos que es el UID plano
+        }
+
+        if (stateUserId !== currentUser.uid) {
           setStatus('error');
           setErrorMessage('Error de validación de seguridad. Por favor, intenta nuevamente.');
           return;
