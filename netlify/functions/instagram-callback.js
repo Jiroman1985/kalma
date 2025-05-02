@@ -21,7 +21,7 @@ exports.handler = async function(event, context) {
 
     const client_id = process.env.INSTAGRAM_CLIENT_ID;
     const client_secret = process.env.INSTAGRAM_CLIENT_SECRET;
-    const redirect_uri = process.env.INSTAGRAM_REDIRECT_URI;
+    const redirect_uri = 'https://kalma-lab.netlify.app/auth/instagram/callback';
 
     console.log('REDIRECT_URI usado en backend:', redirect_uri);
     console.log('Datos enviados a Instagram:', { client_id, redirect_uri });
