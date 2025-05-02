@@ -91,8 +91,8 @@ const InstagramAuthCallback = () => {
         //   });
         // }
 
-        // 4. Suscribir la cuenta al webhook
-        await axios.post(`${API_BASE_URL}/webhooks/instagram/subscribe`, {
+        // 4. Suscribir la cuenta al webhook usando la función serverless
+        await axios.post('/.netlify/functions/instagram-webhook-subscribe', {
           userId: currentUser.uid,
           instagramUserId: user_id,
           accessToken: access_token
