@@ -10,7 +10,7 @@ const HeroSection: React.FC = () => {
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.2
+        staggerChildren: 0.3
       }
     }
   };
@@ -21,7 +21,7 @@ const HeroSection: React.FC = () => {
       opacity: 1, 
       y: 0,
       transition: {
-        duration: 0.6,
+        duration: 0.8,
         ease: "easeOut"
       } 
     }
@@ -50,36 +50,36 @@ const HeroSection: React.FC = () => {
     {
       title: "Gestión Multicanal Unificada",
       description: "Centraliza toda tu comunicación digital: WhatsApp, Instagram, Facebook, Twitter y más en una sola interfaz intuitiva sin necesidad de cambiar entre apps.",
-      icon: <Globe className="h-12 w-12 text-teal-600" />,
-      bgColor: "bg-teal-50"
+      icon: <Globe className="h-12 w-12 text-primary" />,
+      bgColor: "bg-primary/5"
     },
     {
       title: "Automatización Inteligente",
       description: "Implementa respuestas automáticas personalizadas basadas en IA que evolucionan con cada interacción con tus clientes en cualquier plataforma.",
-      icon: <BrainCircuit className="h-12 w-12 text-violet-600" />,
-      bgColor: "bg-violet-50"
+      icon: <BrainCircuit className="h-12 w-12 text-secondary" />,
+      bgColor: "bg-secondary/5"
     },
     {
       title: "Analítica Multi-Plataforma",
       description: "Visualiza patrones de comunicación entre todas tus redes sociales, compara rendimiento entre canales y optimiza tu estrategia con datos procesables.",
-      icon: <LayoutDashboard className="h-12 w-12 text-cyan-600" />,
-      bgColor: "bg-cyan-50"
+      icon: <LayoutDashboard className="h-12 w-12 text-accent" />,
+      bgColor: "bg-accent/5"
     }
   ];
 
   const useCases = [
     {
-      icon: <HeartHandshake className="h-8 w-8 text-teal-600" />,
+      icon: <HeartHandshake className="h-8 w-8 text-primary" />,
       title: "Atención al Cliente Omnicanal",
       description: "Respuestas inmediatas 24/7 en WhatsApp, Messenger e Instagram sin necesidad de monitorear cada plataforma individualmente."
     },
     {
-      icon: <BriefcaseBusiness className="h-8 w-8 text-violet-600" />,
+      icon: <BriefcaseBusiness className="h-8 w-8 text-secondary" />,
       title: "Generación de Leads",
       description: "Califica prospectos automáticamente de diferentes canales y programa seguimientos unificados para tu equipo de ventas."
     },
     {
-      icon: <Sparkles className="h-8 w-8 text-cyan-600" />,
+      icon: <Sparkles className="h-8 w-8 text-accent" />,
       title: "Marketing Integrado",
       description: "Lanza y monitorea campañas sincronizadas a través de WhatsApp y redes sociales desde un único panel."
     }
@@ -88,142 +88,123 @@ const HeroSection: React.FC = () => {
   return (
     <>
       {/* Hero Main Section */}
-      <section className="relative pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden bg-gradient-to-br from-white to-teal-50">
-        <div className="absolute top-0 right-0 -z-10 w-[40%] h-full bg-gradient-to-bl from-violet-50 to-transparent"></div>
-        <div className="absolute top-1/3 left-0 -z-10 w-1/3 h-1/3 bg-gradient-to-tr from-cyan-50 to-transparent rounded-full filter blur-3xl"></div>
+      <section className="relative pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden bg-gradient-zen">
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 -z-10 w-[50%] h-full bg-gradient-calm opacity-60"></div>
+        <div className="absolute top-1/3 left-0 -z-10 w-1/3 h-1/3 bg-gradient-to-tr from-accent/20 to-transparent rounded-full filter blur-3xl"></div>
+        <div className="absolute bottom-0 right-1/4 -z-10 w-1/4 h-1/4 bg-gradient-to-bl from-secondary/20 to-transparent rounded-full filter blur-3xl"></div>
         
         <div className="container mx-auto px-4">
           <motion.div 
-            className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center"
+            className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
             initial="hidden"
             animate="visible"
             variants={containerVariants}
           >
             <motion.div className="order-2 md:order-1" variants={itemVariants}>
-              <div className="inline-block px-3 py-1 rounded-full bg-teal-100 text-teal-700 font-medium text-sm mb-6">
-                Plataforma Unificada de Comunicación
+              <div className="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary font-medium text-sm mb-6 shadow-calm">
+                Simplifica tu Comunicación Digital
               </div>
               <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-6">
-                Gestiona todas tus redes con{" "}
-                <span className="text-gradient bg-gradient-to-r from-teal-600 to-cyan-600"> kalma </span>
+                Encuentra la{" "}
+                <span className="text-gradient"> kalma </span>
+                en tu comunicación digital
               </h1>
-              <p className="text-lg text-gray-700 mb-8 leading-relaxed">
+              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
                 Unifica WhatsApp, Instagram, Facebook, Twitter y más en un solo lugar. Automatiza respuestas con IA y obtén analíticas avanzadas para optimizar tu comunicación empresarial.
               </p>
               
               <div className="flex flex-wrap items-center gap-4 mb-10">
-                <Button asChild size="lg" className="bg-teal-600 hover:bg-teal-700 transition-all shadow-lg hover:shadow-xl">
+                <Button asChild size="lg" className="bg-primary hover:bg-primary/90 transition-calm shadow-calm hover:shadow-lg">
                   <a href="#prueba-gratis" className="flex items-center gap-2">
                     Prueba Gratis 15 días <ChevronRight size={16} />
                   </a>
                 </Button>
-                <a href="#como-funciona" className="text-teal-600 hover:text-teal-700 flex items-center gap-1 font-medium">
+                <a href="#como-funciona" className="text-primary hover:text-primary/90 flex items-center gap-1 font-medium transition-calm">
                   Ver Cómo Funciona <ChevronRight size={14} />
                 </a>
               </div>
               
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
-                    <Smartphone size={18} className="text-teal-600" />
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shadow-calm">
+                    <Smartphone size={18} className="text-primary" />
                   </div>
-                  <span className="text-sm text-gray-700">WhatsApp Business</span>
+                  <span className="text-sm text-muted-foreground">WhatsApp Business</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
-                    <Instagram size={18} className="text-violet-600" />
+                  <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center shadow-calm">
+                    <Instagram size={18} className="text-secondary" />
                   </div>
-                  <span className="text-sm text-gray-700">Instagram DM</span>
+                  <span className="text-sm text-muted-foreground">Instagram DM</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center">
-                    <Facebook size={18} className="text-cyan-600" />
+                  <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shadow-calm">
+                    <Facebook size={18} className="text-accent" />
                   </div>
-                  <span className="text-sm text-gray-700">Facebook Messenger</span>
+                  <span className="text-sm text-muted-foreground">Facebook Messenger</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center">
-                    <Twitter size={18} className="text-teal-600" />
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shadow-calm">
+                    <Twitter size={18} className="text-primary" />
                   </div>
-                  <span className="text-sm text-gray-700">Twitter/X DM</span>
+                  <span className="text-sm text-muted-foreground">Twitter/X DM</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
-                    <Bot size={18} className="text-violet-600" />
+                  <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center shadow-calm">
+                    <Bot size={18} className="text-secondary" />
                   </div>
-                  <span className="text-sm text-gray-700">IA personalizada</span>
+                  <span className="text-sm text-muted-foreground">IA personalizada</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center">
-                    <BarChart3 size={18} className="text-cyan-600" />
+                  <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shadow-calm">
+                    <BarChart3 size={18} className="text-accent" />
                   </div>
-                  <span className="text-sm text-gray-700">Analíticas unificadas</span>
+                  <span className="text-sm text-muted-foreground">Analíticas unificadas</span>
                 </div>
               </div>
             </motion.div>
             
             <motion.div className="order-1 md:order-2" variants={itemVariants}>
-              <div className="bg-white rounded-2xl shadow-xl p-6 relative">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-calm p-6 relative">
                 <div className="absolute -top-12 left-1/2 transform -translate-x-1/2">
-                  <div className="bg-gradient-to-r from-teal-500 to-cyan-500 rounded-xl p-4 shadow-lg">
+                  <div className="bg-gradient-to-r from-primary to-secondary rounded-xl p-4 shadow-calm">
                     <BrainCircuit size={32} className="text-white" />
                   </div>
                 </div>
                 
                 <div className="mt-8">
                   <h3 className="text-xl font-semibold text-center mb-2">kalma Assistant</h3>
-                  <p className="text-gray-600 text-center mb-6">Tu asistente virtual inteligente</p>
+                  <p className="text-muted-foreground text-center mb-6">Tu asistente virtual inteligente</p>
                   
                   <div className="space-y-4">
                     <div className="flex items-start gap-3">
-                      <div className="bg-teal-100 rounded-full p-2">
-                        <MessageCircle size={20} className="text-teal-600" />
+                      <div className="bg-primary/10 rounded-full p-2 shadow-calm">
+                        <MessageCircle size={20} className="text-primary" />
                       </div>
                       <div>
                         <h4 className="font-medium">Gestión Unificada</h4>
-                        <p className="text-sm text-gray-600">Centraliza todas tus conversaciones en un solo lugar</p>
+                        <p className="text-sm text-muted-foreground">Centraliza todas tus conversaciones en un solo lugar</p>
                       </div>
                     </div>
                     
                     <div className="flex items-start gap-3">
-                      <div className="bg-cyan-100 rounded-full p-2">
-                        <Bot size={20} className="text-cyan-600" />
+                      <div className="bg-secondary/10 rounded-full p-2 shadow-calm">
+                        <Bot size={20} className="text-secondary" />
                       </div>
                       <div>
                         <h4 className="font-medium">Respuestas Automáticas</h4>
-                        <p className="text-sm text-gray-600">IA que aprende de tus respuestas frecuentes</p>
+                        <p className="text-sm text-muted-foreground">IA que aprende de tus respuestas frecuentes</p>
                       </div>
                     </div>
                     
                     <div className="flex items-start gap-3">
-                      <div className="bg-violet-100 rounded-full p-2">
-                        <BarChart3 size={20} className="text-violet-600" />
+                      <div className="bg-accent/10 rounded-full p-2 shadow-calm">
+                        <BarChart3 size={20} className="text-accent" />
                       </div>
                       <div>
-                        <h4 className="font-medium">Analíticas Avanzadas</h4>
-                        <p className="text-sm text-gray-600">Métricas detalladas de todas tus interacciones</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-6 pt-6 border-t">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="flex -space-x-2">
-                          <Avatar className="border-2 border-white">
-                            <AvatarImage src="/avatars/business1.png" />
-                            <AvatarFallback>WA</AvatarFallback>
-                          </Avatar>
-                          <Avatar className="border-2 border-white">
-                            <AvatarImage src="/avatars/business2.png" />
-                            <AvatarFallback>FB</AvatarFallback>
-                          </Avatar>
-                          <Avatar className="border-2 border-white">
-                            <AvatarImage src="/avatars/business3.png" />
-                            <AvatarFallback>IG</AvatarFallback>
-                          </Avatar>
-                        </div>
-                        <span className="text-sm text-gray-600">+1000 negocios confían en nosotros</span>
+                        <h4 className="font-medium">Analíticas Detalladas</h4>
+                        <p className="text-sm text-muted-foreground">Métricas y reportes unificados</p>
                       </div>
                     </div>
                   </div>
