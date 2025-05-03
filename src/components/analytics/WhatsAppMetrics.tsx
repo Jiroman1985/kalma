@@ -42,6 +42,13 @@ interface WhatsAppMessage {
   hourOfDay?: number;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+  responded?: boolean;
+  senderName?: string;
+  messageType?: string;
+  agentResponse?: string;
+  minutesOfDay?: number;
+  day?: number;
+  month?: number;
 }
 
 interface WhatsAppAnalytics {
