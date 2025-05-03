@@ -271,6 +271,7 @@ export const getWhatsAppMessages = async (
           minutesOfDay: data.minutesOfDay || 0,
           sentiment: data.sentiment || "neutral",
           status: data.status || "sent",
+          type: data.type || "text",
           aiAssisted: data.aiAssisted || false
         });
       });
@@ -293,7 +294,12 @@ export const getWhatsAppMessages = async (
       const messages: WhatsAppMessage[] = [];
       
       fallbackSnapshot.forEach(doc => {
-        messages.push({ id: doc.id, ...doc.data() } as WhatsAppMessage);
+        const data = doc.data();
+        // Asegurarse de que todos los documentos tienen la propiedad 'type' requerida
+        if (!data.type) {
+          data.type = "text"; // Valor por defecto
+        }
+        messages.push({ id: doc.id, ...data } as WhatsAppMessage);
       });
       
       return messages;

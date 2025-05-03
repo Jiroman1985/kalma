@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
-import { doc, getFirestore, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getFirestore, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { AlertCircle, CheckCircle, ArrowLeft, Loader2, Instagram } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import axios from 'axios';
+import { toast } from 'sonner';
+import { db } from '@/lib/firebase';
 
 // Constantes de Instagram
 const INSTAGRAM_CLIENT_ID = process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '674580881831928';
@@ -24,207 +26,184 @@ const InstagramAuthCallback = () => {
   const [status, setStatus] = useState<ConnectionStatus>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [redirectTimer, setRedirectTimer] = useState<number | null>(null);
+  const [searchParams] = useSearchParams();
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const handleCallback = async () => {
-      try {
-        // Verificar si el usuario está autenticado
-        if (!currentUser) {
-          setStatus('error');
-          setErrorMessage('No se pudo verificar tu sesión. Por favor, inicia sesión nuevamente.');
-          return;
-        }
-
-        // Obtener código y estado del URL
-        const urlParams = new URLSearchParams(location.search);
-        const code = urlParams.get('code');
-        const state = urlParams.get('state');
-        const error = urlParams.get('error');
-        const errorDescription = urlParams.get('error_description');
-
-        // Verificar si hay errores de Instagram
-        if (error) {
-          setStatus('error');
-          setErrorMessage(errorDescription || `Error de Instagram: ${error}`);
-          return;
-        }
-
-        // Verificar que recibimos un código válido
-        if (!code) {
-          setStatus('error');
-          setErrorMessage('No se recibió un código válido de autenticación.');
-          return;
-        }
-
-        // Verificar que el estado coincide con el ID del usuario actual
-        let stateUserId = state;
-        try {
-          // Si el state es un objeto codificado en base64
-          const decoded = JSON.parse(atob(state!));
-          stateUserId = decoded.userId;
-        } catch (e) {
-          // Si falla, asumimos que es el UID plano
-        }
-
-        if (stateUserId !== currentUser.uid) {
-          setStatus('error');
-          setErrorMessage('Error de validación de seguridad. Por favor, intenta nuevamente.');
-          return;
-        }
-
-        // 1. Canjear el código por un token de acceso
-        const tokenResponse = await axios.post('/.netlify/functions/instagram-callback', {
-          code: code
-        });
-
-        const { access_token, user_id } = tokenResponse.data;
-
-        // 2. Obtener información detallada de la cuenta
-        const accountResponse = await axios.get(`https://graph.instagram.com/v12.0/me`, {
-          params: {
-            fields: 'id,username,account_type,media_count',
-            access_token: access_token
-          }
-        });
-
-        const accountInfo = accountResponse.data;
-
-        // 3. Aceptar cualquier tipo de cuenta (BUSINESS, CREATOR, PERSONAL)
-        // Puedes mostrar un aviso si la cuenta no es BUSINESS, pero no lanzar error
-        // Ejemplo:
-        // if (accountInfo.account_type !== 'BUSINESS') {
-        //   toast({
-        //     title: "Aviso",
-        //     description: `Has conectado una cuenta de tipo ${accountInfo.account_type}. Algunas funciones pueden estar limitadas.`,
-        //     variant: "warning",
-        //   });
-        // }
-
-        // 4. Suscribir la cuenta al webhook usando la función serverless
-        await axios.post('/.netlify/functions/instagram-webhook-subscribe', {
-          userId: currentUser.uid,
-          instagramUserId: user_id,
-          accessToken: access_token
-        });
-
-        // 5. Guardar los datos en Firestore
-        const db = getFirestore();
-        const userRef = doc(db, 'users', currentUser.uid);
-
-        await updateDoc(userRef, {
-          'socialNetworks.instagram': {
-            connected: true,
-            instagramUserId: user_id,
-            username: accountInfo.username,
-            accountType: accountInfo.account_type,
-            mediaCount: accountInfo.media_count,
-            accessToken: access_token,
-            connectedAt: serverTimestamp(),
-            lastUpdated: serverTimestamp()
-          }
-        });
-
-        // Actualizar estado de éxito
-        setStatus('success');
-        
-        // Mostrar notificación de éxito
-        toast({
-          title: "Conexión exitosa",
-          description: `Tu cuenta de Instagram Business (@${accountInfo.username}) ha sido conectada correctamente a kalma`,
-          variant: "default",
-        });
-
-        // Redirigir automáticamente después de 2 segundos
-        const timer = window.setTimeout(() => {
-          navigate('/dashboard/social-networks');
-        }, 2000);
-        
-        setRedirectTimer(timer);
-      } catch (error: any) {
-        console.error('Error al procesar callback de Instagram:', error);
+    const connectInstagram = async () => {
+      if (!currentUser) {
         setStatus('error');
-        setErrorMessage(
-          error instanceof Error 
-            ? error.message 
-            : 'Ocurrió un error al conectar tu cuenta de Instagram Business'
-        );
+        setErrorMessage('No hay usuario autenticado');
+        toast.error('Debes iniciar sesión para conectar Instagram');
+        setTimeout(() => navigate('/login'), 2000);
+        return;
+      }
+
+      const code = searchParams.get('code');
+      if (!code) {
+        setStatus('error');
+        setErrorMessage('No se recibió código de autorización');
+        toast.error('Error en la autenticación de Instagram');
+        setTimeout(() => navigate('/dashboard/canales'), 2000);
+        return;
+      }
+
+      try {
+        setStatus('Obteniendo token de acceso...');
         
-        toast({
-          title: "Error de conexión",
-          description: "No se pudo conectar tu cuenta de Instagram Business",
-          variant: "destructive",
+        // Obtener el token de acceso
+        const tokenResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/instagram/token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ code }),
         });
+        
+        if (!tokenResponse.ok) {
+          throw new Error('Error al obtener token de Instagram');
+        }
+        
+        const tokenData = await tokenResponse.json();
+        console.log('Token de Instagram obtenido:', tokenData);
+        
+        // Obtener información de la cuenta de Instagram
+        setStatus('Obteniendo información de tu cuenta de Instagram...');
+        const userResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/instagram/user-info`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            access_token: tokenData.access_token,
+            user_id: tokenData.user_id 
+          }),
+        });
+        
+        if (!userResponse.ok) {
+          throw new Error('Error al obtener información de la cuenta de Instagram');
+        }
+        
+        const userData = await userResponse.json();
+        console.log('Información de Instagram obtenida:', userData);
+        
+        // Guardar datos en Firestore
+        setStatus('Guardando información en tu perfil...');
+        
+        // Verificar si ya existe información de Instagram
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        const userDoc = await getDoc(userDocRef);
+        
+        // Preparar objeto con toda la información disponible
+        const instagramData = {
+          connected: true,
+          instagramUserId: tokenData.user_id,
+          username: userData.username,
+          accountType: userData.account_type,
+          mediaCount: userData.media_count,
+          accessToken: tokenData.access_token,
+          connectedAt: new Date(),
+          lastUpdated: new Date()
+        };
+        
+        // Intentar obtener datos adicionales si están disponibles
+        if (userData.followers_count) {
+          instagramData.followerCount = userData.followers_count;
+        }
+        
+        // Si hay datos de métricas, guardarlos también
+        if (userData.metrics) {
+          instagramData.metrics = userData.metrics;
+          
+          // Crear analíticas basadas en las métricas
+          instagramData.analytics = {
+            followerCount: userData.metrics.followers_count || userData.media_count || 0,
+            engagementRate: userData.metrics.engagement || 2.5,
+            responseTime: 20, // Valor predeterminado en minutos
+            followerGrowth: 0,
+            lastUpdated: new Date(),
+            hourlyActivity: [],
+            interactionTypes: []
+          };
+        } else {
+          // Crear analíticas básicas si no hay métricas disponibles
+          instagramData.analytics = {
+            followerCount: userData.followers_count || userData.media_count || 0,
+            engagementRate: 2.5, // Valor estimado promedio
+            responseTime: 20, // Valor predeterminado en minutos
+            followerGrowth: 0,
+            lastUpdated: new Date(),
+            hourlyActivity: [],
+            interactionTypes: []
+          };
+        }
+        
+        // Guardar en Firestore, manteniendo cualquier dato existente
+        if (userDoc.exists()) {
+          await updateDoc(userDocRef, {
+            'socialNetworks.instagram': instagramData
+          });
+        } else {
+          throw new Error('El documento del usuario no existe');
+        }
+        
+        // Configurar webhooks para Instagram
+        setStatus('Configurando notificaciones de Instagram...');
+        await fetch(`${import.meta.env.VITE_API_URL}/auth/instagram/setup-webhooks`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: currentUser.uid,
+            instagramId: tokenData.user_id,
+            accessToken: tokenData.access_token
+          }),
+        });
+        
+        setStatus('Conexión exitosa');
+        toast.success('Cuenta de Instagram conectada correctamente');
+        
+        // Navegar de vuelta a la página de canales
+        setTimeout(() => navigate('/dashboard/canales'), 1500);
+      } catch (error) {
+        console.error('Error en la conexión con Instagram:', error);
+        setStatus('error');
+        setErrorMessage(error instanceof Error ? error.message : 'Error al conectar Instagram');
+        toast.error('Error al conectar Instagram');
+        setTimeout(() => navigate('/dashboard/canales'), 3000);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    handleCallback();
-
-    // Limpieza del timer al desmontar
-    return () => {
-      if (redirectTimer) {
-        window.clearTimeout(redirectTimer);
-      }
-    };
-  }, [currentUser, location.search, toast, navigate]);
+    connectInstagram();
+  }, [searchParams, navigate, currentUser]);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-lg">
-        {status === 'loading' && (
-          <div className="flex flex-col items-center text-center space-y-3">
-            <Instagram className="h-12 w-12 text-pink-500" />
-            <h1 className="text-2xl font-bold">Conectando con Instagram Business</h1>
-            <p className="text-gray-500">
-              Estamos configurando tu cuenta de Instagram Business...
-            </p>
-            <Loader2 className="h-8 w-8 text-pink-500 animate-spin mx-auto mt-4" />
+    <div className="flex h-screen flex-col items-center justify-center p-4 bg-gradient-to-r from-pink-500 via-purple-500 to-blue-500">
+      <div className="w-full max-w-md p-8 space-y-6 rounded-lg bg-white shadow-xl">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Conexión con Instagram</h1>
+          <div className="mt-4 flex justify-center">
+            {isLoading ? (
+              <Loader2 className="w-8 h-8 text-pink-600 animate-spin" />
+            ) : (
+              <div className="flex items-center justify-center w-10 h-10 bg-pink-100 rounded-full">
+                {status.includes('Error') ? (
+                  <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+            )}
           </div>
-        )}
-
-        {status === 'success' && (
-          <div className="flex flex-col items-center text-center space-y-4">
-            <CheckCircle className="h-12 w-12 text-green-500" />
-            <h1 className="text-2xl font-bold">¡Conexión exitosa!</h1>
-            <p className="text-gray-600">
-              Tu cuenta de Instagram Business ha sido conectada correctamente a kalma.
-            </p>
-            <p className="text-sm text-gray-500">
-              Serás redirigido automáticamente al dashboard en unos segundos...
-            </p>
-            <Button 
-              onClick={() => navigate('/dashboard/social-networks')}
-              className="w-full mt-4 bg-teal-600 hover:bg-teal-700"
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Volver ahora al Dashboard
-            </Button>
-          </div>
-        )}
-
-        {status === 'error' && (
-          <div className="flex flex-col items-center text-center space-y-4">
-            <AlertCircle className="h-12 w-12 text-red-500" />
-            <h1 className="text-2xl font-bold">Error de conexión</h1>
-            <p className="text-gray-600">
-              {errorMessage || 'No se pudo conectar tu cuenta de Instagram Business. Por favor, intenta nuevamente.'}
-            </p>
-            <div className="flex flex-col w-full gap-2 mt-4">
-              <Button 
-                onClick={() => navigate('/auth/instagram/start')}
-                className="w-full bg-pink-500 hover:bg-pink-600"
-              >
-                Reintentar conexión
-              </Button>
-              <Button 
-                onClick={() => navigate('/dashboard/social-networks')}
-                variant="outline"
-                className="w-full"
-              >
-                Volver al Dashboard
-              </Button>
-            </div>
-          </div>
-        )}
+          <p className="mt-4 text-gray-700">{status}</p>
+        </div>
       </div>
     </div>
   );
