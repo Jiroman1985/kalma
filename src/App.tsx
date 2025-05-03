@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
 import Analytics from "./pages/Analytics";
+import AnalyticsNew from "./pages/AnalyticsNew";
 import Conversations from "./pages/Conversations";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import SocialNetworks from "./pages/SocialNetworks";
@@ -76,7 +77,8 @@ const App = () => (
             }>
               <Route index element={<Dashboard />} />
               <Route path="settings" element={<Settings />} />
-              <Route path="analytics" element={<Analytics />} />
+              <Route path="analytics" element={<AnalyticsNew />} />
+              <Route path="analytics-old" element={<Analytics />} />
               <Route path="conversations" element={<Conversations />} />
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="social-networks" element={<SocialNetworks />} />
