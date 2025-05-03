@@ -23,7 +23,44 @@ import {
   limit, 
   Timestamp 
 } from "firebase/firestore";
-import { getWhatsAppMessages, getWhatsAppAnalytics, WhatsAppMessage, WhatsAppAnalytics } from "@/lib/whatsappService";
+import { getWhatsAppMessages, getWhatsAppAnalytics } from "@/lib/whatsappService";
+
+// Definir interfaces localmente para tener control completo sobre ellas
+interface WhatsAppMessage {
+  id: string;
+  platform: string;
+  userId: string;
+  from?: string;
+  to?: string;
+  body?: string;
+  type?: string;
+  status?: string;
+  isFromMe?: boolean;
+  timestamp?: Timestamp | number;
+  category?: string;
+  responseTime?: number;
+  hourOfDay?: number;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+interface WhatsAppAnalytics {
+  userId: string;
+  platform: string;
+  date?: Timestamp;
+  totalMessages?: number;
+  receivedMessages?: number;
+  respondedMessages?: number;
+  avgResponseTime?: number;
+  activeChats?: number;
+  messageCategories?: {
+    consultas: number;
+    ventas: number;
+    soporte: number;
+    quejas: number;
+    otros: number;
+  };
+}
 
 interface WhatsAppMetricsProps {
   isLoading?: boolean;
@@ -61,75 +98,137 @@ const WhatsAppMetrics = ({ isLoading = false }: WhatsAppMetricsProps) => {
       setLoading(true);
       
       try {
-        console.log("Cargando datos de WhatsApp para:", currentUser.uid);
+        console.log("🔍 [WhatsAppMetrics] Iniciando carga de datos para:", currentUser.uid);
         
-        // 1. Obtener los mensajes de WhatsApp
-        const whatsappMessages = await getWhatsAppMessages(currentUser.uid, 200);
-        console.log(`Mensajes de WhatsApp obtenidos: ${whatsappMessages.length}`);
+        // 1. Obtener mensajes de WhatsApp
+        console.log("📱 [WhatsAppMetrics] Consultando mensajes de WhatsApp");
+        let whatsappMessages: WhatsAppMessage[] = [];
         
-        if (whatsappMessages.length > 0) {
-          setHasWhatsAppData(true);
-          setMessages(whatsappMessages);
+        try {
+          // Consulta principal con índice compuesto (userId, platform, createdAt)
+          const messagesQuery = query(
+            collection(db, "messages"),
+            where("userId", "==", currentUser.uid),
+            where("platform", "==", "whatsapp"),
+            orderBy("createdAt", "desc"),
+            limit(200)
+          );
           
-          // 2. Calcular métricas basadas en los mensajes
-          const incoming = whatsappMessages.filter(msg => !msg.isFromMe).length;
-          const outgoing = whatsappMessages.filter(msg => msg.isFromMe).length;
+          const messagesSnapshot = await getDocs(messagesQuery);
+          console.log(`📨 [WhatsAppMetrics] Mensajes encontrados: ${messagesSnapshot.size}`);
           
-          setIncomingMessages(incoming);
-          setOutgoingMessages(outgoing);
-          
-          // 3. Calcular tiempo promedio de respuesta
-          const messagesWithResponseTime = whatsappMessages.filter(msg => msg.responseTime && typeof msg.responseTime === 'number');
-          if (messagesWithResponseTime.length > 0) {
-            const avgTime = messagesWithResponseTime.reduce((sum, msg) => sum + (msg.responseTime || 0), 0) / messagesWithResponseTime.length;
-            // Convertir milisegundos a minutos
-            setAvgResponseTime(Math.round(avgTime / (1000 * 60)));
-          }
-          
-          // 4. Calcular chats activos
-          const uniqueSenders = new Set();
-          whatsappMessages.forEach(msg => {
-            if (!msg.isFromMe) {
-              uniqueSenders.add(msg.from);
-            }
+          messagesSnapshot.forEach(doc => {
+            whatsappMessages.push({
+              ...doc.data(),
+              id: doc.id
+            } as WhatsAppMessage);
           });
-          setActiveUsersCount(uniqueSenders.size);
+        } catch (queryError: any) {
+          // Si hay un error por falta de índice, intentar consulta alternativa
+          console.error("❌ [WhatsAppMetrics] Error en consulta principal:", queryError.message);
           
-          // 5. Generar gráficos basados en los mensajes
-          setMessagesPerDay(groupMessagesByDay(whatsappMessages));
-          setCategoryData(calculateCategories(whatsappMessages, analytics));
-          setHourlyData(calculateHourlyDistribution(whatsappMessages));
-          setResponseTimeData(calculateResponseTimes(whatsappMessages));
-          setStatusData(calculateMessageStatus(whatsappMessages));
-          setActiveUsers(calculateActiveUsers(whatsappMessages));
-        }
-        
-        // 6. Obtener analíticas almacenadas
-        const whatsappAnalytics = await getWhatsAppAnalytics(currentUser.uid);
-        console.log("Analíticas de WhatsApp obtenidas:", whatsappAnalytics);
-        
-        if (whatsappAnalytics) {
-          setAnalytics(whatsappAnalytics);
-          setHasWhatsAppData(true);
-          
-          // Si no tenemos mensajes pero sí tenemos analíticas, usar esos datos
-          if (whatsappMessages.length === 0) {
-            setActiveUsersCount(whatsappAnalytics.activeChats);
-            setAvgResponseTime(Math.round(whatsappAnalytics.avgResponseTime / (1000 * 60)));
+          if (queryError.message?.includes("index") || queryError.message?.includes("permission")) {
+            console.log("⚠️ [WhatsAppMetrics] Intentando consulta alternativa...");
             
-            // Calcular mensajes recibidos y enviados desde los datos de análisis
-            setIncomingMessages(whatsappAnalytics.totalMessages - whatsappAnalytics.respondedMessages);
-            setOutgoingMessages(whatsappAnalytics.respondedMessages);
+            try {
+              // Consulta alternativa sin orderBy para evitar necesidad de índice compuesto
+              const simpleQuery = query(
+                collection(db, "messages"),
+                where("userId", "==", currentUser.uid),
+                where("platform", "==", "whatsapp"),
+                limit(100)
+              );
+              
+              const simpleSnapshot = await getDocs(simpleQuery);
+              console.log(`📨 [WhatsAppMetrics] Mensajes encontrados (alternativa): ${simpleSnapshot.size}`);
+              
+              simpleSnapshot.forEach(doc => {
+                whatsappMessages.push({
+                  ...doc.data(),
+                  id: doc.id
+                } as WhatsAppMessage);
+              });
+              
+              // Ordenar manualmente
+              whatsappMessages.sort((a, b) => {
+                const timeA = a.createdAt?.toDate?.() || new Date(0);
+                const timeB = b.createdAt?.toDate?.() || new Date(0);
+                return timeB.getTime() - timeA.getTime();
+              });
+            } catch (altError) {
+              console.error("❌ [WhatsAppMetrics] Error en consulta alternativa:", altError);
+              console.log("⚠️ [WhatsAppMetrics] No se pudieron obtener mensajes, generando datos simulados");
+              generateSimulatedData();
+              setLoading(false);
+              return;
+            }
+          } else {
+            console.log("⚠️ [WhatsAppMetrics] No se pudieron obtener mensajes, generando datos simulados");
+            generateSimulatedData();
+            setLoading(false);
+            return;
           }
         }
         
-        // Si no hay datos ni mensajes ni analíticas, generar datos simulados para la visualización
-        if (whatsappMessages.length === 0 && !whatsappAnalytics) {
-          console.log("No hay datos de WhatsApp, generando datos simulados");
+        // 2. Obtener información de usuario para verificar si hay configuración de WhatsApp
+        console.log("👤 [WhatsAppMetrics] Verificando configuración de WhatsApp del usuario");
+        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+        const userData = userDoc.data();
+        const whatsappConfig = userData?.whatsapp || userData?.socialNetworks?.whatsapp;
+        
+        if (whatsappConfig?.connected || whatsappConfig?.phoneNumber) {
+          console.log("✅ [WhatsAppMetrics] Usuario tiene WhatsApp configurado:", whatsappConfig);
+          setHasWhatsAppData(true);
+        }
+        
+        // 3. Obtener analíticas de WhatsApp del usuario
+        let analytics: WhatsAppAnalytics | null = null;
+        
+        try {
+          console.log("📊 [WhatsAppMetrics] Consultando analíticas de WhatsApp");
+          const analyticsQuery = query(
+            collection(db, "analytics"),
+            where("userId", "==", currentUser.uid),
+            where("platform", "==", "whatsapp"),
+            orderBy("date", "desc"),
+            limit(1)
+          );
+          
+          const analyticsSnapshot = await getDocs(analyticsQuery);
+          if (!analyticsSnapshot.empty) {
+            analytics = analyticsSnapshot.docs[0].data() as WhatsAppAnalytics;
+            console.log("📈 [WhatsAppMetrics] Analíticas encontradas:", analytics);
+          }
+        } catch (analyticsError: any) {
+          console.error("❌ [WhatsAppMetrics] Error al obtener analíticas:", analyticsError.message);
+          // Intentar obtener analíticas de la configuración de usuario si están allí
+          if (whatsappConfig?.analytics) {
+            analytics = whatsappConfig.analytics;
+            console.log("📊 [WhatsAppMetrics] Usando analíticas desde config de usuario:", analytics);
+          }
+        }
+        
+        // 4. Verificamos si hay mensajes o analíticas
+        if (whatsappMessages.length > 0 || analytics) {
+          console.log("✅ [WhatsAppMetrics] Datos encontrados, calculando métricas");
+          setHasWhatsAppData(true);
+          
+          // Procesar mensajes y calcular métricas
+          if (whatsappMessages.length > 0) {
+            setMessages(whatsappMessages);
+            calculateMetrics(whatsappMessages, analytics);
+          } else if (analytics) {
+            // Si no hay mensajes pero hay analíticas, mostrar esos datos
+            console.log("📈 [WhatsAppMetrics] No hay mensajes pero sí analíticas, mostrando datos disponibles");
+            setAnalytics(analytics);
+            createMetricsFromAnalytics(analytics);
+          }
+        } else {
+          console.log("⚠️ [WhatsAppMetrics] No se encontraron datos de WhatsApp, generando simulación");
           generateSimulatedData();
         }
       } catch (error) {
-        console.error("Error al cargar datos de WhatsApp:", error);
+        console.error("❌ [WhatsAppMetrics] Error general al cargar datos:", error);
         // En caso de error, generar datos simulados
         generateSimulatedData();
       } finally {
@@ -528,6 +627,155 @@ const WhatsAppMetrics = ({ isLoading = false }: WhatsAppMetricsProps) => {
   
   const formatActiveUsers = () => {
     return activeUsersCount > 0 ? activeUsersCount.toString() : NO_DATA_MESSAGE;
+  };
+
+  /**
+   * Crea métricas a partir de los datos de analytics cuando no hay mensajes disponibles
+   */
+  const createMetricsFromAnalytics = (analytics: WhatsAppAnalytics) => {
+    console.log("📊 [WhatsAppMetrics] Creando métricas desde datos de analytics");
+    
+    // Establecer métricas principales
+    setActiveUsersCount(analytics.activeChats || 0);
+    setAvgResponseTime(Math.round((analytics.avgResponseTime || 0) / (1000 * 60)));
+    setIncomingMessages(analytics.receivedMessages || 0);
+    setOutgoingMessages(analytics.respondedMessages || 0);
+    
+    // Generar datos para gráficos usando la información disponible en analytics
+    const today = new Date();
+    const startDate = new Date();
+    startDate.setDate(today.getDate() - 29);
+    
+    // Mensajes por día (estimados)
+    const messagesPerDay = [];
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      
+      // Distribución basada en patrones típicos (más actividad en días laborables)
+      const dayOfWeek = date.getDay(); // 0 = domingo, 6 = sábado
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      
+      const factor = isWeekend ? 0.6 : 1;
+      const baseIncoming = Math.round((analytics.receivedMessages || 100) / 30 * factor);
+      const baseOutgoing = Math.round((analytics.respondedMessages || 80) / 30 * factor);
+      
+      // Agregar variación aleatoria
+      const incoming = Math.max(0, Math.round(baseIncoming * (0.8 + Math.random() * 0.4)));
+      const outgoing = Math.max(0, Math.round(baseOutgoing * (0.8 + Math.random() * 0.4)));
+      
+      messagesPerDay.push({
+        date: date.toISOString().split('T')[0],
+        incoming,
+        outgoing
+      });
+    }
+    setMessagesPerDay(messagesPerDay);
+    
+    // Categorías de mensajes
+    if (analytics.messageCategories) {
+      setCategoryData([
+        { name: "Consultas", value: analytics.messageCategories.consultas || 0 },
+        { name: "Ventas", value: analytics.messageCategories.ventas || 0 },
+        { name: "Soporte", value: analytics.messageCategories.soporte || 0 },
+        { name: "Quejas", value: analytics.messageCategories.quejas || 0 },
+        { name: "Otros", value: analytics.messageCategories.otros || 0 }
+      ]);
+    } else {
+      // Categorías simuladas basadas en porcentajes típicos
+      setCategoryData([
+        { name: "Consultas", value: Math.round((analytics.receivedMessages || 100) * 0.4) },
+        { name: "Ventas", value: Math.round((analytics.receivedMessages || 100) * 0.3) },
+        { name: "Soporte", value: Math.round((analytics.receivedMessages || 100) * 0.15) },
+        { name: "Quejas", value: Math.round((analytics.receivedMessages || 100) * 0.05) },
+        { name: "Otros", value: Math.round((analytics.receivedMessages || 100) * 0.1) }
+      ]);
+    }
+    
+    // Distribución horaria (simulada con patrón realista)
+    setHourlyData(generateSimulatedHourlyData());
+    
+    // Tiempos de respuesta (simulados con tendencia a mejorar)
+    setResponseTimeData(generateSimulatedResponseTimeData());
+    
+    // Estados de mensajes (simulados basados en promedios)
+    setStatusData([
+      { name: "Entregados", value: Math.round((analytics.receivedMessages || 100) * 0.95) },
+      { name: "Leídos", value: Math.round((analytics.receivedMessages || 100) * 0.85) },
+      { name: "Contestados", value: analytics.respondedMessages || 80 }
+    ]);
+    
+    // Usuarios activos (simulados con tendencia creciente)
+    setActiveUsers(generateSimulatedActiveUserData(analytics.activeChats || 0));
+  };
+  
+  /**
+   * Genera datos horarios simulados para cuando no hay datos reales
+   */
+  const generateSimulatedHourlyData = () => {
+    const hourly = [];
+    for (let i = 0; i < 24; i++) {
+      let count;
+      
+      // Patrón típico de actividad
+      if (i >= 0 && i <= 6) { // Madrugada
+        count = Math.floor(Math.random() * 5);
+      } else if (i >= 7 && i <= 9) { // Mañana temprano
+        count = 5 + Math.floor(Math.random() * 20);
+      } else if (i >= 10 && i <= 13) { // Media mañana/mediodía
+        count = 15 + Math.floor(Math.random() * 25);
+      } else if (i >= 14 && i <= 17) { // Tarde
+        count = 10 + Math.floor(Math.random() * 20);
+      } else if (i >= 18 && i <= 22) { // Noche
+        count = 15 + Math.floor(Math.random() * 30);
+      } else { // Noche tardía
+        count = 5 + Math.floor(Math.random() * 10);
+      }
+      
+      hourly.push({
+        hour: i,
+        count
+      });
+    }
+    return hourly;
+  };
+  
+  /**
+   * Genera datos simulados de usuarios activos
+   */
+  const generateSimulatedActiveUserData = (currentActiveUsers: number) => {
+    const today = new Date();
+    const startDate = new Date();
+    startDate.setDate(today.getDate() - 29);
+    
+    const activeUserData = [];
+    // Factor de crecimiento para usuarios nuevos (30% de crecimiento en 30 días)
+    const growthFactor = 1.01; // Aproximadamente 30% en 30 días
+    
+    // Valor base para calcular usuarios hace 30 días
+    const baseValue = Math.round(currentActiveUsers / Math.pow(growthFactor, 29));
+    
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + i);
+      
+      // Crecimiento con tendencia y algo de variación aleatoria
+      const dayValue = Math.round(baseValue * Math.pow(growthFactor, i));
+      const dayVariation = Math.round(dayValue * 0.2); // 20% de variación máxima
+      
+      // Calcular usuarios nuevos y recurrentes
+      const total = Math.max(1, dayValue - Math.floor(Math.random() * dayVariation));
+      const newUsers = Math.round(total * 0.3); // 30% nuevos, 70% recurrentes
+      const returning = total - newUsers;
+      
+      activeUserData.push({
+        date: date.toISOString().split('T')[0],
+        new: newUsers,
+        returning
+      });
+    }
+    
+    return activeUserData;
   };
 
   return (
