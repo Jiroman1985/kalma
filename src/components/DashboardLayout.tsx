@@ -59,7 +59,7 @@ const DashboardLayout = () => {
     },
     {
       name: "Analytics",
-      path: "/dashboard/analytics",
+      path: "/dashboard/analytics-new",
       icon: <BarChart3 className="mr-3 h-5 w-5" />,
       restricted: !hasOnlyFullAccess // Solo requiere acceso completo, no vinculación
     },
@@ -293,5 +293,8 @@ const DashboardLayout = () => {
 };
 
 export default DashboardLayout;
+
+
+
 
 
