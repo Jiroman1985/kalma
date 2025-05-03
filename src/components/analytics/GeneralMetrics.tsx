@@ -8,7 +8,7 @@ import {
 } from 'recharts';
 import {
   MessageSquare, Users, Clock, BarChart3, 
-  PieChart as PieChartIcon, TrendingUp, CheckCheck, BrainCircuit
+  PieChart as PieChartIcon, TrendingUp, CheckCheck, BrainCircuit, Info
 } from 'lucide-react';
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
@@ -494,13 +494,51 @@ const GeneralMetrics = ({ isLoading = false }: GeneralMetricsProps) => {
   
   const SENTIMENT_COLORS = ['#10B981', '#94A3B8', '#EF4444'];
   
+  // Formatear valores para mostrar "N/A" si no hay datos
+  const formatTotalMessages = () => {
+    return totalMessages > 0 ? totalMessages.toLocaleString() : "N/A";
+  };
+  
+  const formatUniqueUsers = () => {
+    return uniqueUsers > 0 ? uniqueUsers.toLocaleString() : "N/A";
+  };
+  
+  const formatAvgResponseTime = () => {
+    return avgResponseTime > 0 ? `${avgResponseTime} min` : "N/A";
+  };
+  
+  const formatSatisfactionRate = () => {
+    return satisfactionRate > 0 ? `${satisfactionRate}%` : "N/A";
+  };
+
   return (
     <div className="space-y-8">
+      {totalMessages === 0 && !loading && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start">
+            <div className="flex-shrink-0 text-yellow-400">
+              <Info className="h-5 w-5" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">
+                Datos limitados disponibles
+              </h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>
+                  Algunas métricas muestran "N/A" porque no hay suficientes datos para calcularlas.
+                  A medida que acumules más mensajes y actividad en tus canales, estas métricas se completarán automáticamente.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tarjetas de métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
           title="Mensajes totales"
-          value={totalMessages}
+          value={formatTotalMessages()}
           icon={<MessageSquare className="h-5 w-5" />}
           description="Mensajes en todos los canales"
           trend="+8.5%"
@@ -511,7 +549,7 @@ const GeneralMetrics = ({ isLoading = false }: GeneralMetricsProps) => {
         
         <MetricCard
           title="Usuarios únicos"
-          value={uniqueUsers}
+          value={formatUniqueUsers()}
           icon={<Users className="h-5 w-5" />}
           description="Contactos que enviaron mensajes"
           trend="+5.2%"
@@ -522,7 +560,7 @@ const GeneralMetrics = ({ isLoading = false }: GeneralMetricsProps) => {
         
         <MetricCard
           title="Tiempo de respuesta"
-          value={`${avgResponseTime} min`}
+          value={formatAvgResponseTime()}
           icon={<Clock className="h-5 w-5" />}
           description="Promedio en todos los canales"
           trend="-12%"
@@ -533,7 +571,7 @@ const GeneralMetrics = ({ isLoading = false }: GeneralMetricsProps) => {
         
         <MetricCard
           title="Satisfacción"
-          value={`${satisfactionRate}%`}
+          value={formatSatisfactionRate()}
           icon={<CheckCheck className="h-5 w-5" />}
           description="Basado en análisis de sentimiento"
           trend="+3.5%"

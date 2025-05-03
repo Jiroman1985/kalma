@@ -46,12 +46,6 @@ const DashboardLayout = () => {
 
   const navItems = [
     {
-      name: "Dashboard",
-      path: "/dashboard",
-      icon: <LayoutDashboard className="mr-3 h-5 w-5" />,
-      restricted: !hasCompleteAccess // Dashboard está restringido para usuarios sin acceso completo o sin vincular
-    },
-    {
       name: "Conversaciones",
       path: "/dashboard/conversations",
       icon: <MessageSquare className="mr-3 h-5 w-5" />,
@@ -61,7 +55,7 @@ const DashboardLayout = () => {
       name: "Analytics",
       path: "/dashboard/analytics",
       icon: <BarChart3 className="mr-3 h-5 w-5" />,
-      restricted: !hasOnlyFullAccess // Solo requiere acceso completo, no vinculación
+      restricted: !hasOnlyFullAccess
     },
     {
       name: "Base de conocimiento",
@@ -73,23 +67,23 @@ const DashboardLayout = () => {
       name: "Canales",
       path: "/dashboard/channels",
       icon: <Globe className="mr-3 h-5 w-5" />,
-      restricted: !hasOnlyFullAccess // Solo requiere acceso completo, no vinculación
+      restricted: !hasOnlyFullAccess
     },
     {
       name: "Configuración",
       path: "/dashboard/settings",
       icon: <Settings className="mr-3 h-5 w-5" />,
-      restricted: false // Configuración siempre es accesible
+      restricted: false
     }
   ];
 
   // Mantenemos una entrada oculta para mantener compatibilidad con la ruta actual
   const hiddenNavItems = [
     {
-      name: "Redes Sociales",
-      path: "/dashboard/social-networks",
-      icon: <Share2 className="mr-3 h-5 w-5" />,
-      restricted: !hasOnlyFullAccess
+      name: "Dashboard",
+      path: "/dashboard",
+      icon: <LayoutDashboard className="mr-3 h-5 w-5" />,
+      restricted: !hasCompleteAccess
     }
   ];
 
@@ -121,7 +115,7 @@ const DashboardLayout = () => {
     if (item.restricted) {
       // Determinar el mensaje del tooltip según la sección
       let tooltipMessage = "";
-      if (item.name === "Analytics" || item.name === "Canales" || item.name === "Redes Sociales") {
+      if (item.name === "Analytics" || item.name === "Canales") {
         tooltipMessage = "Necesitas tener una suscripción activa para acceder a esta función";
       } else {
         tooltipMessage = "Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función";
@@ -274,19 +268,13 @@ const DashboardLayout = () => {
 
       {/* Contenido principal */}
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
-        {/* Barra de navegación superior móvil */}
-        <div className="relative z-10 flex-shrink-0 flex h-16 bg-white shadow lg:hidden">
-          <div className="flex-1 flex justify-center px-4 sm:px-6 lg:px-8">
-            <div className="flex-1 flex items-center justify-center">
-              <h1 className="text-lg font-semibold">kalma Panel</h1>
+        <div className="relative flex-1 overflow-y-auto focus:outline-none">
+          <main className="py-6">
+            <div className="px-4 sm:px-6 md:px-8">
+              <Outlet />
             </div>
-          </div>
+          </main>
         </div>
-
-        {/* Contenido principal */}
-        <main className="flex-1 relative overflow-y-auto focus:outline-none">
-          <Outlet />
-        </main>
       </div>
     </div>
   );
