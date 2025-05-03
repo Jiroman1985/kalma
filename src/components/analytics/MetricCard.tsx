@@ -1,80 +1,112 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { TrendingUp, TrendingDown } from 'lucide-react';
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from '@/lib/utils';
+import { Skeleton } from "@/components/ui/skeleton";
+import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface MetricCardProps {
   title: string;
   value: string | number;
   icon: React.ReactNode;
   description?: string;
-  trend?: number;
+  trend?: string | number;
+  trendDirection?: 'up' | 'down' | 'neutral';
+  loading?: boolean;
   color?: string;
-  isLoading?: boolean;
+  className?: string;
 }
 
-const MetricCard: React.FC<MetricCardProps> = ({
+const MetricCard = ({
   title,
   value,
   icon,
   description,
   trend,
-  color = "bg-blue-500",
-  isLoading = false
-}) => {
-  // Determinar color de tendencia
-  const trendColor = trend && trend > 0 ? 'text-green-500' : 'text-red-500';
+  trendDirection = 'neutral',
+  loading = false,
+  color = 'blue',
+  className
+}: MetricCardProps) => {
   
+  // Convertir valores negativos para mostrar correctamente
+  const trendValue = typeof trend === 'number' 
+    ? Math.abs(trend) 
+    : typeof trend === 'string' && trend.startsWith('-')
+      ? trend.substring(1)
+      : trend;
+
+  // Determinar colores basados en el color proporcionado
+  const colorMap: Record<string, { bg: string, text: string, light: string }> = {
+    blue: { bg: 'bg-blue-500', text: 'text-blue-600', light: 'bg-blue-50' },
+    indigo: { bg: 'bg-indigo-500', text: 'text-indigo-600', light: 'bg-indigo-50' },
+    purple: { bg: 'bg-purple-500', text: 'text-purple-600', light: 'bg-purple-50' },
+    pink: { bg: 'bg-pink-500', text: 'text-pink-600', light: 'bg-pink-50' },
+    red: { bg: 'bg-red-500', text: 'text-red-600', light: 'bg-red-50' },
+    orange: { bg: 'bg-orange-500', text: 'text-orange-600', light: 'bg-orange-50' },
+    amber: { bg: 'bg-amber-500', text: 'text-amber-600', light: 'bg-amber-50' },
+    yellow: { bg: 'bg-yellow-500', text: 'text-yellow-600', light: 'bg-yellow-50' },
+    lime: { bg: 'bg-lime-500', text: 'text-lime-600', light: 'bg-lime-50' },
+    green: { bg: 'bg-green-500', text: 'text-green-600', light: 'bg-green-50' },
+    emerald: { bg: 'bg-emerald-500', text: 'text-emerald-600', light: 'bg-emerald-50' },
+    teal: { bg: 'bg-teal-500', text: 'text-teal-600', light: 'bg-teal-50' },
+    cyan: { bg: 'bg-cyan-500', text: 'text-cyan-600', light: 'bg-cyan-50' },
+    sky: { bg: 'bg-sky-500', text: 'text-sky-600', light: 'bg-sky-50' },
+  };
+
+  const colorClasses = colorMap[color] || colorMap.blue;
+
+  // Determinar la clase de color para la tendencia
+  const trendColorClass = trendDirection === 'up' 
+    ? 'text-green-600' 
+    : trendDirection === 'down' 
+      ? 'text-red-600' 
+      : colorClasses.text;
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      <Card className="overflow-hidden border-0 shadow-md">
-        <div className={cn("h-1 w-full", color)} />
-        <CardContent className="p-6">
-          {isLoading ? (
-            <div className="animate-pulse">
-              <div className="h-4 w-1/2 bg-gray-200 rounded mb-2"></div>
-              <div className="h-8 w-1/3 bg-gray-300 rounded mb-4"></div>
-              <div className="h-4 w-3/4 bg-gray-200 rounded"></div>
+    <Card className={cn("overflow-hidden", className)}>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="font-medium text-sm text-gray-500">{title}</div>
+          <div className={cn(
+            "p-2 rounded-full", 
+            colorClasses.light
+          )}>
+            {React.cloneElement(icon as React.ReactElement, {
+              className: cn("h-5 w-5", colorClasses.text)
+            })}
+          </div>
+        </div>
+        
+        {loading ? (
+          <>
+            <Skeleton className="h-10 w-3/4 mb-2" />
+            <Skeleton className="h-5 w-1/2" />
+          </>
+        ) : (
+          <>
+            <div className="text-3xl font-bold mb-1">
+              {value}
             </div>
-          ) : (
-            <>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-medium text-gray-500">{title}</h3>
-                <div className={cn("p-2 rounded-full", color, "bg-opacity-10")}>
-                  {React.cloneElement(icon as React.ReactElement, {
-                    className: cn("h-5 w-5", color.replace('bg-', 'text-'))
-                  })}
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-500">
+                {description}
+              </span>
+              
+              {trend !== undefined && (
+                <div className={cn("flex items-center text-xs font-medium", trendColorClass)}>
+                  {trendDirection === 'up' ? (
+                    <ArrowUpIcon className="h-3 w-3 mr-1" />
+                  ) : trendDirection === 'down' ? (
+                    <ArrowDownIcon className="h-3 w-3 mr-1" />
+                  ) : null}
+                  {trendValue}
                 </div>
-              </div>
-              
-              <div className="flex items-end gap-2">
-                <p className="text-2xl font-bold">{value}</p>
-                
-                {trend !== undefined && (
-                  <div className={cn("flex items-center text-sm", trendColor)}>
-                    {trend > 0 ? (
-                      <TrendingUp className="h-3 w-3 mr-1" />
-                    ) : (
-                      <TrendingDown className="h-3 w-3 mr-1" />
-                    )}
-                    <span>{Math.abs(trend)}%</span>
-                  </div>
-                )}
-              </div>
-              
-              {description && (
-                <p className="text-xs text-gray-500 mt-1">{description}</p>
               )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </motion.div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
