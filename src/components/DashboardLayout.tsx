@@ -17,7 +17,8 @@ import {
   BarChart3,
   Database,
   Lock,
-  Share2
+  Share2,
+  Globe
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -69,9 +70,9 @@ const DashboardLayout = () => {
       restricted: !hasCompleteAccess
     },
     {
-      name: "Redes Sociales",
-      path: "/dashboard/social-networks",
-      icon: <Share2 className="mr-3 h-5 w-5" />,
+      name: "Canales",
+      path: "/dashboard/channels",
+      icon: <Globe className="mr-3 h-5 w-5" />,
       restricted: !hasOnlyFullAccess // Solo requiere acceso completo, no vinculación
     },
     {
@@ -79,6 +80,16 @@ const DashboardLayout = () => {
       path: "/dashboard/settings",
       icon: <Settings className="mr-3 h-5 w-5" />,
       restricted: false // Configuración siempre es accesible
+    }
+  ];
+
+  // Mantenemos una entrada oculta para mantener compatibilidad con la ruta actual
+  const hiddenNavItems = [
+    {
+      name: "Redes Sociales",
+      path: "/dashboard/social-networks",
+      icon: <Share2 className="mr-3 h-5 w-5" />,
+      restricted: !hasOnlyFullAccess
     }
   ];
 
@@ -110,7 +121,7 @@ const DashboardLayout = () => {
     if (item.restricted) {
       // Determinar el mensaje del tooltip según la sección
       let tooltipMessage = "";
-      if (item.name === "Analytics" || item.name === "Redes Sociales") {
+      if (item.name === "Analytics" || item.name === "Canales" || item.name === "Redes Sociales") {
         tooltipMessage = "Necesitas tener una suscripción activa para acceder a esta función";
       } else {
         tooltipMessage = "Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función";
@@ -261,135 +272,26 @@ const DashboardLayout = () => {
         </div>
       </div>
 
+      {/* Contenido principal */}
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
-        <main className="flex-1 relative overflow-y-auto focus:outline-none">
-          <div className="py-6">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-              <Outlet />
+        {/* Barra de navegación superior móvil */}
+        <div className="relative z-10 flex-shrink-0 flex h-16 bg-white shadow lg:hidden">
+          <div className="flex-1 flex justify-center px-4 sm:px-6 lg:px-8">
+            <div className="flex-1 flex items-center justify-center">
+              <h1 className="text-lg font-semibold">kalma Panel</h1>
             </div>
           </div>
+        </div>
+
+        {/* Contenido principal */}
+        <main className="flex-1 relative overflow-y-auto focus:outline-none">
+          <Outlet />
         </main>
       </div>
-
-      {/* Botones de navegación móvil con tooltips */}
-      <div className="md:hidden fixed bottom-0 left-0 z-50 w-full h-16 bg-white border-t border-gray-200">
-        <div className="grid h-full grid-cols-4">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
-                  onClick={() => hasCompleteAccess ? navigate('/dashboard') : navigate('/dashboard/settings')}
-                >
-                  <Home size={20} />
-                  <span className="text-xs mt-1">Inicio</span>
-                  {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
-                </Button>
-              </TooltipTrigger>
-              {!hasCompleteAccess && (
-                <TooltipContent>
-                  <p>Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-          
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
-                  onClick={() => hasCompleteAccess ? navigate('/dashboard/conversations') : navigate('/dashboard/settings')}
-                >
-                  <MessageSquare size={20} />
-                  <span className="text-xs mt-1">Chats</span>
-                  {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
-                </Button>
-              </TooltipTrigger>
-              {!hasCompleteAccess && (
-                <TooltipContent>
-                  <p>Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-          
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  className={`flex flex-col items-center justify-center ${!hasCompleteAccess ? 'opacity-50' : ''}`} 
-                  onClick={() => hasCompleteAccess ? navigate('/dashboard/analytics') : navigate('/dashboard/settings')}
-                >
-                  <BarChart3 size={20} />
-                  <span className="text-xs mt-1">Análisis</span>
-                  {!hasCompleteAccess && <Lock className="h-3 w-3 absolute top-1 right-1" />}
-                </Button>
-              </TooltipTrigger>
-              {!hasCompleteAccess && (
-                <TooltipContent>
-                  <p>Necesitas terminar la vinculación de tu WhatsApp para poder acceder a esta función</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-          
-          <Button 
-            variant="ghost" 
-            className="flex flex-col items-center justify-center"
-            onClick={() => navigate('/dashboard/settings')}
-          >
-            <Settings size={20} />
-            <span className="text-xs mt-1">Ajustes</span>
-          </Button>
-        </div>
-      </div>
-      
-      {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/50 flex justify-end">
-          <div className="w-64 h-full bg-white p-4 flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-medium">kalma Panel</h2>
-              <Button variant="ghost" size="icon" onClick={toggleMobileMenu}>
-                <X size={20} />
-              </Button>
-            </div>
-            <div className="flex-1 h-0 overflow-y-auto">
-              <nav className="mt-5 px-2 space-y-1">
-                {navItems.map((item) => renderNavItem(item, true, toggleMobileMenu))}
-              </nav>
-            </div>
-            <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
-              <div className="flex items-center w-full justify-between">
-                <div className="flex items-center">
-                  <div className="bg-gray-300 rounded-full p-1">
-                    <User className="h-6 w-6 text-gray-600" />
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-gray-700 truncate">
-                      {currentUser?.displayName || currentUser?.email}
-                    </p>
-                  </div>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  onClick={logout}
-                  className="text-gray-600 hover:text-gray-900"
-                  aria-label="Cerrar sesión"
-                >
-                  <LogOut className="h-5 w-5" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
 export default DashboardLayout;
+
+

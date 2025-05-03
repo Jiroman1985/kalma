@@ -12,6 +12,7 @@ import Analytics from "./pages/Analytics";
 import Conversations from "./pages/Conversations";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import SocialNetworks from "./pages/SocialNetworks";
+import Channels from "./pages/Channels";
 import OAuthCallback from "./pages/OAuthCallback";
 import DashboardLayout from "./components/DashboardLayout";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -46,6 +47,13 @@ const App = () => (
               </ProtectedRoute>
             } />
             
+            {/* Ruta genérica para callbacks OAuth */}
+            <Route path="/auth/callback" element={
+              <ProtectedRoute>
+                <OAuthCallback />
+              </ProtectedRoute>
+            } />
+            
             {/* Rutas de callback para OAuth de redes sociales */}
             <Route path="/auth/callback/:platform" element={
               <ProtectedRoute>
@@ -72,6 +80,7 @@ const App = () => (
               <Route path="conversations" element={<Conversations />} />
               <Route path="knowledge-base" element={<KnowledgeBase />} />
               <Route path="social-networks" element={<SocialNetworks />} />
+              <Route path="channels" element={<Channels />} />
             </Route>
             
             {/* Ruta para 404 */}
