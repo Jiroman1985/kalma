@@ -41,6 +41,9 @@ export interface WhatsAppMessage {
   month?: number;                // Mes del año
   minutesOfDay?: number;         // Minutos de la hora (0-59)
   sentiment?: string;            // Sentimiento del mensaje
+  status: 'sent' | 'delivered' | 'read' | 'failed';
+  type: 'text' | 'image' | 'video' | 'audio' | 'document' | 'location' | 'contact';
+  aiAssisted?: boolean;
 }
 
 // Define la interfaz para los análisis de WhatsApp
@@ -64,6 +67,11 @@ export interface WhatsAppAnalytics {
   };
   messagesByHour: Record<string, number>;
   activeByWeekday: Record<string, number>;
+  sentimentDistribution: {
+    positive: number;
+    negative: number;
+    neutral: number;
+  };
 }
 
 /**
@@ -143,6 +151,11 @@ export const initializeWhatsAppData = async (userId: string, preloadedData?: Wha
           messagesByHour: {},
           activeByWeekday: {
             "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0
+          },
+          sentimentDistribution: {
+            positive: 0,
+            negative: 0,
+            neutral: 0
           }
         }
       };
@@ -181,6 +194,11 @@ export const initializeWhatsAppData = async (userId: string, preloadedData?: Wha
             messagesByHour: {},
             activeByWeekday: {
               "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0
+            },
+            sentimentDistribution: {
+              positive: 0,
+              negative: 0,
+              neutral: 0
             }
           }
         });
@@ -206,26 +224,85 @@ export const getWhatsAppMessages = async (
   messageLimit: number = 100
 ): Promise<WhatsAppMessage[]> => {
   try {
-    const messagesRef = collection(db, "users", userId, "whatsapp");
-    const messagesQuery = query(
-      messagesRef,
+    console.log(`Buscando mensajes de WhatsApp para el usuario: ${userId}`);
+    
+    // Primero intentamos buscar en la colección específica de WhatsApp
+    const whatsappQuery = query(
+      collection(db, "messages"),
+      where("userId", "==", userId),
+      where("platform", "==", "whatsapp"),
+      orderBy("createdAt", "desc"),
+      limit(messageLimit)
+    );
+    
+    const querySnapshot = await getDocs(whatsappQuery);
+    
+    if (!querySnapshot.empty) {
+      console.log(`Encontrados ${querySnapshot.size} mensajes de WhatsApp`);
+      
+      // Convertir documentos a objetos de mensaje
+      const messages: WhatsAppMessage[] = [];
+      
+      querySnapshot.forEach(doc => {
+        const data = doc.data();
+        
+        // Convertir formato de la base de datos al formato de WhatsAppMessage
+        messages.push({
+          id: doc.id,
+          messageId: data.messageId || doc.id,
+          body: data.content || data.body || "",
+          from: data.senderId || data.from || "",
+          to: data.recipientId || data.to || "",
+          timestamp: data.createdAt || data.timestamp,
+          isFromMe: data.isFromUser || data.isFromMe || false,
+          senderName: data.senderName || "",
+          messageType: data.type || "text",
+          storedAt: data.createdAt ? Timestamp.fromDate(data.createdAt.toDate()) : undefined,
+          category: data.category,
+          responded: data.responded || false,
+          responseId: data.responseId || null,
+          responseTimestamp: data.responseTimestamp ? Timestamp.fromDate(data.responseTimestamp.toDate()) : undefined,
+          agentResponse: data.agentResponse || false,
+          agentResponseText: data.agentResponseText || "",
+          responseTime: data.responseTime,
+          hourOfDay: data.hourOfDay || 0,
+          day: data.day || 1,
+          month: data.month || 1,
+          minutesOfDay: data.minutesOfDay || 0,
+          sentiment: data.sentiment || "neutral",
+          status: data.status || "sent",
+          aiAssisted: data.aiAssisted || false
+        });
+      });
+      
+      return messages;
+    }
+    
+    // Si no hay mensajes en la colección principal, buscar en la colección secundaria
+    const fallbackQuery = query(
+      collection(db, "whatsapp", "messages", userId),
       orderBy("timestamp", "desc"),
       limit(messageLimit)
     );
-
-    const messagesSnapshot = await getDocs(messagesQuery);
     
-    if (messagesSnapshot.empty) {
-      console.log("No hay mensajes de WhatsApp para este usuario");
-      return [];
+    const fallbackSnapshot = await getDocs(fallbackQuery);
+    
+    if (!fallbackSnapshot.empty) {
+      console.log(`Encontrados ${fallbackSnapshot.size} mensajes en la colección secundaria`);
+      
+      const messages: WhatsAppMessage[] = [];
+      
+      fallbackSnapshot.forEach(doc => {
+        messages.push({ id: doc.id, ...doc.data() } as WhatsAppMessage);
+      });
+      
+      return messages;
     }
-
-    const messages: WhatsAppMessage[] = [];
-    messagesSnapshot.forEach((doc) => {
-      messages.push({ id: doc.id, ...doc.data() } as WhatsAppMessage);
-    });
-
-    return messages;
+    
+    // Si tampoco hay mensajes en la colección secundaria, retornar un array vacío
+    console.log("No se encontraron mensajes de WhatsApp");
+    return [];
+    
   } catch (error) {
     console.error("Error al obtener mensajes de WhatsApp:", error);
     return [];
@@ -239,16 +316,31 @@ export const getWhatsAppAnalytics = async (
   userId: string
 ): Promise<WhatsAppAnalytics | null> => {
   try {
-    const userRef = doc(db, "users", userId);
-    const userDoc = await getDoc(userRef);
-
-    if (userDoc.exists() && userDoc.data().whatsapp) {
-      return userDoc.data().whatsapp as WhatsAppAnalytics;
+    // Intentar obtener desde el documento de usuario primero
+    const userDoc = await getDoc(doc(db, "users", userId));
+    
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      
+      if (userData.whatsapp && userData.whatsapp.analytics) {
+        console.log("Analytics encontrados en el documento de usuario");
+        return userData.whatsapp.analytics as WhatsAppAnalytics;
+      }
     }
-
+    
+    // Intentar obtener desde una colección dedicada de analytics
+    const analyticsDoc = await getDoc(doc(db, "whatsappAnalytics", userId));
+    
+    if (analyticsDoc.exists()) {
+      console.log("Analytics encontrados en colección dedicada");
+      return analyticsDoc.data() as WhatsAppAnalytics;
+    }
+    
+    console.log("No se encontraron analytics guardados");
     return null;
+    
   } catch (error) {
-    console.error("Error al obtener análisis de WhatsApp:", error);
+    console.error("Error al obtener analytics de WhatsApp:", error);
     return null;
   }
 };
@@ -747,7 +839,10 @@ export const getAgentRespondedMessages = async (userId: string, limitCount: numb
           month: data.month || 1,
           minutesOfDay: data.minutesOfDay || 0,
           // Guardar la respuesta textual del agente si existe
-          agentResponseText: typeof data.agentResponse === 'string' ? data.agentResponse : ''
+          agentResponseText: typeof data.agentResponse === 'string' ? data.agentResponse : '',
+          status: data.status || "sent",
+          type: data.type || "text",
+          aiAssisted: data.aiAssisted || false
         };
         
         messages.push(message);
