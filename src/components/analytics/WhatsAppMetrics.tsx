@@ -54,6 +54,7 @@ interface WhatsAppMessage {
 interface WhatsAppAnalytics {
   userId: string;
   platform: string;
+  id?: string;
   date?: Timestamp;
   totalMessages?: number;
   receivedMessages?: number;
@@ -107,77 +108,7 @@ const WhatsAppMetrics = ({ isLoading = false }: WhatsAppMetricsProps) => {
       try {
         console.log("🔍 [WhatsAppMetrics] Iniciando carga de datos para:", currentUser.uid);
         
-        // 1. Obtener mensajes de WhatsApp
-        console.log("📱 [WhatsAppMetrics] Consultando mensajes de WhatsApp");
-        let whatsappMessages: WhatsAppMessage[] = [];
-        
-        try {
-          // Consulta principal con índice compuesto (userId, platform, createdAt)
-          const messagesQuery = query(
-            collection(db, "messages"),
-            where("userId", "==", currentUser.uid),
-            where("platform", "==", "whatsapp"),
-            orderBy("createdAt", "desc"),
-            limit(200)
-          );
-          
-          const messagesSnapshot = await getDocs(messagesQuery);
-          console.log(`📨 [WhatsAppMetrics] Mensajes encontrados: ${messagesSnapshot.size}`);
-          
-          messagesSnapshot.forEach(doc => {
-            whatsappMessages.push({
-              ...doc.data(),
-              id: doc.id
-            } as WhatsAppMessage);
-          });
-        } catch (queryError: any) {
-          // Si hay un error por falta de índice, intentar consulta alternativa
-          console.error("❌ [WhatsAppMetrics] Error en consulta principal:", queryError.message);
-          
-          if (queryError.message?.includes("index") || queryError.message?.includes("permission")) {
-            console.log("⚠️ [WhatsAppMetrics] Intentando consulta alternativa...");
-            
-            try {
-              // Consulta alternativa sin orderBy para evitar necesidad de índice compuesto
-              const simpleQuery = query(
-                collection(db, "messages"),
-                where("userId", "==", currentUser.uid),
-                where("platform", "==", "whatsapp"),
-                limit(100)
-              );
-              
-              const simpleSnapshot = await getDocs(simpleQuery);
-              console.log(`📨 [WhatsAppMetrics] Mensajes encontrados (alternativa): ${simpleSnapshot.size}`);
-              
-              simpleSnapshot.forEach(doc => {
-                whatsappMessages.push({
-                  ...doc.data(),
-                  id: doc.id
-                } as WhatsAppMessage);
-              });
-              
-              // Ordenar manualmente
-              whatsappMessages.sort((a, b) => {
-                const timeA = a.createdAt?.toDate?.() || new Date(0);
-                const timeB = b.createdAt?.toDate?.() || new Date(0);
-                return timeB.getTime() - timeA.getTime();
-              });
-            } catch (altError) {
-              console.error("❌ [WhatsAppMetrics] Error en consulta alternativa:", altError);
-              console.log("⚠️ [WhatsAppMetrics] No se pudieron obtener mensajes, generando datos simulados");
-              generateSimulatedData();
-              setLoading(false);
-              return;
-            }
-          } else {
-            console.log("⚠️ [WhatsAppMetrics] No se pudieron obtener mensajes, generando datos simulados");
-            generateSimulatedData();
-            setLoading(false);
-            return;
-          }
-        }
-        
-        // 2. Obtener información de usuario para verificar si hay configuración de WhatsApp
+        // 1. Verificamos primero si el usuario tiene configuración de WhatsApp
         console.log("👤 [WhatsAppMetrics] Verificando configuración de WhatsApp del usuario");
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         const userData = userDoc.data();
@@ -188,61 +119,116 @@ const WhatsAppMetrics = ({ isLoading = false }: WhatsAppMetricsProps) => {
           setHasWhatsAppData(true);
         }
         
-        // 3. Obtener analíticas de WhatsApp del usuario
-        let analytics: WhatsAppAnalytics | null = null;
-        
+        // 2. Intentamos obtener analytics desde la colección analytics
+        let whatsappAnalytics: WhatsAppAnalytics | null = null;
         try {
-          console.log("📊 [WhatsAppMetrics] Consultando analíticas de WhatsApp");
+          console.log("📊 [WhatsAppMetrics] Consultando analytics de WhatsApp");
           const analyticsQuery = query(
             collection(db, "analytics"),
             where("userId", "==", currentUser.uid),
             where("platform", "==", "whatsapp"),
-            orderBy("date", "desc"),
             limit(1)
           );
           
           const analyticsSnapshot = await getDocs(analyticsQuery);
           if (!analyticsSnapshot.empty) {
-            analytics = analyticsSnapshot.docs[0].data() as WhatsAppAnalytics;
-            console.log("📈 [WhatsAppMetrics] Analíticas encontradas:", analytics);
+            whatsappAnalytics = {
+              ...(analyticsSnapshot.docs[0].data() as WhatsAppAnalytics),
+              id: analyticsSnapshot.docs[0].id
+            };
+            setAnalytics(whatsappAnalytics);
+            console.log("📊 [WhatsAppMetrics] Analytics encontrados:", whatsappAnalytics);
           }
-        } catch (analyticsError: any) {
-          console.error("❌ [WhatsAppMetrics] Error al obtener analíticas:", analyticsError.message);
-          // Intentar obtener analíticas de la configuración de usuario si están allí
-          if (whatsappConfig?.analytics) {
-            analytics = whatsappConfig.analytics;
-            console.log("📊 [WhatsAppMetrics] Usando analíticas desde config de usuario:", analytics);
+        } catch (analyticsError) {
+          console.warn("⚠️ [WhatsAppMetrics] No se pudieron obtener analytics:", analyticsError);
+        }
+        
+        // 3. Obtenemos mensajes de WhatsApp usando los índices correctos
+        console.log("📱 [WhatsAppMetrics] Consultando mensajes de WhatsApp");
+        let whatsappMessages: WhatsAppMessage[] = [];
+        
+        try {
+          // Usamos los índices correctos que aparecen en la consola de Firebase
+          const messagesQuery = query(
+            collection(db, "messages"),
+            where("userId", "==", currentUser.uid),
+            where("platform", "==", "whatsapp")
+          );
+          
+          const messagesSnapshot = await getDocs(messagesQuery);
+          console.log(`📨 [WhatsAppMetrics] Mensajes encontrados: ${messagesSnapshot.size}`);
+          
+          if (!messagesSnapshot.empty) {
+            messagesSnapshot.forEach(doc => {
+              whatsappMessages.push({
+                ...doc.data(),
+                id: doc.id
+              } as WhatsAppMessage);
+            });
+            
+            // Ordenar manualmente por timestamp
+            whatsappMessages.sort((a, b) => {
+              let timeA = 0, timeB = 0;
+              
+              if (a.timestamp) {
+                timeA = typeof a.timestamp === 'number' ? a.timestamp : a.timestamp.toMillis();
+              } else if (a.createdAt) {
+                timeA = typeof a.createdAt === 'number' ? a.createdAt : a.createdAt.toMillis();
+              }
+              
+              if (b.timestamp) {
+                timeB = typeof b.timestamp === 'number' ? b.timestamp : b.timestamp.toMillis();
+              } else if (b.createdAt) {
+                timeB = typeof b.createdAt === 'number' ? b.createdAt : b.createdAt.toMillis();
+              }
+              
+              return timeB - timeA;
+            });
+            
+            setMessages(whatsappMessages);
+            console.log("📱 [WhatsAppMetrics] Mensajes procesados:", whatsappMessages.length);
+          } else {
+            console.log("⚠️ [WhatsAppMetrics] No se encontraron mensajes de WhatsApp");
+            // Si no hay mensajes pero hay configuración, mostramos la interfaz con N/A
+            if (hasWhatsAppData) {
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (error: any) {
+          console.error("❌ [WhatsAppMetrics] Error al consultar mensajes:", error.message);
+          
+          // Si hay configuración de WhatsApp pero no podemos acceder a los mensajes
+          // mostramos la interfaz con datos simulados
+          if (hasWhatsAppData) {
+            console.log("⚠️ [WhatsAppMetrics] Generando datos simulados debido a error");
+            generateSimulatedData();
+            setLoading(false);
+            return;
           }
         }
         
-        // 4. Verificamos si hay mensajes o analíticas
-        if (whatsappMessages.length > 0 || analytics) {
-          console.log("✅ [WhatsAppMetrics] Datos encontrados, calculando métricas");
+        // Si llegamos aquí, verificamos si tenemos datos para procesar
+        if (whatsappMessages.length > 0 || whatsappAnalytics) {
+          console.log("✅ [WhatsAppMetrics] Procesando datos disponibles");
+          // Procesar y calcular métricas
+          calculateMetrics(whatsappMessages, whatsappAnalytics);
           setHasWhatsAppData(true);
-          
-          // Procesar mensajes y calcular métricas
-          if (whatsappMessages.length > 0) {
-            setMessages(whatsappMessages);
-            calculateMetrics(whatsappMessages, analytics);
-          } else if (analytics) {
-            // Si no hay mensajes pero hay analíticas, mostrar esos datos
-            console.log("📈 [WhatsAppMetrics] No hay mensajes pero sí analíticas, mostrando datos disponibles");
-            setAnalytics(analytics);
-            createMetricsFromAnalytics(analytics);
-          }
         } else {
-          console.log("⚠️ [WhatsAppMetrics] No se encontraron datos de WhatsApp, generando simulación");
+          console.log("⚠️ [WhatsAppMetrics] No hay datos reales ni configuración, generando simulados");
+          // Si no hay datos ni configuración, generamos datos simulados
           generateSimulatedData();
         }
+        
       } catch (error) {
-        console.error("❌ [WhatsAppMetrics] Error general al cargar datos:", error);
-        // En caso de error, generar datos simulados
+        console.error("❌ [WhatsAppMetrics] Error general:", error);
+        // Fallback a datos simulados en caso de error
         generateSimulatedData();
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchData();
   }, [currentUser]);
   
