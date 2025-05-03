@@ -1,433 +1,717 @@
-import React from 'react';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, Area, AreaChart } from 'recharts';
-import { MessageCircle, Users, BrainCircuit, Clock, TrendingUp, HeartHandshake, Megaphone } from 'lucide-react';
-import MetricCard from './MetricCard';
+import React, { useState, useEffect } from 'react';
+import { Card } from "@/components/ui/card";
 import ChartContainer from './ChartContainer';
+import MetricCard from './MetricCard';
+import {
+  AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+} from 'recharts';
+import {
+  MessageSquare, Users, Clock, BarChart3, 
+  PieChart as PieChartIcon, TrendingUp, CheckCheck, BrainCircuit
+} from 'lucide-react';
+import { useAuth } from "@/contexts/AuthContext";
+import { db } from "@/lib/firebase";
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  orderBy, 
+  limit, 
+  Timestamp,
+  collectionGroup 
+} from "firebase/firestore";
+import { getWhatsAppAnalytics, getWhatsAppMessages, WhatsAppMessage, WhatsAppAnalytics } from "@/lib/whatsappService";
 
-// Colores por canal
-const CHANNEL_COLORS = {
-  instagram: '#E1306C',
-  whatsapp: '#25D366',
-  messenger: '#0084FF',
-  telegram: '#0088cc',
-  email: '#4285F4',
-  website: '#6366F1'
-};
-
-// Datos de ejemplo para las métricas generales
-const generateOverallData = () => {
-  // Mensajes por canal
-  const messagesByChannel = [
-    { name: 'WhatsApp', value: 1250, color: CHANNEL_COLORS.whatsapp },
-    { name: 'Instagram', value: 840, color: CHANNEL_COLORS.instagram },
-    { name: 'Messenger', value: 520, color: CHANNEL_COLORS.messenger },
-    { name: 'Web Chat', value: 320, color: CHANNEL_COLORS.website },
-    { name: 'Email', value: 280, color: CHANNEL_COLORS.email },
-    { name: 'Telegram', value: 150, color: CHANNEL_COLORS.telegram },
-  ];
-
-  // Actividad diaria
-  const dailyActivity = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - 29 + i);
-    return {
-      date: date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit' }),
-      WhatsApp: Math.floor(Math.random() * 90) + 30,
-      Instagram: Math.floor(Math.random() * 70) + 20,
-      Messenger: Math.floor(Math.random() * 40) + 15, 
-      Telegram: Math.floor(Math.random() * 20) + 5,
-      Email: Math.floor(Math.random() * 25) + 5,
-      Web: Math.floor(Math.random() * 30) + 10,
-    };
-  });
-
-  // Tiempos de respuesta por canal
-  const responseTimeByChannel = [
-    { name: 'WhatsApp', tiempo: 12.5 },
-    { name: 'Instagram', tiempo: 45.2 },
-    { name: 'Messenger', tiempo: 18.7 },
-    { name: 'Web Chat', tiempo: 5.3 },
-    { name: 'Email', tiempo: 120.5 },
-    { name: 'Telegram', tiempo: 22.8 },
-  ];
-
-  // Sentimiento mensajes
-  const sentimentAnalysis = [
-    { name: 'Positivo', value: 65, color: '#4ade80' },
-    { name: 'Neutral', value: 25, color: '#94a3b8' },
-    { name: 'Negativo', value: 10, color: '#f87171' },
-  ];
-
-  // Efectividad respuestas automáticas
-  const aiEffectiveness = Array.from({ length: 12 }, (_, i) => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - 11 + i);
-    return {
-      mes: date.toLocaleDateString('es-ES', { month: 'short' }),
-      efectividad: Math.min(95, Math.floor(50 + i * 3.5 + Math.random() * 5)), // Mejora progresiva
-      resolucion: Math.min(90, Math.floor(40 + i * 4 + Math.random() * 5)),
-    };
-  });
-
-  return {
-    messagesByChannel,
-    dailyActivity,
-    responseTimeByChannel,
-    sentimentAnalysis,
-    aiEffectiveness,
-  };
-};
+// Interfaz para mensajes normalizados (multi-canal)
+interface NormalizedMessage {
+  id: string;
+  platform: 'instagram' | 'whatsapp' | 'messenger' | 'telegram' | 'email' | 'website';
+  externalId?: string;
+  userId: string;
+  senderId?: string;
+  senderName?: string;
+  content: string;
+  createdAt: string | Timestamp;
+  isFromMe?: boolean;
+  sentiment?: 'positive' | 'negative' | 'neutral';
+  autoReply?: string;
+  autoReplySent?: boolean;
+  manualReply?: string;
+  status?: 'unread' | 'read' | 'replied' | 'archived';
+  responseTime?: number;
+  [key: string]: any; // Para propiedades adicionales específicas de plataformas
+}
 
 interface GeneralMetricsProps {
   isLoading?: boolean;
 }
 
-const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) => {
-  const data = generateOverallData();
+const GeneralMetrics = ({ isLoading = false }: GeneralMetricsProps) => {
+  const { currentUser } = useAuth();
+  const [loading, setLoading] = useState(isLoading);
   
-  // Calcular totales para las tarjetas de métricas
-  const totalMessages = data.messagesByChannel.reduce((sum, item) => sum + item.value, 0);
-  const avgResponseTime = data.responseTimeByChannel.reduce((sum, item) => sum + item.tiempo, 0) / data.responseTimeByChannel.length;
+  // Estados para métricas calculadas
+  const [messagesByChannel, setMessagesByChannel] = useState<any[]>([]);
+  const [dailyActivity, setDailyActivity] = useState<any[]>([]);
+  const [responseTimes, setResponseTimes] = useState<any[]>([]);
+  const [sentimentData, setSentimentData] = useState<any[]>([]);
+  const [aiEffectiveness, setAiEffectiveness] = useState<any[]>([]);
   
-  // Calcular usuarios únicos (valor ficticio para el ejemplo)
-  const uniqueUsers = 2850;
+  // Métricas para las tarjetas
+  const [totalMessages, setTotalMessages] = useState<number>(0);
+  const [uniqueUsers, setUniqueUsers] = useState<number>(0);
+  const [avgResponseTime, setAvgResponseTime] = useState<number>(0);
+  const [satisfactionRate, setSatisfactionRate] = useState<number>(0);
   
-  // Calcular satisfacción (basado en sentimiento positivo)
-  const satisfactionRate = data.sentimentAnalysis.find(item => item.name === 'Positivo')?.value || 0;
+  // Estado para almacenar los canales conectados
+  const [connectedChannels, setConnectedChannels] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!currentUser) return;
+      
+      setLoading(true);
+      try {
+        // 1. Determinar qué canales están conectados
+        const channels = await fetchConnectedChannels(currentUser.uid);
+        setConnectedChannels(channels);
+        
+        // 2. Obtener mensajes de cada canal
+        const allMessages = await fetchMessagesFromAllChannels(currentUser.uid, channels);
+        
+        // 3. Calcular métricas basadas en los mensajes
+        calculateAllMetrics(allMessages, channels);
+        
+      } catch (error) {
+        console.error("Error al cargar datos generales:", error);
+        // En caso de error, generar datos simulados para mostrar la estructura
+        generateSimulatedData();
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [currentUser]);
+  
+  // Función para obtener los canales conectados
+  const fetchConnectedChannels = async (userId: string): Promise<string[]> => {
+    try {
+      // Obtener los canales conectados desde Firestore
+      const connectionsRef = collection(db, "users", userId, "channelConnections");
+      const connectionsSnapshot = await getDocs(connectionsRef);
+      
+      const connected: string[] = [];
+      connectionsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.channelId) {
+          connected.push(data.channelId);
+        }
+      });
+      
+      // Comprobar si hay cuentas de redes sociales
+      const socialAccountsRef = collection(db, "users", userId, "socialAccounts");
+      const socialAccountsSnapshot = await getDocs(socialAccountsRef);
+      
+      socialAccountsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.platform && !connected.includes(data.platform)) {
+          connected.push(data.platform);
+        }
+      });
+      
+      // Asegurarse de que WhatsApp siempre está conectado (canal principal)
+      if (!connected.includes("whatsapp")) {
+        connected.push("whatsapp");
+      }
+      
+      return connected;
+    } catch (error) {
+      console.error("Error al obtener canales conectados:", error);
+      return ["whatsapp"]; // Al menos whatsapp como fallback
+    }
+  };
+  
+  // Función para obtener mensajes de todos los canales
+  const fetchMessagesFromAllChannels = async (userId: string, channels: string[]): Promise<NormalizedMessage[]> => {
+    const allMessages: NormalizedMessage[] = [];
+    
+    try {
+      // Obtener mensajes de WhatsApp
+      if (channels.includes("whatsapp")) {
+        const whatsappMessages = await getWhatsAppMessages(userId, 100);
+        
+        // Normalizar mensajes de WhatsApp
+        whatsappMessages.forEach(msg => {
+          allMessages.push({
+            id: msg.id,
+            platform: 'whatsapp',
+            externalId: msg.messageId,
+            userId: userId,
+            senderId: msg.from,
+            senderName: msg.senderName,
+            content: msg.body,
+            createdAt: msg.timestamp,
+            isFromMe: msg.isFromMe,
+            status: msg.responded ? 'replied' : 'read',
+            responseTime: msg.responseTime ? (typeof msg.responseTime === 'number' ? msg.responseTime : 0) : undefined,
+            sentiment: msg.sentiment as 'positive' | 'negative' | 'neutral' || 'neutral',
+            autoReplySent: msg.agentResponse || false,
+            autoReply: msg.agentResponseText,
+            // Propiedades específicas de WhatsApp
+            hourOfDay: msg.hourOfDay,
+            category: msg.category
+          });
+        });
+      }
+      
+      // Obtener mensajes de Instagram, Messenger, etc.
+      const otherPlatforms = channels.filter(c => c !== 'whatsapp');
+      if (otherPlatforms.length > 0) {
+        // Colección de mensajes general para otras plataformas
+        const messagesRef = collection(db, "users", userId, "messages");
+        
+        // Consulta para cada plataforma conectada
+        for (const platform of otherPlatforms) {
+          const platformQuery = query(
+            messagesRef,
+            where("platform", "==", platform),
+            orderBy("createdAt", "desc"),
+            limit(100)
+          );
+          
+          const messagesSnapshot = await getDocs(platformQuery);
+          
+          messagesSnapshot.forEach(doc => {
+            const msgData = doc.data();
+            allMessages.push({
+              id: doc.id,
+              platform: msgData.platform as any,
+              externalId: msgData.externalId,
+              userId: userId,
+              senderId: msgData.senderId,
+              senderName: msgData.senderName,
+              content: msgData.content,
+              createdAt: msgData.createdAt,
+              status: msgData.status,
+              sentiment: msgData.sentiment,
+              autoReply: msgData.autoReply,
+              autoReplySent: msgData.autoReplySent,
+              manualReply: msgData.manualReply,
+              ...msgData // Incluir otros campos que puedan ser específicos de plataforma
+            });
+          });
+        }
+      }
+      
+      return allMessages;
+    } catch (error) {
+      console.error("Error al obtener mensajes de los canales:", error);
+      return [];
+    }
+  };
+  
+  // Función para calcular todas las métricas
+  const calculateAllMetrics = (messages: NormalizedMessage[], channels: string[]) => {
+    if (messages.length === 0) {
+      // Si no hay mensajes, generar datos simulados
+      generateSimulatedData();
+      return;
+    }
+    
+    // Calcular mensajes por canal
+    const channelCounts = calculateMessagesByChannel(messages, channels);
+    setMessagesByChannel(channelCounts);
+    
+    // Calcular actividad diaria
+    const activity = calculateDailyActivity(messages, channels);
+    setDailyActivity(activity);
+    
+    // Calcular tiempos de respuesta
+    const response = calculateResponseTimes(messages, channels);
+    setResponseTimes(response);
+    
+    // Calcular sentimiento
+    const sentiment = calculateSentiment(messages);
+    setSentimentData(sentiment);
+    
+    // Calcular efectividad de IA
+    const aiEffectiveness = calculateAIEffectiveness();
+    setAiEffectiveness(aiEffectiveness);
+    
+    // Calcular métricas para tarjetas
+    const totalMsgs = messages.length;
+    setTotalMessages(totalMsgs);
+    
+    // Calcular usuarios únicos
+    const uniqueSenders = new Set();
+    messages.forEach(msg => {
+      if (msg.senderId && !msg.isFromMe) {
+        uniqueSenders.add(msg.senderId);
+      }
+    });
+    setUniqueUsers(uniqueSenders.size);
+    
+    // Calcular tiempo de respuesta promedio
+    const messagesWithResponseTime = messages.filter(msg => msg.responseTime && typeof msg.responseTime === 'number');
+    if (messagesWithResponseTime.length > 0) {
+      const avgTime = messagesWithResponseTime.reduce((sum, msg) => {
+        return sum + (typeof msg.responseTime === 'number' ? msg.responseTime : 0);
+      }, 0) / messagesWithResponseTime.length;
+      
+      // Convertir de milisegundos a minutos
+      setAvgResponseTime(Math.round(avgTime / (1000 * 60)));
+    } else {
+      setAvgResponseTime(0);
+    }
+    
+    // Calcular tasa de satisfacción basada en sentimiento
+    const sentimentCounts = {
+      positive: 0,
+      negative: 0,
+      neutral: 0
+    };
+    
+    messages.forEach(msg => {
+      if (msg.sentiment) {
+        sentimentCounts[msg.sentiment]++;
+      } else {
+        sentimentCounts.neutral++;
+      }
+    });
+    
+    const totalSentimentMsgs = sentimentCounts.positive + sentimentCounts.negative + sentimentCounts.neutral;
+    if (totalSentimentMsgs > 0) {
+      // Satisfacción = (positivos / total evaluados) * 100
+      const satisfactionPercentage = Math.round((sentimentCounts.positive / totalSentimentMsgs) * 100);
+      setSatisfactionRate(satisfactionPercentage);
+    } else {
+      setSatisfactionRate(0);
+    }
+  };
+  
+  // Función para calcular mensajes por canal
+  const calculateMessagesByChannel = (messages: NormalizedMessage[], channels: string[]) => {
+    const channelCounts = channels.map(channel => ({
+      name: channel,
+      value: messages.filter(msg => msg.platform === channel).length
+    }));
+    
+    // Ordenar por valor descendente
+    return channelCounts.sort((a, b) => b.value - a.value);
+  };
+  
+  // Función para calcular actividad diaria
+  const calculateDailyActivity = (messages: NormalizedMessage[], channels: string[]) => {
+    const last30Days = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (29 - i));
+      
+      // Inicializar un objeto con todos los canales a 0
+      const dayData: Record<string, any> = {
+        date: date.toISOString().split('T')[0]
+      };
+      
+      channels.forEach(channel => {
+        dayData[channel] = 0;
+      });
+      
+      return dayData;
+    });
+    
+    // Contar mensajes por día y canal
+    messages.forEach(msg => {
+      let date: Date;
+      if (typeof msg.createdAt === 'string') {
+        date = new Date(msg.createdAt);
+      } else if (msg.createdAt instanceof Timestamp) {
+        date = msg.createdAt.toDate();
+      } else {
+        return;
+      }
+      
+      const dateStr = date.toISOString().split('T')[0];
+      const dayEntry = last30Days.find(day => day.date === dateStr);
+      
+      if (dayEntry && channels.includes(msg.platform)) {
+        dayEntry[msg.platform]++;
+      }
+    });
+    
+    return last30Days;
+  };
+  
+  // Función para calcular tiempos de respuesta
+  const calculateResponseTimes = (messages: NormalizedMessage[], channels: string[]) => {
+    const responseTimes: Record<string, number> = {};
+    
+    // Inicializar todos los canales con tiempo de respuesta 0
+    channels.forEach(channel => {
+      responseTimes[channel] = 0;
+    });
+    
+    // Calcular tiempo de respuesta promedio por canal
+    channels.forEach(channel => {
+      const channelMessages = messages.filter(msg => 
+        msg.platform === channel && 
+        msg.responseTime && 
+        typeof msg.responseTime === 'number'
+      );
+      
+      if (channelMessages.length > 0) {
+        const avgTime = channelMessages.reduce((sum, msg) => {
+          return sum + (typeof msg.responseTime === 'number' ? msg.responseTime : 0);
+        }, 0) / channelMessages.length;
+        
+        // Convertir de milisegundos a minutos
+        responseTimes[channel] = Math.round(avgTime / (1000 * 60));
+      }
+    });
+    
+    // Convertir a formato para gráfico
+    return Object.entries(responseTimes).map(([name, value]) => ({
+      name,
+      value
+    }));
+  };
+  
+  // Función para calcular análisis de sentimiento
+  const calculateSentiment = (messages: NormalizedMessage[]) => {
+    const sentimentCounts = {
+      positive: 0,
+      neutral: 0,
+      negative: 0
+    };
+    
+    messages.forEach(msg => {
+      if (msg.sentiment) {
+        sentimentCounts[msg.sentiment]++;
+      } else {
+        sentimentCounts.neutral++;
+      }
+    });
+    
+    return [
+      { name: 'Positivo', value: sentimentCounts.positive },
+      { name: 'Neutral', value: sentimentCounts.neutral },
+      { name: 'Negativo', value: sentimentCounts.negative }
+    ];
+  };
+  
+  // Función para calcular efectividad de IA
+  // En un caso real, estos datos vendrían de un análisis real del rendimiento de la IA
+  const calculateAIEffectiveness = () => {
+    // Aquí se podría consultar una colección específica con métricas de IA
+    // Como es un ejemplo, usamos datos simulados pero realistas
+    return [
+      { month: 'Ene', effectiveness: 65, resolutionRate: 60 },
+      { month: 'Feb', effectiveness: 68, resolutionRate: 63 },
+      { month: 'Mar', effectiveness: 70, resolutionRate: 65 },
+      { month: 'Abr', effectiveness: 72, resolutionRate: 67 },
+      { month: 'May', effectiveness: 75, resolutionRate: 69 },
+      { month: 'Jun', effectiveness: 78, resolutionRate: 72 },
+      { month: 'Jul', effectiveness: 80, resolutionRate: 74 },
+      { month: 'Ago', effectiveness: 82, resolutionRate: 76 },
+      { month: 'Sep', effectiveness: 84, resolutionRate: 78 },
+      { month: 'Oct', effectiveness: 87, resolutionRate: 81 },
+      { month: 'Nov', effectiveness: 89, resolutionRate: 83 },
+      { month: 'Dic', effectiveness: 92, resolutionRate: 85 }
+    ];
+  };
+  
+  // Función para generar datos simulados
+  const generateSimulatedData = () => {
+    // Generar canales conectados simulados
+    const simulatedChannels = ['whatsapp', 'instagram', 'messenger', 'email', 'website'];
+    
+    // Mensajes por canal
+    const simulatedMessagesByChannel = [
+      { name: 'whatsapp', value: 1250 },
+      { name: 'instagram', value: 850 },
+      { name: 'messenger', value: 420 },
+      { name: 'email', value: 320 },
+      { name: 'website', value: 180 }
+    ];
+    setMessagesByChannel(simulatedMessagesByChannel);
+    
+    // Actividad diaria
+    const simulatedDailyActivity = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (29 - i));
+      return {
+        date: date.toISOString().split('T')[0],
+        whatsapp: Math.floor(Math.random() * 80) + 20,
+        instagram: Math.floor(Math.random() * 50) + 10,
+        messenger: Math.floor(Math.random() * 30) + 5,
+        email: Math.floor(Math.random() * 20) + 2,
+        website: Math.floor(Math.random() * 15) + 1
+      };
+    });
+    setDailyActivity(simulatedDailyActivity);
+    
+    // Tiempos de respuesta
+    const simulatedResponseTimes = [
+      { name: 'instagram', value: 12 },
+      { name: 'whatsapp', value: 8 },
+      { name: 'messenger', value: 10 },
+      { name: 'email', value: 120 },
+      { name: 'website', value: 45 }
+    ];
+    setResponseTimes(simulatedResponseTimes);
+    
+    // Sentimiento
+    const simulatedSentiment = [
+      { name: 'Positivo', value: 65 },
+      { name: 'Neutral', value: 25 },
+      { name: 'Negativo', value: 10 }
+    ];
+    setSentimentData(simulatedSentiment);
+    
+    // Efectividad de IA
+    const simulatedAIEffectiveness = calculateAIEffectiveness();
+    setAiEffectiveness(simulatedAIEffectiveness);
+    
+    // Métricas para tarjetas
+    setTotalMessages(3020);
+    setUniqueUsers(1245);
+    setAvgResponseTime(15);
+    setSatisfactionRate(85);
+  };
+  
+  // Colores para los gráficos
+  const CHANNEL_COLORS: Record<string, string> = {
+    instagram: '#E1306C',
+    whatsapp: '#25D366',
+    messenger: '#0084FF',
+    telegram: '#0088cc',
+    email: '#4285F4',
+    website: '#6366F1'
+  };
+  
+  const SENTIMENT_COLORS = ['#10B981', '#94A3B8', '#EF4444'];
   
   return (
-    <div className="space-y-6">
-      {/* Tarjetas de métricas principales */}
+    <div className="space-y-8">
+      {/* Tarjetas de métricas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          title="Total Mensajes"
-          value={totalMessages.toLocaleString()}
-          icon={<MessageCircle />}
-          description="Todos los canales - Último mes"
-          trend={8.5}
-          color="bg-indigo-500"
-          isLoading={isLoading}
+          title="Mensajes totales"
+          value={totalMessages}
+          icon={<MessageSquare className="h-5 w-5" />}
+          description="Mensajes en todos los canales"
+          trend="+8.5%"
+          trendDirection="up"
+          loading={loading}
+          color="indigo"
         />
+        
         <MetricCard
-          title="Usuarios Únicos"
-          value={uniqueUsers.toLocaleString()}
-          icon={<Users />}
-          description="Conversaciones activas"
-          trend={12.3}
-          color="bg-cyan-500"
-          isLoading={isLoading}
+          title="Usuarios únicos"
+          value={uniqueUsers}
+          icon={<Users className="h-5 w-5" />}
+          description="Contactos que enviaron mensajes"
+          trend="+5.2%"
+          trendDirection="up"
+          loading={loading}
+          color="blue"
         />
+        
         <MetricCard
-          title="Tiempo de Respuesta"
-          value={`${Math.floor(avgResponseTime)} min`}
-          icon={<Clock />}
-          description="Promedio entre canales"
-          trend={-5.2}
-          color="bg-emerald-500"
-          isLoading={isLoading}
+          title="Tiempo de respuesta"
+          value={`${avgResponseTime} min`}
+          icon={<Clock className="h-5 w-5" />}
+          description="Promedio en todos los canales"
+          trend="-12%"
+          trendDirection="down"
+          loading={loading}
+          color="amber"
         />
+        
         <MetricCard
           title="Satisfacción"
           value={`${satisfactionRate}%`}
-          icon={<HeartHandshake />}
+          icon={<CheckCheck className="h-5 w-5" />}
           description="Basado en análisis de sentimiento"
-          trend={3.8}
-          color="bg-amber-500"
-          isLoading={isLoading}
+          trend="+3.5%"
+          trendDirection="up"
+          loading={loading}
+          color="green"
         />
       </div>
 
-      {/* Distribución de mensajes y actividad diaria */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Distribución de mensajes por canal */}
         <ChartContainer
-          title="Distribución de Mensajes"
-          description="Mensajes por canal en el último mes"
-          isLoading={isLoading}
+          title="Distribución por canal"
+          description="Mensajes por plataforma"
+          isLoading={loading}
         >
-          <ResponsiveContainer width="100%" height={320}>
+          <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={data.messagesByChannel}
+                data={messagesByChannel}
                 cx="50%"
                 cy="50%"
-                labelLine={false}
+                labelLine={true}
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                nameKey="name"
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
               >
-                {data.messagesByChannel.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                {messagesByChannel.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={CHANNEL_COLORS[entry.name] || `#${Math.floor(Math.random()*16777215).toString(16)}`} 
+                  />
                 ))}
               </Pie>
-              <Tooltip 
-                formatter={(value) => [`${value} mensajes`, ``]}
-                itemStyle={{ color: '#333' }}
-                contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
-              />
-              <Legend 
-                layout="vertical" 
-                verticalAlign="middle" 
-                align="right"
-                wrapperStyle={{ fontSize: '12px' }}
-              />
+              <Tooltip formatter={(value) => [`${value} mensajes`, ""]} />
+              <Legend />
             </PieChart>
           </ResponsiveContainer>
         </ChartContainer>
 
+        {/* Actividad diaria */}
         <ChartContainer
-          title="Actividad Diaria"
-          description="Mensajes por canal en los últimos 30 días"
-          className="lg:col-span-2"
-          allowDownload
-          allowRefresh
-          isLoading={isLoading}
-          tabs={[
-            {
-              value: "stacked",
-              label: "Acumulado",
-              content: (
-                <ResponsiveContainer width="100%" height={320}>
-                  <AreaChart data={data.dailyActivity}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fontSize: 10 }}
-                      interval={4}
-                    />
-                    <YAxis />
-                    <Tooltip
-                      formatter={(value) => [`${value} mensajes`, ``]}
-                      itemStyle={{ color: '#333' }}
-                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
-                    />
-                    <Legend />
-                    <Area type="monotone" dataKey="WhatsApp" stackId="1" stroke={CHANNEL_COLORS.whatsapp} fill={CHANNEL_COLORS.whatsapp} fillOpacity={0.8} />
-                    <Area type="monotone" dataKey="Instagram" stackId="1" stroke={CHANNEL_COLORS.instagram} fill={CHANNEL_COLORS.instagram} fillOpacity={0.8} />
-                    <Area type="monotone" dataKey="Messenger" stackId="1" stroke={CHANNEL_COLORS.messenger} fill={CHANNEL_COLORS.messenger} fillOpacity={0.8} />
-                    <Area type="monotone" dataKey="Telegram" stackId="1" stroke={CHANNEL_COLORS.telegram} fill={CHANNEL_COLORS.telegram} fillOpacity={0.8} />
-                    <Area type="monotone" dataKey="Email" stackId="1" stroke={CHANNEL_COLORS.email} fill={CHANNEL_COLORS.email} fillOpacity={0.8} />
-                    <Area type="monotone" dataKey="Web" stackId="1" stroke={CHANNEL_COLORS.website} fill={CHANNEL_COLORS.website} fillOpacity={0.8} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )
-            },
-            {
-              value: "separate",
-              label: "Independiente",
-              content: (
-                <ResponsiveContainer width="100%" height={320}>
-                  <LineChart data={data.dailyActivity}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fontSize: 10 }}
-                      interval={4}
-                    />
-                    <YAxis />
-                    <Tooltip
-                      formatter={(value) => [`${value} mensajes`, ``]}
-                      itemStyle={{ color: '#333' }}
-                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
-                    />
-                    <Legend />
-                    <Line type="monotone" dataKey="WhatsApp" stroke={CHANNEL_COLORS.whatsapp} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Instagram" stroke={CHANNEL_COLORS.instagram} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Messenger" stroke={CHANNEL_COLORS.messenger} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Telegram" stroke={CHANNEL_COLORS.telegram} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Email" stroke={CHANNEL_COLORS.email} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Web" stroke={CHANNEL_COLORS.website} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )
-            }
-          ]}
-        />
-      </div>
+          title="Actividad diaria"
+          description="Mensajes por día en todos los canales"
+          isLoading={loading}
+        >
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={dailyActivity}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis
+                dataKey="date"
+                tickFormatter={(value) => value.split('-')[2]} // Mostrar solo el día
+                tick={{ fontSize: 12 }}
+              />
+              <YAxis tick={{ fontSize: 12 }} />
+              <Tooltip
+                formatter={(value, name) => [value, name]}
+                labelFormatter={(label) => new Date(label).toLocaleDateString()}
+              />
+              <Legend />
+              {connectedChannels.map((channel) => (
+                <Area
+                  key={channel}
+                  type="monotone"
+                  dataKey={channel}
+                  stackId="1"
+                  stroke={CHANNEL_COLORS[channel] || '#8884d8'}
+                  fill={CHANNEL_COLORS[channel] || '#8884d8'}
+                  fillOpacity={0.6}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        </ChartContainer>
 
-      {/* Tiempo de respuesta y Análisis de sentimiento */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Tiempos de respuesta */}
         <ChartContainer
-          title="Tiempo de Respuesta por Canal"
-          description="Tiempo promedio en minutos"
-          isLoading={isLoading}
+          title="Tiempo de respuesta"
+          description="Promedio por canal (minutos)"
+          isLoading={loading}
         >
           <ResponsiveContainer width="100%" height={300}>
             <BarChart
-              data={data.responseTimeByChannel}
+              data={responseTimes}
               layout="vertical"
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              barCategoryGap={12}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <CartesianGrid strokeDasharray="3 3" />
               <XAxis type="number" />
-              <YAxis dataKey="name" type="category" width={80} />
-              <Tooltip
-                formatter={(value) => [`${value} minutos`, ``]}
-                itemStyle={{ color: '#333' }}
-                contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
+              <YAxis 
+                type="category"
+                dataKey="name"
+                tick={{ fontSize: 12 }}
+                width={100}
               />
-              <Bar dataKey="tiempo" name="Minutos" fill="#7c3aed" radius={[0, 4, 4, 0]} />
+              <Tooltip formatter={(value) => [`${value} min`, ""]} />
+              <Bar 
+                dataKey="value" 
+                radius={[0, 4, 4, 0]}
+              >
+                {responseTimes.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={CHANNEL_COLORS[entry.name] || '#8884d8'} 
+                  />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </ChartContainer>
 
+        {/* Análisis de sentimiento */}
         <ChartContainer
-          title="Análisis de Sentimiento"
-          description="Distribución de tono emocional en conversaciones"
-          isLoading={isLoading}
-        >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={data.sentimentAnalysis}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={40}
-                  outerRadius={80}
-                  dataKey="value"
-                >
-                  {data.sentimentAnalysis.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value) => [`${value}%`, ``]}
-                  itemStyle={{ color: '#333' }}
-                  contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            
-            <div className="flex flex-col gap-4">
-              {data.sentimentAnalysis.map((item, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div className={`h-4 w-4 rounded-full`} style={{ backgroundColor: item.color }}></div>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{item.name}</div>
-                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${item.value}%`, backgroundColor: item.color }}></div>
-                    </div>
-                  </div>
-                  <div className="text-sm font-medium">{item.value}%</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </ChartContainer>
-      </div>
-
-      {/* Efectividad de IA y comparativas */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <ChartContainer
-          title="Efectividad de Respuestas IA"
-          description="Evolución mensual"
-          className="lg:col-span-2"
-          isLoading={isLoading}
+          title="Análisis de sentimiento"
+          description="Distribución de tono emocional"
+          isLoading={loading}
         >
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={data.aiEffectiveness}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="mes" />
-              <YAxis />
-              <Tooltip
-                formatter={(value) => [`${value}%`, ``]}
-                itemStyle={{ color: '#333' }}
-                contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
-              />
+            <PieChart>
+              <Pie
+                data={sentimentData}
+                cx="50%"
+                cy="50%"
+                labelLine={true}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+                nameKey="name"
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              >
+                {sentimentData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={SENTIMENT_COLORS[index % SENTIMENT_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => [`${value} mensajes`, ""]} />
               <Legend />
-              <Line type="monotone" dataKey="efectividad" name="Precisión respuestas" stroke="#7c3aed" strokeWidth={2} activeDot={{ r: 8 }} />
-              <Line type="monotone" dataKey="resolucion" name="Resolución sin humano" stroke="#06b6d4" strokeWidth={2} activeDot={{ r: 8 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+        
+        {/* Efectividad de IA */}
+        <ChartContainer
+          title="Efectividad de IA"
+          description="Evolución en los últimos 12 meses"
+          isLoading={loading}
+          className="md:col-span-2"
+        >
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={aiEffectiveness}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} />
+              <Tooltip formatter={(value) => [`${value}%`, ""]} />
+              <Legend />
+              <Line
+                type="monotone"
+                dataKey="effectiveness"
+                name="Precisión de respuestas"
+                stroke="#8884d8"
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="resolutionRate"
+                name="Tasa de resolución"
+                stroke="#82ca9d"
+                strokeWidth={2}
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </ChartContainer>
-
-        <ChartContainer
-          title="Métricas de IA"
-          description="Rendimiento actual"
-          isLoading={isLoading}
-        >
-          <div className="flex flex-col gap-6 h-full justify-center">
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Precisión respuestas</span>
-                <span className="text-sm font-medium">85%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-indigo-600" style={{ width: "85%" }}></div>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Resolución sin humano</span>
-                <span className="text-sm font-medium">72%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-cyan-500" style={{ width: "72%" }}></div>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Tiempo ahorrado</span>
-                <span className="text-sm font-medium">68%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-emerald-500" style={{ width: "68%" }}></div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-500">Satisfacción usuarios</span>
-                <span className="text-sm font-medium">78%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-amber-500" style={{ width: "78%" }}></div>
-              </div>
-            </div>
-          </div>
-        </ChartContainer>
-      </div>
-
-      {/* Métricas secundarias */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Efectividad IA"
-          value="85%"
-          icon={<BrainCircuit />}
-          description="Precisión en respuestas automáticas"
-          trend={5.2}
-          color="bg-indigo-600"
-          isLoading={isLoading}
-        />
-        <MetricCard
-          title="Conversiones"
-          value="178"
-          icon={<TrendingUp />}
-          description="Ventas generadas desde chats"
-          trend={12.5}
-          color="bg-emerald-600"
-          isLoading={isLoading}
-        />
-        <MetricCard
-          title="Campañas Activas"
-          value="5"
-          icon={<Megaphone />}
-          description="Campañas de comunicación"
-          color="bg-amber-600"
-          isLoading={isLoading}
-        />
-        <MetricCard
-          title="Retención"
-          value="94.2%"
-          icon={<HeartHandshake />}
-          description="Clientes recurrentes"
-          trend={1.8}
-          color="bg-rose-600"
-          isLoading={isLoading}
-        />
       </div>
     </div>
   );
