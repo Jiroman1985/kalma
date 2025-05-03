@@ -580,7 +580,11 @@ const Channels = () => {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
-        <>
+        <Tabs 
+          value={activeTab} 
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
           <TabsContent value="channels" className="mt-0">
             {renderChannelCards()}
           </TabsContent>
@@ -588,7 +592,7 @@ const Channels = () => {
           <TabsContent value="connections" className="mt-0">
             {renderConnectionsTable()}
           </TabsContent>
-        </>
+        </Tabs>
       )}
     </div>
   );
