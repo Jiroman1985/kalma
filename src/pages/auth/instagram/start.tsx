@@ -33,7 +33,7 @@ const InstagramAuthStart = () => {
         client_id: INSTAGRAM_CLIENT_ID,
         redirect_uri: REDIRECT_URI,
         response_type: 'code',
-        scope: 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish,instagram_business_manage_insights',
+        scope: 'user_profile,user_media,instagram_basic,instagram_graph_user_profile,instagram_graph_user_media,instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_content_publish,instagram_business_manage_insights',
         state: currentUser.uid,
         enable_fb_login: '0',
         force_authentication: '1'

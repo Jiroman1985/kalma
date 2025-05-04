@@ -37,10 +37,8 @@ const InstagramAuthModal: React.FC<InstagramAuthModalProps> = ({
     
     try {
       // Iniciar el flujo de autenticación OAuth con Instagram
-      const authUrl = initiateOAuthFlow('instagram', currentUser.uid);
-      
-      // En un entorno real, redirigimos al usuario a la URL de autenticación
-      window.location.href = authUrl;
+      // Redireccionar a la página de inicio de autenticación
+      window.location.href = '/auth/instagram/start';
       
       // Si estamos en modo desarrollo/prueba, mostramos un mensaje
       toast({
@@ -116,6 +114,10 @@ const InstagramAuthModal: React.FC<InstagramAuthModalProps> = ({
               <li className="flex items-start">
                 <span className="bg-green-100 p-1 rounded-full mr-2 mt-0.5">✓</span>
                 <span>Obtener análisis de rendimiento de tus interacciones</span>
+              </li>
+              <li className="flex items-start">
+                <span className="bg-green-100 p-1 rounded-full mr-2 mt-0.5">✓</span>
+                <span>Ver y gestionar tu perfil completo de Instagram</span>
               </li>
             </ul>
           </div>

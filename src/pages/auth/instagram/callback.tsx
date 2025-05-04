@@ -20,6 +20,7 @@ interface InstagramData {
   connectedAt: Date;
   lastUpdated: Date;
   followerCount?: number;
+  profileUrl?: string;
   metrics?: any;
   analytics?: {
     followerCount: number;
@@ -125,13 +126,22 @@ const InstagramAuthCallback = () => {
         
         // 4. Preparar objeto con toda la información disponible
         addDebug('Preparando datos para guardar en Firestore...');
+        
+        // Construir la URL del perfil correctamente con el nombre de usuario real
+        const profileUrl = userData.username ? 
+          `https://instagram.com/${userData.username}` : 
+          'https://instagram.com/';
+        
+        addDebug(`URL del perfil generada: ${profileUrl}`);
+        
         const instagramData: InstagramData = {
           connected: true,
           instagramUserId: tokenData.user_id,
-          username: userData.username,
+          username: userData.username || "instagram_user",
           accountType: userData.account_type,
           mediaCount: userData.media_count || 0,
           accessToken: tokenData.access_token,
+          profileUrl: profileUrl,
           connectedAt: new Date(),
           lastUpdated: new Date()
         };
@@ -183,6 +193,7 @@ const InstagramAuthCallback = () => {
         const updatedData = updatedUserDoc.data();
         if (updatedData?.socialNetworks?.instagram?.connected) {
           addDebug(`Verificación exitosa: Instagram conectado para @${updatedData.socialNetworks.instagram.username}`);
+          addDebug(`URL del perfil guardada: ${updatedData.socialNetworks.instagram.profileUrl}`);
         } else {
           addDebug('ADVERTENCIA: No se pudo verificar que los datos se guardaron correctamente');
         }
