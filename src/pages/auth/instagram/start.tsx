@@ -5,7 +5,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Instagram } from 'lucide-react';
 
 // Usa el CLIENT_ID del entorno o el valor predeterminado
-const INSTAGRAM_CLIENT_ID = import.meta.env.VITE_INSTAGRAM_CLIENT_ID || '674580881831928';
+const INSTAGRAM_CLIENT_ID = import.meta.env.VITE_INSTAGRAM_CLIENT_ID || '3029546990541926';
 // Asegúrate de que la URL de redirección coincida exactamente con la registrada en Meta for Developers
 const REDIRECT_URI = 'https://kalma-lab.netlify.app/auth/instagram/callback';
 
