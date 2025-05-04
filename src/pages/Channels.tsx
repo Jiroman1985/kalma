@@ -84,6 +84,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useNavigate } from "react-router-dom";
 
 // Interfaces para representar los canales y configuraciones
 interface Channel {
@@ -122,7 +123,9 @@ const Channels = () => {
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   
   // URL de autenticación de Instagram obtenida de tus requisitos
-  const instagramAuthUrl = "https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=3029546990541926&redirect_uri=https://kalma-lab.netlify.app/auth/callback&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_messages%2Cinstagram_business_manage_comments%2Cinstagram_business_content_publish%2Cinstagram_business_manage_insights";
+  const instagramAuthUrl = "https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=3029546990541926&redirect_uri=https://kalma-lab.netlify.app/auth/instagram/callback&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_messages%2Cinstagram_business_manage_comments%2Cinstagram_business_content_publish%2Cinstagram_business_manage_insights";
+
+  const navigate = useNavigate();
 
   // Definición de canales disponibles
   const channels: Channel[] = [
@@ -303,9 +306,9 @@ const Channels = () => {
 
   // Función para conectar un canal
   const connectChannel = (channel: Channel) => {
-    // Si es Instagram, usar la URL de autorización proporcionada
-    if (channel.id === "instagram" && channel.authUrl) {
-      window.location.href = channel.authUrl;
+    // Si es Instagram, redirigir a la página de inicio de autenticación
+    if (channel.id === "instagram") {
+      navigate('/auth/instagram/start');
       return;
     }
     
