@@ -10,6 +10,25 @@ import { db } from "./firebase";
 import { useToast } from "@/components/ui/use-toast";
 import axios from "axios";
 
+// Interfaces para la configuración OAuth
+interface OAuthConfigBase {
+  authorizeUrl: string;
+  clientId: string;
+  redirectUri: string;
+  scopes: string[];
+  additionalParams?: Record<string, string>;
+}
+
+interface InstagramOAuthConfig extends OAuthConfigBase {
+  clientSecret: string;
+}
+
+type OAuthConfigType = {
+  instagram: InstagramOAuthConfig;
+  facebook: OAuthConfigBase;
+  twitter: OAuthConfigBase;
+};
+
 // URL base de n8n
 const N8N_BASE_URL = process.env.REACT_APP_N8N_BASE_URL || "https://n8n.aura-social.com";
 
@@ -17,17 +36,18 @@ const N8N_BASE_URL = process.env.REACT_APP_N8N_BASE_URL || "https://n8n.aura-soc
 const N8N_SECRET = process.env.REACT_APP_N8N_SECRET || "local_development_secret";
 
 // Configuración específica de cada plataforma para OAuth
-const OAUTH_CONFIG = {
+const OAUTH_CONFIG: OAuthConfigType = {
   instagram: {
     authorizeUrl: "https://www.facebook.com/v18.0/dialog/oauth",
-    clientId: process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '925270751978648',
+    clientId: process.env.REACT_APP_INSTAGRAM_CLIENT_ID || '3029546990541926',
     clientSecret: process.env.REACT_APP_INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f',
     redirectUri: `${window.location.origin}/auth/instagram/callback`,
     scopes: [
       "instagram_basic",
       "pages_show_list",
       "instagram_manage_messages"
-    ]
+    ],
+    additionalParams: {}
   },
   facebook: {
     authorizeUrl: "https://www.facebook.com/v16.0/dialog/oauth",

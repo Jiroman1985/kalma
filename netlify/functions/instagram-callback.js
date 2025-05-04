@@ -19,8 +19,8 @@ exports.handler = async function(event, context) {
       };
     }
 
-    const client_id = process.env.INSTAGRAM_CLIENT_ID;
-    const client_secret = process.env.INSTAGRAM_CLIENT_SECRET;
+    const client_id = process.env.INSTAGRAM_CLIENT_ID || '3029546990541926';
+    const client_secret = process.env.INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f';
     const redirect_uri = 'https://kalma-lab.netlify.app/auth/instagram/callback';
 
     console.log('REDIRECT_URI usado en backend:', redirect_uri);
