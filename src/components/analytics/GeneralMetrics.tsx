@@ -18,6 +18,15 @@ interface NormalizedMessage {
   isAiGenerated?: boolean;
   sentiment?: string;
   createdAt?: string | Timestamp | Date;
+  externalId?: string;
+  senderId?: string;
+  content?: string;
+  isFromMe?: boolean;
+  status?: string;
+  autoReplySent?: boolean;
+  autoReply?: string;
+  hourOfDay?: number;
+  category?: string;
 }
 
 // Colores por canal
@@ -265,26 +274,25 @@ interface GeneralMetricsProps {
 }
 
 const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) => {
-  const [totalMessages, setTotalMessages] = useState<number>(0);
-  const [uniqueUsers, setUniqueUsers] = useState<number>(0);
-  const [avgResponseTime, setAvgResponseTime] = useState<number>(0);
+  const [totalMessagesState, setTotalMessages] = useState<number>(0);
+  const [uniqueUsersState, setUniqueUsers] = useState<number>(0);
+  const [avgResponseTimeState, setAvgResponseTime] = useState<number>(0);
   const [messagesByChannel, setMessagesByChannel] = useState<any[]>([]);
   const [dailyActivity, setDailyActivity] = useState<any[]>([]);
   const [responseTimes, setResponseTimes] = useState<any[]>([]);
   const [sentimentData, setSentimentData] = useState<any[]>([]);
-  const [aiEffectiveness, setAiEffectiveness] = useState<number>(0);
+  const [aiEffectiveness, setAiEffectiveness] = useState<any[]>([]);
+  const [satisfactionRate, setSatisfactionRate] = useState<number>(0);
   
   const data = generateOverallData();
   
-  // Calcular totales para las tarjetas de métricas
+  // Usar los datos simulados directamente en lugar de duplicar variables
   const totalMessages = data.messagesByChannel.reduce((sum, item) => sum + item.value, 0);
   const avgResponseTime = data.responseTimeByChannel.reduce((sum, item) => sum + item.tiempo, 0) / data.responseTimeByChannel.length;
-  
-  // Calcular usuarios únicos (valor ficticio para el ejemplo)
   const uniqueUsers = 2850;
   
   // Calcular satisfacción (basado en sentimiento positivo)
-  const satisfactionRate = data.sentimentAnalysis.find(item => item.name === 'Positivo')?.value || 0;
+  const satisfactionRateValue = data.sentimentAnalysis.find(item => item.name === 'Positivo')?.value || 0;
   
   // Función para obtener mensajes de todos los canales
   const fetchMessagesFromAllChannels = async (userId: string, channels: string[]): Promise<NormalizedMessage[]> => {
@@ -310,17 +318,17 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
             if (channels.includes(msgData.platform)) {
               allMessages.push({
                 id: doc.id,
-                platform: msgData.platform as any,
+                platform: msgData.platform,
                 externalId: msgData.externalId || msgData.messageId,
                 userId: userId,
                 senderId: msgData.from || msgData.senderId,
                 senderName: msgData.senderName,
-                content: msgData.body || msgData.content || "",
+                body: msgData.body || msgData.content || "",
                 createdAt: msgData.timestamp || msgData.createdAt,
                 isFromMe: msgData.isFromMe,
                 status: msgData.responded ? 'replied' : (msgData.status || 'read'),
                 responseTime: msgData.responseTime ? (typeof msgData.responseTime === 'number' ? msgData.responseTime : 0) : undefined,
-                sentiment: msgData.sentiment as 'positive' | 'negative' | 'neutral' || 'neutral',
+                sentiment: msgData.sentiment || 'neutral',
                 autoReplySent: msgData.agentResponse || msgData.autoReplySent || false,
                 autoReply: msgData.agentResponseText || msgData.autoReply,
                 hourOfDay: msgData.hourOfDay,
@@ -375,12 +383,12 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
                   userId: userId,
                   senderId: msgData.from || msgData.senderId,
                   senderName: msgData.senderName,
-                  content: msgData.body || msgData.content || "",
+                  body: msgData.body || msgData.content || "",
                   createdAt: msgData.timestamp || msgData.createdAt,
                   isFromMe: msgData.isFromMe,
                   status: msgData.responded ? 'replied' : (msgData.status || 'read'),
                   responseTime: msgData.responseTime ? (typeof msgData.responseTime === 'number' ? msgData.responseTime : 0) : undefined,
-                  sentiment: msgData.sentiment as 'positive' | 'negative' | 'neutral' || 'neutral',
+                  sentiment: msgData.sentiment || 'neutral',
                   autoReplySent: msgData.agentResponse || msgData.autoReplySent || false,
                   autoReply: msgData.agentResponseText || msgData.autoReply,
                   hourOfDay: msgData.hourOfDay,
@@ -411,7 +419,7 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
           description="Todos los canales - Último mes"
           trend={8.5}
           color="bg-indigo-500"
-          isLoading={isLoading}
+          loading={isLoading}
         />
         <MetricCard
           title="Usuarios Únicos"
@@ -420,7 +428,7 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
           description="Conversaciones activas"
           trend={12.3}
           color="bg-cyan-500"
-          isLoading={isLoading}
+          loading={isLoading}
         />
         <MetricCard
           title="Tiempo de Respuesta"
@@ -429,16 +437,16 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
           description="Promedio entre canales"
           trend={-5.2}
           color="bg-emerald-500"
-          isLoading={isLoading}
+          loading={isLoading}
         />
         <MetricCard
           title="Satisfacción"
-          value={`${satisfactionRate}%`}
+          value={`${satisfactionRateValue}%`}
           icon={<HeartHandshake />}
           description="Basado en análisis de sentimiento"
           trend={3.8}
           color="bg-amber-500"
-          isLoading={isLoading}
+          loading={isLoading}
         />
       </div>
 
@@ -487,67 +495,33 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
           allowDownload
           allowRefresh
           isLoading={isLoading}
-          tabs={[
-            {
-              value: "stacked",
-              label: "Acumulado",
-              content: (
-                <ResponsiveContainer width="100%" height={320}>
-                  <AreaChart data={data.dailyActivity}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fontSize: 10 }}
-                      interval={4}
-                    />
-                    <YAxis />
-                    <Tooltip
-                      formatter={(value) => [`${value} mensajes`, ``]}
-                      itemStyle={{ color: '#333' }}
-                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
-                    />
-                    <Legend />
-                    <Area type="monotone" dataKey="WhatsApp" stackId="1" stroke={CHANNEL_COLORS.whatsapp} fill={CHANNEL_COLORS.whatsapp} fillOpacity={0.8} />
-                    <Area type="monotone" dataKey="Instagram" stackId="1" stroke={CHANNEL_COLORS.instagram} fill={CHANNEL_COLORS.instagram} fillOpacity={0.8} />
-                    <Area type="monotone" dataKey="Messenger" stackId="1" stroke={CHANNEL_COLORS.messenger} fill={CHANNEL_COLORS.messenger} fillOpacity={0.8} />
-                    <Area type="monotone" dataKey="Telegram" stackId="1" stroke={CHANNEL_COLORS.telegram} fill={CHANNEL_COLORS.telegram} fillOpacity={0.8} />
-                    <Area type="monotone" dataKey="Email" stackId="1" stroke={CHANNEL_COLORS.email} fill={CHANNEL_COLORS.email} fillOpacity={0.8} />
-                    <Area type="monotone" dataKey="Web" stackId="1" stroke={CHANNEL_COLORS.website} fill={CHANNEL_COLORS.website} fillOpacity={0.8} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )
-            },
-            {
-              value: "separate",
-              label: "Independiente",
-              content: (
-                <ResponsiveContainer width="100%" height={320}>
-                  <LineChart data={data.dailyActivity}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fontSize: 10 }}
-                      interval={4}
-                    />
-                    <YAxis />
-                    <Tooltip
-                      formatter={(value) => [`${value} mensajes`, ``]}
-                      itemStyle={{ color: '#333' }}
-                      contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
-                    />
-                    <Legend />
-                    <Line type="monotone" dataKey="WhatsApp" stroke={CHANNEL_COLORS.whatsapp} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Instagram" stroke={CHANNEL_COLORS.instagram} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Messenger" stroke={CHANNEL_COLORS.messenger} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Telegram" stroke={CHANNEL_COLORS.telegram} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Email" stroke={CHANNEL_COLORS.email} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                    <Line type="monotone" dataKey="Web" stroke={CHANNEL_COLORS.website} strokeWidth={2} dot={{ r: 0 }} activeDot={{ r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )
-            }
-          ]}
-        />
+        >
+          <div>
+            <ResponsiveContainer width="100%" height={320}>
+              <AreaChart data={data.dailyActivity}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 10 }}
+                  interval={4}
+                />
+                <YAxis />
+                <Tooltip
+                  formatter={(value) => [`${value} mensajes`, ``]}
+                  itemStyle={{ color: '#333' }}
+                  contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
+                />
+                <Legend />
+                <Area type="monotone" dataKey="WhatsApp" stackId="1" stroke={CHANNEL_COLORS.whatsapp} fill={CHANNEL_COLORS.whatsapp} fillOpacity={0.8} />
+                <Area type="monotone" dataKey="Instagram" stackId="1" stroke={CHANNEL_COLORS.instagram} fill={CHANNEL_COLORS.instagram} fillOpacity={0.8} />
+                <Area type="monotone" dataKey="Messenger" stackId="1" stroke={CHANNEL_COLORS.messenger} fill={CHANNEL_COLORS.messenger} fillOpacity={0.8} />
+                <Area type="monotone" dataKey="Telegram" stackId="1" stroke={CHANNEL_COLORS.telegram} fill={CHANNEL_COLORS.telegram} fillOpacity={0.8} />
+                <Area type="monotone" dataKey="Email" stackId="1" stroke={CHANNEL_COLORS.email} fill={CHANNEL_COLORS.email} fillOpacity={0.8} />
+                <Area type="monotone" dataKey="Web" stackId="1" stroke={CHANNEL_COLORS.website} fill={CHANNEL_COLORS.website} fillOpacity={0.8} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartContainer>
       </div>
 
       {/* Tiempo de respuesta y Análisis de sentimiento */}
@@ -705,7 +679,7 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
           description="Precisión en respuestas automáticas"
           trend={5.2}
           color="bg-indigo-600"
-          isLoading={isLoading}
+          loading={isLoading}
         />
         <MetricCard
           title="Conversiones"
@@ -714,7 +688,7 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
           description="Ventas generadas desde chats"
           trend={12.5}
           color="bg-emerald-600"
-          isLoading={isLoading}
+          loading={isLoading}
         />
         <MetricCard
           title="Campañas Activas"
@@ -722,7 +696,7 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
           icon={<Megaphone />}
           description="Campañas de comunicación"
           color="bg-amber-600"
-          isLoading={isLoading}
+          loading={isLoading}
         />
         <MetricCard
           title="Retención"
@@ -731,7 +705,7 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
           description="Clientes recurrentes"
           trend={1.8}
           color="bg-rose-600"
-          isLoading={isLoading}
+          loading={isLoading}
         />
       </div>
     </div>
