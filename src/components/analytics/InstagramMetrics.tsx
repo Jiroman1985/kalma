@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import {
   Instagram, Users, Clock, ArrowUpRight, TrendingUp,
-  Heart, MessageCircle, Repeat, Bookmark, BarChart3
+  Heart, MessageCircle, Repeat, Bookmark, BarChart3, UserRound, ZoomIn, Info
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
@@ -22,74 +22,156 @@ import {
   getDoc, 
   orderBy, 
   limit, 
-  Timestamp 
+  Timestamp,
+  updateDoc,
+  setDoc
 } from "firebase/firestore";
+
+// Datos para cuando no hay conexión o datos disponibles
+const NO_DATA_MESSAGE = "N/A";
+
+// Interfaz para datos de Instagram
+interface InstagramAnalytics {
+  id?: string;
+  followerCount: number;
+  engagementRate: number;
+  responseTime: number;
+  followerGrowth: number;
+  hourlyActivity: any[];
+  interactionTypes: any[];
+}
+
+// Interfaz para mensajes de Instagram
+interface InstagramMessage {
+  id: string;
+  platform: string;
+  userId: string;
+  senderId?: string;
+  recipientId?: string;
+  type?: string;
+  content?: string;
+  body?: string;
+  status?: string;
+  createdAt: Timestamp | any;
+  updatedAt?: Timestamp | any;
+  isFromMe?: boolean;
+  timestamp?: Timestamp | any;
+  from?: string;
+  to?: string;
+  senderName?: string;
+  metadata?: any;
+}
 
 interface InstagramMetricsProps {
   isLoading?: boolean;
 }
 
-interface InstagramMessage {
-  id: string;
-  platform: string;
-  externalId?: string;
-  userId: string;
-  senderId: string;
-  senderName: string;
-  senderUsername?: string;
-  senderProfileUrl?: string;
-  senderAvatar?: string;
-  type: 'directMessage' | 'comment' | 'mention' | 'review' | 'email';
-  content: string;
-  mediaUrl?: string;
-  sentiment?: 'positive' | 'negative' | 'neutral';
-  autoReply?: string;
-  autoReplySent: boolean;
-  manualReply?: string;
-  status: 'unread' | 'read' | 'replied' | 'archived';
-  createdAt: string | Timestamp; // ISO date string or Firestore Timestamp
-  updatedAt: string | Timestamp; // ISO date string or Firestore Timestamp
-  metadata?: Record<string, any>;
-}
-
 const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(isLoading);
+  const [analytics, setAnalytics] = useState<InstagramAnalytics | null>(null);
   const [messages, setMessages] = useState<InstagramMessage[]>([]);
+  const [hasInstagramData, setHasInstagramData] = useState<boolean>(false);
+  const [instagramUsername, setInstagramUsername] = useState<string>("");
   
-  // Estados para métricas calculadas
-  const [dailyEngagement, setDailyEngagement] = useState<any[]>([]);
-  const [interactionTypes, setInteractionTypes] = useState<any[]>([]);
-  const [hourlyActivity, setHourlyActivity] = useState<any[]>([]);
-  const [followerDemographics, setFollowerDemographics] = useState<any[]>([]);
-  const [followerGrowth, setFollowerGrowth] = useState<any[]>([]);
+  // Estados para los gráficos
+  const [followerData, setFollowerData] = useState<any[]>([]);
+  const [engagementData, setEngagementData] = useState<any[]>([]);
+  const [hourlyData, setHourlyData] = useState<any[]>([]);
+  const [interactionData, setInteractionData] = useState<any[]>([]);
+  const [responseTimeData, setResponseTimeData] = useState<any[]>([]);
   
-  // Métricas para las tarjetas
+  // Estados para métricas principales
   const [followerCount, setFollowerCount] = useState<number>(0);
   const [engagementRate, setEngagementRate] = useState<number>(0);
-  const [directMessages, setDirectMessages] = useState<number>(0);
   const [responseTime, setResponseTime] = useState<number>(0);
+  const [totalInteractions, setTotalInteractions] = useState<number>(0);
+  const [directMessages, setDirectMessages] = useState<number>(0);
+  
+  // Estados para más gráficos
+  const [dailyEngagement, setDailyEngagement] = useState<any[]>([]);
+  const [followerDemographics, setFollowerDemographics] = useState<any[]>([]);
+  const [followerGrowth, setFollowerGrowth] = useState<any[]>([]);
+  const [hourlyActivity, setHourlyActivity] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       if (!currentUser) return;
       
       setLoading(true);
+      
       try {
-        // Comprobar si el usuario tiene Instagram conectado
-        const socialAccountsRef = collection(db, "users", currentUser.uid, "socialAccounts");
-        const instagramQuery = query(socialAccountsRef, where("platform", "==", "instagram"));
-        const instagramSnapshot = await getDocs(instagramQuery);
+        console.log("🔍 [InstagramMetrics] Cargando datos de Instagram para:", currentUser.uid);
         
-        if (instagramSnapshot.empty) {
-          console.log("No hay cuentas de Instagram conectadas");
-          // Si no hay cuentas, generar datos simulados
+        // 1. Obtener información de la cuenta de Instagram conectada
+        const userRef = doc(db, "users", currentUser.uid);
+        const userDoc = await getDoc(userRef);
+        const userData = userDoc.data();
+        
+        // Comprobar si existe una cuenta de Instagram conectada
+        if (!userData?.socialNetworks?.instagram) {
+          console.log("⚠️ [InstagramMetrics] El usuario no tiene configuración de Instagram");
+          setHasInstagramData(false);
+          generateSimulatedData();
+          setLoading(false);
+          return;
+        }
+
+        // Comprobar si la cuenta está conectada
+        if (!userData.socialNetworks.instagram.connected) {
+          console.log("⚠️ [InstagramMetrics] Usuario tiene configuración de Instagram pero no está conectada");
+          setHasInstagramData(false);
           generateSimulatedData();
           setLoading(false);
           return;
         }
         
-        // Obtener mensajes y comentarios de Instagram
+        console.log("✅ [InstagramMetrics] Cuenta de Instagram conectada:", userData.socialNetworks.instagram);
+        setHasInstagramData(true);
+        
+        // Guardamos el nombre de usuario de Instagram
+        const igUsername = userData.socialNetworks.instagram.username;
+        if (igUsername) {
+          setInstagramUsername(igUsername);
+          console.log(`👤 [InstagramMetrics] Cuenta conectada: @${igUsername}`);
+        } else {
+          console.log("⚠️ [InstagramMetrics] Cuenta conectada pero sin nombre de usuario");
+        }
+        
+        // Extraer todos los datos disponibles de la cuenta de Instagram
+        const instagramData = userData.socialNetworks.instagram;
+        console.log("📊 [InstagramMetrics] Datos disponibles:", instagramData);
+        
+        // Si hay analíticas almacenadas, las cargamos
+        if (instagramData.analytics) {
+          console.log("📈 [InstagramMetrics] Cargando analytics:", instagramData.analytics);
+          setAnalytics(instagramData.analytics);
+          setFollowerCount(instagramData.analytics.followerCount || 0);
+          setEngagementRate(instagramData.analytics.engagementRate || 0);
+          setResponseTime(instagramData.analytics.responseTime || 0);
+        } else {
+          console.log("⚠️ [InstagramMetrics] No hay analytics disponibles");
+          // Si no hay analytics pero sí hay followerCount, podemos usarlo
+          if (instagramData.followerCount) {
+            console.log(`👥 [InstagramMetrics] Usando followerCount: ${instagramData.followerCount}`);
+            setFollowerCount(instagramData.followerCount);
+          }
+        }
+        
+        // Intentamos crear o actualizar las analíticas si es necesario
+        if (!instagramData.analytics && instagramData.accessToken) {
+          console.log("🔄 [InstagramMetrics] Creando analytics para la cuenta");
+          const newAnalytics = await updateInstagramAnalytics(userRef, instagramData);
+          if (newAnalytics) {
+            console.log("✅ [InstagramMetrics] Analytics creados:", newAnalytics);
+            setAnalytics(newAnalytics);
+            setFollowerCount(newAnalytics.followerCount || 0);
+            setEngagementRate(newAnalytics.engagementRate || 0);
+            setResponseTime(newAnalytics.responseTime || 0);
+          }
+        }
+        
+        // 2. Obtener mensajes de Instagram
         console.log("📨 [InstagramMetrics] Consultando mensajes de Instagram");
         let instagramMessages: InstagramMessage[] = [];
         
@@ -127,28 +209,7 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
             setMessages(instagramMessages);
             
             // Calcular métricas basadas en los mensajes
-            const dms = instagramMessages.filter(msg => msg.type === 'direct_message').length;
-            console.log(`💬 [InstagramMetrics] Mensajes directos: ${dms}`);
-            setDirectMessages(dms);
-            
-            // Calcular interacciones totales (mensajes + likes + comentarios)
-            const totalInteractionsCount = instagramMessages.length;
-            console.log(`🔄 [InstagramMetrics] Interacciones totales: ${totalInteractionsCount}`);
-            setTotalInteractions(totalInteractionsCount);
-            
-            // Si no tenemos tasa de engagement pero tenemos mensajes, estimar
-            if (!engagementRate && instagramMessages.length > 0) {
-              // Estimar la tasa de engagement basada en mensajes/día
-              const oldestMessageTime = instagramMessages[instagramMessages.length - 1].createdAt.toDate();
-              const daysPassed = Math.max(1, Math.floor((Date.now() - oldestMessageTime.getTime()) / (1000 * 60 * 60 * 24)));
-              const estimatedRate = (instagramMessages.length / daysPassed / 100).toFixed(2);
-              console.log(`📊 [InstagramMetrics] Tasa de engagement estimada: ${estimatedRate}%`);
-              setEngagementRate(parseFloat(estimatedRate));
-            }
-            
-            // Generar gráficos basados en mensajes
-            console.log("📊 [InstagramMetrics] Generando datos para gráficos");
-            generateChartData(instagramMessages);
+            calculateMetricsFromMessages(instagramMessages);
           } else {
             console.log("⚠️ [InstagramMetrics] No se encontraron mensajes de Instagram");
             // Si no hay mensajes pero la cuenta está conectada, generar gráficos con datos básicos
@@ -175,30 +236,8 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
           console.log("🔄 [InstagramMetrics] No hay datos, generando simulación");
           generateSimulatedData();
         }
-        
-        // Buscar métricas de Instagram en el perfil del usuario
-        const userDocRef = doc(db, "users", currentUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        
-        if (userDoc.exists() && userDoc.data().instagramMetrics) {
-          const metrics = userDoc.data().instagramMetrics;
-          
-          // Establecer datos de las métricas
-          if (metrics.followerCount) setFollowerCount(metrics.followerCount);
-          if (metrics.engagementRate) setEngagementRate(metrics.engagementRate);
-          if (metrics.responseTime) setResponseTime(metrics.responseTime);
-          
-          // Usar otras métricas si están disponibles
-          if (metrics.followerGrowth) setFollowerGrowth(metrics.followerGrowth);
-          if (metrics.hourlyActivity) setHourlyActivity(metrics.hourlyActivity);
-        }
-        
-        // Calcular métricas basadas en los mensajes
-        calculateMetricsFromMessages(instagramMessages);
-        
       } catch (error) {
-        console.error("Error al cargar datos de Instagram:", error);
-        // En caso de error, generar datos simulados
+        console.error("❌ [InstagramMetrics] Error al cargar datos:", error);
         generateSimulatedData();
       } finally {
         setLoading(false);
@@ -208,24 +247,144 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
     fetchData();
   }, [currentUser]);
   
+  /**
+   * Actualiza las analíticas de Instagram en Firebase
+   */
+  const updateInstagramAnalytics = async (userRef: any, instagramData: any) => {
+    try {
+      console.log("🔄 [InstagramMetrics] Actualizando analytics de Instagram para:", instagramData.username);
+      
+      // Crear un objeto de analytics con datos básicos o estimados
+      const analytics = {
+        followerCount: instagramData.followerCount || instagramData.mediaCount || 1000,
+        engagementRate: 2.5, // Valor estimado promedio
+        responseTime: 20, // Valor estimado en minutos
+        followerGrowth: 0,
+        lastUpdated: new Date(),
+        hourlyActivity: [],
+        interactionTypes: []
+      };
+      
+      // Actualizar el documento de usuario con los analytics
+      await updateDoc(userRef, {
+        "socialNetworks.instagram.analytics": analytics
+      });
+      
+      return analytics;
+    } catch (error) {
+      console.error("❌ [InstagramMetrics] Error al actualizar analytics:", error);
+      return null;
+    }
+  };
+
+  /**
+   * Calcula métricas basadas en los mensajes
+   */
   const calculateMetricsFromMessages = (messages: InstagramMessage[]) => {
-    if (messages.length === 0) return;
+    // Calcular mensajes directos
+    const dms = messages.filter(msg => msg.type === 'directMessage' || msg.type === 'direct_message').length;
+    console.log(`💬 [InstagramMetrics] Mensajes directos: ${dms}`);
+    setDirectMessages(dms);
     
-    // Contar mensajes directos
-    const dmCount = messages.filter(msg => msg.type === 'directMessage').length;
-    setDirectMessages(dmCount);
+    // Calcular interacciones totales
+    const totalInteractionsCount = messages.length;
+    console.log(`🔄 [InstagramMetrics] Interacciones totales: ${totalInteractionsCount}`);
+    setTotalInteractions(totalInteractionsCount);
     
-    // Calcular actividad por día
-    const engagement = calculateDailyEngagement(messages);
-    setDailyEngagement(engagement);
+    // Si no tenemos tasa de engagement pero tenemos mensajes, estimar
+    if (!engagementRate && messages.length > 0) {
+      // Estimar la tasa de engagement basada en mensajes/día
+      let oldestMessageTime;
+      const lastMessage = messages[messages.length - 1];
+      
+      if (lastMessage.createdAt) {
+        oldestMessageTime = typeof lastMessage.createdAt === 'number' 
+          ? new Date(lastMessage.createdAt) 
+          : lastMessage.createdAt.toDate();
+      } else if (lastMessage.timestamp) {
+        oldestMessageTime = typeof lastMessage.timestamp === 'number'
+          ? new Date(lastMessage.timestamp)
+          : lastMessage.timestamp.toDate();
+      } else {
+        oldestMessageTime = new Date();
+        oldestMessageTime.setDate(oldestMessageTime.getDate() - 30);
+      }
+      
+      const daysPassed = Math.max(1, Math.floor((Date.now() - oldestMessageTime.getTime()) / (1000 * 60 * 60 * 24)));
+      const estimatedRate = (messages.length / daysPassed / 100).toFixed(2);
+      console.log(`📊 [InstagramMetrics] Tasa de engagement estimada: ${estimatedRate}%`);
+      setEngagementRate(parseFloat(estimatedRate));
+    }
     
-    // Calcular tipos de interacción
+    // Generar datos para gráficos
+    console.log("📊 [InstagramMetrics] Generando datos para gráficos");
+    
+    // Engagement diario
+    const dailyData = calculateDailyEngagement(messages);
+    setDailyEngagement(dailyData);
+    
+    // Tipos de interacción
     const interactions = calculateInteractionTypes(messages);
-    setInteractionTypes(interactions);
+    setInteractionData(interactions);
     
-    // Calcular distribución por hora
+    // Distribución por hora
     const hourly = calculateHourlyDistribution(messages);
-    setHourlyActivity(hourly);
+    setHourlyData(hourly);
+  };
+  
+  /**
+   * Genera datos de gráficos a partir de datos básicos de la cuenta
+   */
+  const generateChartDataFromBasics = (instagramData: any) => {
+    console.log("🔄 [InstagramMetrics] Generando gráficos a partir de datos básicos:", instagramData);
+    
+    // Usar datos disponibles
+    if (instagramData.followerCount) {
+      setFollowerCount(instagramData.followerCount);
+    }
+    
+    if (instagramData.engagement || instagramData.engagementRate) {
+      setEngagementRate(instagramData.engagement || instagramData.engagementRate);
+    }
+    
+    if (instagramData.responseTime) {
+      setResponseTime(instagramData.responseTime);
+    }
+    
+    // Generar datos simulados para los gráficos
+    // Engagement diario simulado
+    const simulatedDailyEngagement = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (29 - i));
+      return {
+        date: date.toISOString().split('T')[0],
+        likes: Math.floor(Math.random() * 50) + 20,
+        comments: Math.floor(Math.random() * 20) + 5,
+        shares: Math.floor(Math.random() * 10) + 2,
+        saves: Math.floor(Math.random() * 8) + 1
+      };
+    });
+    setDailyEngagement(simulatedDailyEngagement);
+    
+    // Tipos de interacción simulados
+    setInteractionData([
+      { name: 'Likes', value: 62 },
+      { name: 'Comentarios', value: 23 },
+      { name: 'Compartidos', value: 8 },
+      { name: 'Guardados', value: 7 }
+    ]);
+    
+    // Actividad horaria simulada
+    const simulatedHourlyActivity = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      activity: Math.floor(Math.random() * 10) + (
+        // Patrón realista con más actividad en la mañana y noche
+        (hour >= 7 && hour <= 10) || (hour >= 18 && hour <= 23)
+          ? Math.floor(Math.random() * 15) + 5
+          : Math.floor(Math.random() * 8) + 1
+      )
+    }));
+    setHourlyData(simulatedHourlyActivity);
   };
   
   const calculateDailyEngagement = (messages: InstagramMessage[]) => {
@@ -388,7 +547,7 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
     setDailyEngagement(simulatedDailyEngagement);
     
     // Tipos de interacción simulados
-    setInteractionTypes([
+    setInteractionData([
       { name: 'Likes', value: 62 },
       { name: 'Comentarios', value: 23 },
       { name: 'Compartidos', value: 8 },
@@ -405,7 +564,7 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
           : Math.floor(Math.random() * 8) + 1
       )
     }));
-    setHourlyActivity(simulatedHourlyActivity);
+    setHourlyData(simulatedHourlyActivity);
     
     // Demografía de seguidores simulada
     setFollowerDemographics([
@@ -554,7 +713,7 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
-                data={interactionTypes}
+                data={interactionData}
                 cx="50%"
                 cy="50%"
                 labelLine={true}
@@ -564,7 +723,7 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
                 nameKey="name"
                 label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
               >
-                {interactionTypes.map((entry, index) => (
+                {interactionData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
@@ -581,7 +740,7 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
           isLoading={loading}
         >
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={hourlyActivity}>
+            <AreaChart data={hourlyData}>
               <defs>
                 <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#8A2BE2" stopOpacity={0.8}/>
