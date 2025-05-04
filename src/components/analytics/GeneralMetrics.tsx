@@ -1,10 +1,24 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, Area, AreaChart } from 'recharts';
 import { MessageCircle, Users, BrainCircuit, Clock, TrendingUp, HeartHandshake, Megaphone } from 'lucide-react';
 import MetricCard from './MetricCard';
 import ChartContainer from './ChartContainer';
-import { db } from '../firebase';
+import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, limit, Timestamp } from 'firebase/firestore';
+
+// Define NormalizedMessage interface
+interface NormalizedMessage {
+  id: string;
+  body: string;
+  timestamp: Date;
+  platform: string;
+  userId: string;
+  senderName: string;
+  responseTime?: number;
+  isAiGenerated?: boolean;
+  sentiment?: string;
+  createdAt?: string | Timestamp | Date;
+}
 
 // Colores por canal
 const CHANNEL_COLORS = {
@@ -251,6 +265,15 @@ interface GeneralMetricsProps {
 }
 
 const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) => {
+  const [totalMessages, setTotalMessages] = useState<number>(0);
+  const [uniqueUsers, setUniqueUsers] = useState<number>(0);
+  const [avgResponseTime, setAvgResponseTime] = useState<number>(0);
+  const [messagesByChannel, setMessagesByChannel] = useState<any[]>([]);
+  const [dailyActivity, setDailyActivity] = useState<any[]>([]);
+  const [responseTimes, setResponseTimes] = useState<any[]>([]);
+  const [sentimentData, setSentimentData] = useState<any[]>([]);
+  const [aiEffectiveness, setAiEffectiveness] = useState<number>(0);
+  
   const data = generateOverallData();
   
   // Calcular totales para las tarjetas de métricas

@@ -1,0 +1,57 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Regla básica: denegar acceso por defecto
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Reglas para la colección de usuarios
+    match /users/{userId} {
+      // Acceso básico al documento de usuario
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Acceso a subcolecciones del usuario
+      match /{subcollection}/{documentId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // Especificación explícita para la subcolección de documentos de conocimiento
+      match /knowledgeDocuments/{documentId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // Nuevas reglas para colecciones a nivel raíz que contienen datos de usuarios
+    
+    // Colección messages: permitir acceso a documentos donde userId coincide con el usuario autenticado
+    match /messages/{messageId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Colección analytics: permitir acceso a documentos donde userId coincide con el usuario autenticado
+    match /analytics/{docId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Colección whatsapp: permitir acceso a documentos donde userId coincide con el usuario autenticado
+    match /whatsapp/{messageId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Colección instagram: permitir acceso a documentos donde userId coincide con el usuario autenticado
+    match /instagram/{messageId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Colección channelConnections: permitir acceso a documentos donde userId coincide con el usuario autenticado
+    match /channelConnections/{docId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+  }
+} 
