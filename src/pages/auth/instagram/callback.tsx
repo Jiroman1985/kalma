@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { Loader2 } from 'lucide-react';
 import { toast as sonnerToast } from 'sonner';
 import { db } from '@/lib/firebase';
@@ -128,16 +128,20 @@ const InstagramAuthCallback = () => {
         addDebug('Preparando datos para guardar en Firestore...');
         
         // Construir la URL del perfil correctamente con el nombre de usuario real
-        const profileUrl = userData.username ? 
-          `https://instagram.com/${userData.username}` : 
+        // Intentar obtener el nombre de usuario de la respuesta de la API, o usar uno por defecto
+        const username = userData.username || "instagram_user";
+        // Asegurarnos de que la URL del perfil incluya el nombre de usuario correcto
+        const profileUrl = username !== "instagram_user" ? 
+          `https://instagram.com/${username}` : 
           'https://instagram.com/';
         
+        addDebug(`Nombre de usuario obtenido: ${username}`);
         addDebug(`URL del perfil generada: ${profileUrl}`);
         
         const instagramData: InstagramData = {
           connected: true,
           instagramUserId: tokenData.user_id,
-          username: userData.username || "instagram_user",
+          username: username,
           accountType: userData.account_type,
           mediaCount: userData.media_count || 0,
           accessToken: tokenData.access_token,
@@ -145,6 +149,24 @@ const InstagramAuthCallback = () => {
           connectedAt: new Date(),
           lastUpdated: new Date()
         };
+        
+        // Guarda adicional de información en la colección channelConnections para centralizar acceso a canales
+        try {
+          addDebug('Guardando también en colección channelConnections...');
+          const channelRef = doc(db, 'users', currentUser.uid, 'channelConnections', 'instagram');
+          await setDoc(channelRef, {
+            channelId: 'instagram',
+            username: username,
+            profileUrl: profileUrl,
+            connectedAt: new Date(),
+            status: 'active',
+            lastSync: new Date()
+          });
+          addDebug('Datos guardados en channelConnections');
+        } catch (channelError) {
+          addDebug(`Advertencia: Error al guardar en channelConnections: ${channelError.message}`);
+          // Continuamos a pesar del error
+        }
         
         // Intentar obtener datos adicionales
         if (userData.followers_count) {
