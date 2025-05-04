@@ -74,7 +74,7 @@ const InstagramAuthCallback = () => {
         
         // 1. Obtener el token de acceso
         addDebug('Obteniendo token de acceso...');
-        const tokenResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/instagram/token`, {
+        const tokenResponse = await fetch(`/.netlify/functions/instagram-callback`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ const InstagramAuthCallback = () => {
         
         // 2. Obtener información de la cuenta de Instagram
         addDebug('Obteniendo información de la cuenta...');
-        const userResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/instagram/user-info`, {
+        const userResponse = await fetch(`/.netlify/functions/instagram-user-info`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -201,7 +201,7 @@ const InstagramAuthCallback = () => {
         // 7. Configurar webhooks si es necesario
         addDebug('Configurando webhooks para Instagram...');
         try {
-          const webhookResponse = await fetch(`${import.meta.env.VITE_API_URL}/auth/instagram/setup-webhooks`, {
+          const webhookResponse = await fetch(`/.netlify/functions/instagram-webhook-subscribe`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

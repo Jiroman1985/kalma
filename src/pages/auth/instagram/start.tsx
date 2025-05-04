@@ -6,7 +6,7 @@ import { Loader2, Instagram } from 'lucide-react';
 
 // Usa el CLIENT_ID del entorno o el valor predeterminado
 const INSTAGRAM_CLIENT_ID = import.meta.env.VITE_INSTAGRAM_CLIENT_ID || '674580881831928';
-// Asegúrate de que la URL de redirección esté correctamente formateada y coincide con la registrada en la App de Meta
+// Asegúrate de que la URL de redirección coincida exactamente con la registrada en Meta for Developers
 const REDIRECT_URI = 'https://kalma-lab.netlify.app/auth/instagram/callback';
 
 const InstagramAuthStart = () => {
@@ -36,8 +36,8 @@ const InstagramAuthStart = () => {
         source: 'kalma-app'
       }));
       
-      // Construir URL de autenticación de Instagram
-      const authURL = new URL('https://api.instagram.com/oauth/authorize');
+      // Construir URL de autenticación de Instagram - usando instagram.com en lugar de api.instagram.com
+      const authURL = new URL('https://www.instagram.com/oauth/authorize');
       
       // Agregar parámetros requeridos
       const params = {
