@@ -4,9 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Instagram } from 'lucide-react';
 
-// Usa el CLIENT_ID del entorno o el valor predeterminado
-const INSTAGRAM_CLIENT_ID = import.meta.env.VITE_INSTAGRAM_CLIENT_ID || '3029546990541926';
-// Actualizada la URL de redirección para que coincida con la configurada en Meta for Developers
+// IMPORTANTE: Usar directamente el client_id correcto para Instagram Business
+// Ignoramos la variable de entorno para evitar errores de inyección
+const INSTAGRAM_CLIENT_ID = '3029546990541926'; // ID correcto de la app Business de Instagram
+// URL de redirección
 const REDIRECT_URI = 'https://kalma-lab.netlify.app/.netlify/functions/instagram-callback';
 
 const InstagramAuthStart = () => {
@@ -28,7 +29,7 @@ const InstagramAuthStart = () => {
       
       // Log de información de configuración para debugging
       console.log('Configuración de OAuth Instagram:');
-      console.log('- INSTAGRAM_CLIENT_ID:', INSTAGRAM_CLIENT_ID);
+      console.log('- INSTAGRAM_CLIENT_ID:', INSTAGRAM_CLIENT_ID, '(asegúrate de que sea 3029546990541926)');
       console.log('- REDIRECT_URI:', REDIRECT_URI);
       console.log('- Usuario actual:', currentUser.uid);
       
@@ -57,7 +58,9 @@ const InstagramAuthStart = () => {
         authURL.searchParams.append(key, value);
       });
       
+      // Mostrar URL completa para verificación
       console.log('URL de autenticación completa:', authURL.toString());
+      console.log('Verifica que el client_id sea 3029546990541926 en la URL anterior ☝️');
       
       // Redireccionar a Instagram para autenticación
       window.location.href = authURL.toString();

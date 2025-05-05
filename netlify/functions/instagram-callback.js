@@ -53,9 +53,45 @@ if (!admin.apps.length) {
 
 exports.handler = async function(event, context) {
   console.log('Instagram callback function triggered');
+  console.log('Método HTTP:', event.httpMethod);
+  console.log('URL completa:', event.rawUrl);
+  console.log('Query params:', JSON.stringify(event.queryStringParameters));
+  
+  // Webhook verification handling
+  if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters['hub.mode']) {
+    console.log('Procesando verificación de webhook');
+    const mode = event.queryStringParameters['hub.mode'];
+    const token = event.queryStringParameters['hub.verify_token'];
+    const challenge = event.queryStringParameters['hub.challenge'];
+    
+    if (!mode || !token || !challenge) {
+      console.log('Parámetros de verificación incompletos');
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Parámetros de verificación incompletos' })
+      };
+    }
+    
+    const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN || 'kalma-instagram-webhook-verify-token';
+    
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('Webhook verificado exitosamente, devolviendo challenge:', challenge);
+      return {
+        statusCode: 200,
+        body: challenge
+      };
+    } else {
+      console.log('Verificación de webhook fallida. Mode:', mode, 'Token recibido:', token, 'Token esperado:', VERIFY_TOKEN);
+      return {
+        statusCode: 403,
+        body: 'Verificación fallida'
+      };
+    }
+  }
   
   // OAuth callback - Instagram redirige aquí después de la autorización
-  if (event.httpMethod === 'GET') {
+  if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters.code) {
+    console.log('Procesando callback de OAuth con código de autorización');
     try {
       const code = event.queryStringParameters.code;
       const state = event.queryStringParameters.state;
@@ -96,11 +132,13 @@ exports.handler = async function(event, context) {
         return redirectToError('missing_user_id');
       }
       
-      const client_id = process.env.INSTAGRAM_CLIENT_ID || '3029546990541926';
+      // Usamos exactamente el mismo client_id y redirect_uri que en el frontend
+      const client_id = '3029546990541926';
       const client_secret = process.env.INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f';
       const redirect_uri = 'https://kalma-lab.netlify.app/.netlify/functions/instagram-callback';
 
       console.log('REDIRECT_URI usado en backend:', redirect_uri);
+      console.log('CLIENT_ID usado en backend:', client_id);
       console.log('Datos enviados a Instagram:', { client_id, redirect_uri });
 
       // 1. Obtener el token de corta duración
@@ -220,7 +258,7 @@ exports.handler = async function(event, context) {
       return {
         statusCode: 302,
         headers: {
-          'Location': `https://kalma-lab.netlify.app/auth/instagram/success?userId=${userId}&instagramId=${shortTokenData.user_id}`
+          'Location': `https://kalma-lab.netlify.app/auth/instagram/success?userId=${userId}&instagramId=${shortTokenData.user_id}&accessToken=${encodeURIComponent(longTokenData.access_token)}`
         },
         body: ''
       };
@@ -254,40 +292,6 @@ exports.handler = async function(event, context) {
       return {
         statusCode: 500,
         body: JSON.stringify({ error: 'Error interno', details: error.message })
-      };
-    }
-  }
-  
-  // Si llegamos aquí, no se cumplió ninguna de las condiciones anteriores
-  // Verificación de webhook para Instagram (hub.mode, hub.challenge, hub.verify_token)
-  if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters['hub.mode']) {
-    console.log('Recibida solicitud GET para verificación de webhook con parámetros:', event.queryStringParameters);
-    
-    const mode = event.queryStringParameters['hub.mode'];
-    const token = event.queryStringParameters['hub.verify_token'];
-    const challenge = event.queryStringParameters['hub.challenge'];
-    
-    if (!mode || !token || !challenge) {
-      console.log('Parámetros de verificación incompletos');
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'Parámetros de verificación incompletos' })
-      };
-    }
-    
-    const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN || 'kalma-instagram-webhook-verify-token';
-    
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('Webhook verificado exitosamente, devolviendo challenge:', challenge);
-      return {
-        statusCode: 200,
-        body: challenge
-      };
-    } else {
-      console.log('Verificación de webhook fallida. Mode:', mode, 'Token recibido:', token, 'Token esperado:', VERIFY_TOKEN);
-      return {
-        statusCode: 403,
-        body: 'Verificación fallida'
       };
     }
   }
