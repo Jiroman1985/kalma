@@ -86,247 +86,200 @@ const HeroSection: React.FC = () => {
   ];
 
   return (
-    <>
-      {/* Hero Main Section */}
-      <section className="relative pt-24 pb-20 md:pt-32 md:pb-28 overflow-hidden bg-gradient-zen">
-        {/* Decorative elements */}
-        <div className="absolute top-0 right-0 -z-10 w-[50%] h-full bg-gradient-calm opacity-60"></div>
-        <div className="absolute top-1/3 left-0 -z-10 w-1/3 h-1/3 bg-gradient-to-tr from-accent/20 to-transparent rounded-full filter blur-3xl"></div>
-        <div className="absolute bottom-0 right-1/4 -z-10 w-1/4 h-1/4 bg-gradient-to-bl from-secondary/20 to-transparent rounded-full filter blur-3xl"></div>
-        
-        <div className="container mx-auto px-4">
-          <motion.div 
-            className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
-            initial="hidden"
-            animate="visible"
-            variants={containerVariants}
+    <section className="relative min-h-screen pt-20 pb-20 bg-gradient-page overflow-hidden">
+      {/* Elementos decorativos */}
+      <div 
+        className="absolute top-0 left-0 w-full h-full -z-10 opacity-30"
+        style={{
+          backgroundImage: `radial-gradient(circle at 20% 20%, rgba(167, 139, 250, 0.3) 0%, transparent 25%), 
+                           radial-gradient(circle at 80% 80%, rgba(216, 180, 254, 0.3) 0%, transparent 25%),
+                           radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.2) 0%, transparent 40%)`
+        }}
+      />
+
+      <div className="container mx-auto px-4 pt-16 md:pt-24">
+        <div className="text-center max-w-4xl mx-auto mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="inline-block px-4 py-2 rounded-full bg-white/80 backdrop-blur-sm text-primary font-medium text-sm mb-6 shadow-md"
           >
-            <motion.div className="order-2 md:order-1" variants={itemVariants}>
-              <div className="inline-block px-4 py-1.5 rounded-full bg-primary/10 text-primary font-medium text-sm mb-6 shadow-calm">
-                Simplifica tu Comunicación Digital
+            Gestiona con <span className="text-gradient font-semibold">Kalma</span> Todas tus comunicaciones
+          </motion.div>
+          
+          <motion.h1 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="text-4xl md:text-6xl font-bold leading-tight mb-6"
+          >
+            Encuentra la{" "}
+            <span className="text-gradient font-bold">kalma</span>{" "}
+            en tu comunicación digital
+          </motion.h1>
+          
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-lg text-foreground/80 mb-8 max-w-3xl mx-auto"
+          >
+            Ahorra tiempo y mejora la experiencia de tus clientes con una plataforma
+            de comunicación unificada potenciada por inteligencia artificial.
+          </motion.p>
+          
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="flex flex-wrap justify-center items-center gap-4 mb-10"
+          >
+            <a href="#prueba-gratis" className="btn-primary-gradient flex items-center gap-2">
+              Comenzar prueba gratuita <ChevronRight size={16} />
+            </a>
+            <a href="#como-funciona" className="btn-secondary-gradient flex items-center gap-2">
+              Ver demostración <ArrowRight size={16} />
+            </a>
+          </motion.div>
+        </div>
+        
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+          className="relative mx-auto max-w-5xl"
+        >
+          <div className="relative z-10 w-full rounded-2xl overflow-hidden shadow-2xl border border-white/20 bg-white/5 backdrop-blur-sm">
+            <div className="bg-gradient-main p-1 rounded-t-2xl">
+              <div className="flex items-center gap-2 px-3 py-2">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <div className="ml-4 text-xs text-white opacity-80">kalma - Plataforma de comunicación unificada</div>
               </div>
-              <h1 className="text-4xl md:text-6xl font-bold leading-tight mb-6">
-                Encuentra la{" "}
-                <span className="text-gradient"> kalma </span>
-                en tu comunicación digital
-              </h1>
-              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                Unifica WhatsApp, Instagram, Facebook, Twitter y más en un solo lugar. Automatiza respuestas con IA y obtén analíticas avanzadas para optimizar tu comunicación empresarial.
-              </p>
-              
-              <div className="flex flex-wrap items-center gap-4 mb-10">
-                <Button asChild size="lg" className="bg-primary hover:bg-primary/90 transition-calm shadow-calm hover:shadow-lg">
-                  <a href="#prueba-gratis" className="flex items-center gap-2">
-                    Prueba Gratis 15 días <ChevronRight size={16} />
-                  </a>
-                </Button>
-                <a href="#como-funciona" className="text-primary hover:text-primary/90 flex items-center gap-1 font-medium transition-calm">
-                  Ver Cómo Funciona <ChevronRight size={14} />
-                </a>
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shadow-calm">
-                    <Smartphone size={18} className="text-primary" />
-                  </div>
-                  <span className="text-sm text-muted-foreground">WhatsApp Business</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center shadow-calm">
-                    <Instagram size={18} className="text-secondary" />
-                  </div>
-                  <span className="text-sm text-muted-foreground">Instagram DM</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shadow-calm">
-                    <Facebook size={18} className="text-accent" />
-                  </div>
-                  <span className="text-sm text-muted-foreground">Facebook Messenger</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shadow-calm">
-                    <Twitter size={18} className="text-primary" />
-                  </div>
-                  <span className="text-sm text-muted-foreground">Twitter/X DM</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center shadow-calm">
-                    <Bot size={18} className="text-secondary" />
-                  </div>
-                  <span className="text-sm text-muted-foreground">IA personalizada</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center shadow-calm">
-                    <BarChart3 size={18} className="text-accent" />
-                  </div>
-                  <span className="text-sm text-muted-foreground">Analíticas unificadas</span>
-                </div>
-              </div>
-            </motion.div>
+            </div>
             
-            <motion.div className="order-1 md:order-2" variants={itemVariants}>
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-calm p-6 relative">
-                <div className="absolute -top-12 left-1/2 transform -translate-x-1/2">
-                  <div className="bg-gradient-to-r from-primary to-secondary rounded-xl p-4 shadow-calm">
-                    <BrainCircuit size={32} className="text-white" />
+            <div className="grid md:grid-cols-5 h-[500px] bg-white">
+              {/* Sidebar */}
+              <div className="hidden md:block md:col-span-1 bg-gradient-soft border-r border-gray-100">
+                <div className="p-4">
+                  <div className="flex items-center gap-2 mb-6">
+                    <div className="w-8 h-8 rounded-full bg-gradient-main flex items-center justify-center">
+                      <span className="text-white font-bold">K</span>
+                    </div>
+                    <span className="font-semibold text-gradient">kalma</span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="p-2 rounded-lg bg-primary/10 text-primary font-medium flex items-center gap-2">
+                      <MessageCircle size={18} />
+                      <span>Conversaciones</span>
+                    </div>
+                    <div className="p-2 rounded-lg text-muted-foreground flex items-center gap-2 hover:bg-gray-100 transition-colors">
+                      <BarChart3 size={18} />
+                      <span>Analíticas</span>
+                    </div>
+                    <div className="p-2 rounded-lg text-muted-foreground flex items-center gap-2 hover:bg-gray-100 transition-colors">
+                      <Users size={18} />
+                      <span>Clientes</span>
+                    </div>
+                    <div className="p-2 rounded-lg text-muted-foreground flex items-center gap-2 hover:bg-gray-100 transition-colors">
+                      <Bot size={18} />
+                      <span>Automatización</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Main content area */}
+              <div className="col-span-5 md:col-span-4 p-4 bg-white">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-lg">Conversaciones</h3>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" className="rounded-full">
+                      Filtrar
+                    </Button>
+                    <Button size="sm" className="rounded-full bg-gradient-main hover:opacity-90">
+                      Nueva conversación
+                    </Button>
                   </div>
                 </div>
                 
-                <div className="mt-8">
-                  <h3 className="text-xl font-semibold text-center mb-2">kalma Assistant</h3>
-                  <p className="text-muted-foreground text-center mb-6">Tu asistente virtual inteligente</p>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="col-span-1 border border-gray-100 rounded-xl overflow-hidden">
+                    <div className="bg-muted p-3 border-b border-gray-100">
+                      <div className="font-medium">Conversaciones recientes</div>
+                    </div>
+                    <div className="divide-y divide-gray-100">
+                      {[1, 2, 3].map((item) => (
+                        <div key={item} className={`p-3 hover:bg-muted/50 transition-colors cursor-pointer ${item === 1 ? 'bg-muted/50' : ''}`}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gradient-soft flex items-center justify-center">
+                              <span className="text-primary font-medium">{item === 1 ? 'MP' : item === 2 ? 'JD' : 'AR'}</span>
+                            </div>
+                            <div>
+                              <div className="font-medium">{item === 1 ? 'María Pérez' : item === 2 ? 'Juan Díaz' : 'Ana Ruiz'}</div>
+                              <div className="text-xs text-muted-foreground">Último mensaje hace {item * 2} min</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                   
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <div className="bg-primary/10 rounded-full p-2 shadow-calm">
-                        <MessageCircle size={20} className="text-primary" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium">Gestión Unificada</h4>
-                        <p className="text-sm text-muted-foreground">Centraliza todas tus conversaciones en un solo lugar</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-3">
-                      <div className="bg-secondary/10 rounded-full p-2 shadow-calm">
-                        <Bot size={20} className="text-secondary" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium">Respuestas Automáticas</h4>
-                        <p className="text-sm text-muted-foreground">IA que aprende de tus respuestas frecuentes</p>
+                  <div className="col-span-2 border border-gray-100 rounded-xl overflow-hidden">
+                    <div className="bg-muted p-3 border-b border-gray-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-soft flex items-center justify-center">
+                          <span className="text-primary font-medium">MP</span>
+                        </div>
+                        <div>
+                          <div className="font-medium">María Pérez</div>
+                          <div className="text-xs text-muted-foreground">WhatsApp • En línea</div>
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="flex items-start gap-3">
-                      <div className="bg-accent/10 rounded-full p-2 shadow-calm">
-                        <BarChart3 size={20} className="text-accent" />
+                    <div className="p-4 h-[250px] overflow-y-auto flex flex-col gap-3">
+                      <div className="self-start max-w-[80%] bg-muted rounded-lg rounded-tl-none p-3">
+                        <p className="text-sm">Hola, quisiera saber si tienen disponible el modelo que vi en su catálogo online.</p>
+                        <span className="text-xs text-muted-foreground">10:30 AM</span>
                       </div>
-                      <div>
-                        <h4 className="font-medium">Analíticas Detalladas</h4>
-                        <p className="text-sm text-muted-foreground">Métricas y reportes unificados</p>
+                      
+                      <div className="self-end max-w-[80%] bg-gradient-main rounded-lg rounded-tr-none p-3">
+                        <p className="text-sm text-white">¡Hola María! Sí, tenemos ese modelo disponible en varias tallas y colores. ¿Cuál te interesa?</p>
+                        <span className="text-xs text-white/70">10:32 AM</span>
+                      </div>
+                      
+                      <div className="self-start max-w-[80%] bg-muted rounded-lg rounded-tl-none p-3">
+                        <p className="text-sm">Me gustaría el modelo en talla M y color azul. ¿Cuál sería el tiempo de entrega?</p>
+                        <span className="text-xs text-muted-foreground">10:35 AM</span>
+                      </div>
+                    </div>
+                    <div className="p-3 border-t border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="Escribe un mensaje..." 
+                          className="flex-1 px-4 py-2 rounded-full border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                        <Button size="icon" className="rounded-full bg-gradient-main hover:opacity-90">
+                          <ArrowRight size={18} className="text-white" />
+                        </Button>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 bg-gray-50" id="como-funciona">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Plataforma unificada para todas tus comunicaciones</h2>
-            <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-              Gestiona WhatsApp, Instagram, Facebook, Twitter y más en un solo lugar. Optimiza tu comunicación empresarial y evita saltar entre aplicaciones.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {features.map((feature, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                className="bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all"
-              >
-                <div className={`h-48 ${feature.bgColor} relative flex items-center justify-center`}>
-                  {feature.icon}
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`p-2 rounded-lg ${feature.bgColor}`}>
-                      {feature.icon && React.cloneElement(feature.icon, { className: `h-6 w-6 ${feature.icon.props.className?.split(' ').filter(cls => cls.includes('text-')).join(' ')}` })}
-                    </div>
-                    <h3 className="font-bold text-xl">{feature.title}</h3>
-                  </div>
-                  <p className="text-gray-700">{feature.description}</p>
-                  <a href="#saber-mas" className="inline-flex items-center gap-1 text-teal-600 font-medium mt-4 hover:underline">
-                    Saber más <ArrowRight size={14} />
-                  </a>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Use Cases */}
-      <section className="py-20 bg-gradient-to-br from-white to-violet-50/30">
-        <div className="container mx-auto px-4">
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Soluciones adaptadas a tus necesidades</h2>
-              <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-                Descubre cómo kalma integra WhatsApp y todas tus redes sociales para maximizar los resultados de tu negocio
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {useCases.map((useCase, index) => (
-                <motion.div 
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
-                  viewport={{ once: true }}
-                  className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-all"
-                >
-                  <div className="p-4 rounded-lg bg-gradient-to-br from-teal-50 to-violet-50 inline-block mb-4">
-                    {useCase.icon}
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">{useCase.title}</h3>
-                  <p className="text-gray-700">{useCase.description}</p>
-                  <ul className="mt-4 space-y-2">
-                    <li className="flex items-center gap-2 text-sm text-gray-700">
-                      <Check size={16} className="text-teal-600" />
-                      <span>Configuración en minutos</span>
-                    </li>
-                    <li className="flex items-center gap-2 text-sm text-gray-700">
-                      <Check size={16} className="text-teal-600" />
-                      <span>Personalización avanzada</span>
-                    </li>
-                    <li className="flex items-center gap-2 text-sm text-gray-700">
-                      <Check size={16} className="text-teal-600" />
-                      <span>Integración con tus sistemas</span>
-                    </li>
-                  </ul>
-                </motion.div>
-              ))}
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-br from-teal-600 to-cyan-700 text-white" id="prueba-gratis">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">Gestiona todas tus comunicaciones con kalma hoy mismo</h2>
-            <p className="text-xl mb-8 text-white/90">
-              Unifica WhatsApp, Instagram, Facebook y Twitter en una sola plataforma y ahorra tiempo con automatizaciones inteligentes
-            </p>
-            <div className="flex flex-wrap gap-4 justify-center">
-              <Button asChild size="lg" className="bg-white text-teal-600 hover:bg-gray-100 transition-all">
-                <a href="#prueba-gratis" className="flex items-center gap-2">
-                  Prueba Gratis 15 días <ChevronRight size={16} />
-                </a>
-              </Button>
-              <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10 transition-all">
-                <a href="#demo" className="flex items-center gap-2">
-                  Solicitar Demo <ChevronRight size={16} />
-                </a>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </section>
-    </>
+          
+          {/* Elementos decorativos para la imagen */}
+          <div className="absolute -bottom-6 -right-6 w-20 h-20 bg-gradient-to-tr from-purple-500 to-indigo-500 rounded-full opacity-50 blur-xl"></div>
+          <div className="absolute -top-6 -left-6 w-32 h-32 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full opacity-50 blur-xl"></div>
+        </motion.div>
+      </div>
+    </section>
   );
 };
 
