@@ -2,27 +2,7 @@ import React, { memo, useRef } from "react";
 import { motion, useInView } from "framer-motion";
 import { MessageCircle, Phone, Mail, Instagram, Video, Eye, Clock, UserCheck } from "lucide-react";
 
-// Array de animaciones variadas para las tarjetas
-const cardAnimations = [
-  {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } }
-  },
-  {
-    initial: { opacity: 0, x: -20 },
-    animate: { opacity: 1, x: 0, transition: { duration: 0.4, ease: "easeOut" } }
-  },
-  {
-    initial: { opacity: 0, x: 20 },
-    animate: { opacity: 1, x: 0, transition: { duration: 0.4, ease: "easeInOut" } }
-  },
-  {
-    initial: { opacity: 0, scale: 0.9 },
-    animate: { opacity: 1, scale: 1, transition: { duration: 0.4, ease: "easeOut" } }
-  },
-];
-
-// Componente de icono memoizado con animación
+// Componente de icono memoizado con animación única
 const AnimatedIcon = memo(({ icon, bg, isInView, delay }: { 
   icon: React.ReactNode; 
   bg: string; 
@@ -35,12 +15,12 @@ const AnimatedIcon = memo(({ icon, bg, isInView, delay }: {
       scale: 1,
       opacity: 1,
       transition: {
-        duration: 0.4,
+        duration: 0.6,
         delay: delay,
-        ease: "easeOut"
+        ease: [0.23, 1, 0.32, 1] // Curva de Easing más suave
       }
     } : {}}
-    className={`${bg} w-12 h-12 rounded-xl flex items-center justify-center transform-gpu`}
+    className={`${bg} w-12 h-12 rounded-xl flex items-center justify-center`}
   >
     {icon}
   </motion.div>
@@ -48,7 +28,7 @@ const AnimatedIcon = memo(({ icon, bg, isInView, delay }: {
 
 AnimatedIcon.displayName = 'AnimatedIcon';
 
-// Componente de tarjeta memoizado con animaciones variadas
+// Componente de tarjeta simplificado
 const FeatureCard = memo(({ 
   icon, 
   iconBg, 
@@ -64,47 +44,41 @@ const FeatureCard = memo(({
   index: number;
   total: number;
 }) => {
-  // Cada tarjeta tiene su propio ref y lógica de visibilidad
+  // Referencia individual para controlar la visibilidad de la tarjeta
   const cardRef = useRef(null);
   const isInView = useInView(cardRef, { 
-    once: true, 
-    amount: 0.2,
-    margin: "0px 0px -10% 0px"
+    once: true,  // Garantiza que la animación ocurra solo una vez
+    amount: 0.3, // Mayor valor para activar de forma más confiable
+    margin: "0px 0px -5% 0px" // Margen reducido para activación más precisa
   });
 
-  // Seleccionar una animación basada en patrones para crear variedad
-  const animIndex = index % cardAnimations.length;
-  const animation = cardAnimations[animIndex];
+  // Simplificar las animaciones para evitar conflictos
+  // Crear una progresión de retrasos más gradual
+  const baseDelay = 0.15;
+  const delay = baseDelay + (index * 0.08); // Mayor separación entre elementos
   
-  // Crear retardos no lineales para simular un efecto más natural
-  // Variar por filas y columnas en una cuadrícula para un efecto de "onda"
-  const row = Math.floor(index / 4);
-  const col = index % 4;
-  const baseDelay = 0.1;
-  const rowDelay = row * 0.08;
-  const colDelay = col * 0.05;
-  const delay = baseDelay + rowDelay + colDelay;
-  
-  // Alternar efectos de hover para mayor variedad
-  const hoverEffect = index % 3 === 0 
-    ? { scale: 1.03, y: -5, transition: { duration: 0.2 } }
-    : index % 3 === 1 
-      ? { scale: 1.02, boxShadow: "0 10px 30px rgba(0,0,0,0.05)", transition: { duration: 0.2 } }
-      : { y: -3, boxShadow: "0 8px 25px rgba(0,0,0,0.04)", transition: { duration: 0.2 } };
+  // Efecto hover único y sutil
+  const hoverEffect = { 
+    y: -5, 
+    boxShadow: "0 8px 25px rgba(0,0,0,0.08)", 
+    transition: { duration: 0.3 } 
+  };
 
   return (
     <motion.div
       ref={cardRef}
-      initial={animation.initial}
+      initial={{ opacity: 0, y: 15 }}
       animate={isInView ? {
-        ...animation.animate,
+        opacity: 1,
+        y: 0,
         transition: {
-          ...animation.animate.transition,
-          delay: delay
+          duration: 0.6,
+          delay: delay,
+          ease: [0.23, 1, 0.32, 1] // Curva de Easing suave
         }
       } : {}}
       whileHover={hoverEffect}
-      className="bg-white rounded-xl p-5 shadow-sm transition-all duration-200 flex flex-col gap-3 transform-gpu optimize-paint"
+      className="bg-white rounded-xl p-5 shadow-sm flex flex-col gap-3"
     >
       <AnimatedIcon 
         icon={icon} 
@@ -118,8 +92,9 @@ const FeatureCard = memo(({
         animate={isInView ? { 
           opacity: 1, 
           transition: { 
-            duration: 0.3, 
-            delay: delay + 0.2 
+            duration: 0.4, 
+            delay: delay + 0.15, 
+            ease: "easeOut" 
           } 
         } : {}}
         className="text-lg font-semibold"
@@ -132,8 +107,9 @@ const FeatureCard = memo(({
         animate={isInView ? { 
           opacity: 1, 
           transition: { 
-            duration: 0.3, 
-            delay: delay + 0.3 
+            duration: 0.4, 
+            delay: delay + 0.2,
+            ease: "easeOut" 
           } 
         } : {}}
         className="text-muted-foreground text-sm"
@@ -146,28 +122,28 @@ const FeatureCard = memo(({
 
 FeatureCard.displayName = 'FeatureCard';
 
-// Componente de encabezado con animación de texto
+// Componente de encabezado con animaciones simplificadas
 const SectionHeader = memo(({ isInView }: { isInView: boolean }) => (
   <motion.div
-    initial={{ opacity: 0, y: 15 }}
+    initial={{ opacity: 0, y: 10 }}
     animate={isInView ? { 
       opacity: 1, 
       y: 0, 
       transition: { 
-        duration: 0.5, 
-        ease: "easeOut" 
+        duration: 0.7, 
+        ease: [0.23, 1, 0.32, 1] 
       } 
     } : {}}
-    className="text-center max-w-3xl mx-auto mb-12 optimize-paint"
+    className="text-center max-w-3xl mx-auto mb-12"
   >
     <motion.span
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0 }}
       animate={isInView ? { 
         opacity: 1, 
-        y: 0, 
         transition: { 
-          duration: 0.3, 
-          delay: 0.1 
+          duration: 0.5, 
+          delay: 0.1,
+          ease: "easeOut" 
         } 
       } : {}}
       className="inline-block px-4 py-1 rounded-full bg-primary/5 text-primary text-sm font-medium mb-4"
@@ -176,28 +152,28 @@ const SectionHeader = memo(({ isInView }: { isInView: boolean }) => (
     </motion.span>
     
     <motion.h2 
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0 }}
       animate={isInView ? { 
         opacity: 1, 
-        y: 0, 
         transition: { 
-          duration: 0.4, 
-          delay: 0.2 
+          duration: 0.5, 
+          delay: 0.2,
+          ease: "easeOut" 
         } 
       } : {}}
       className="text-3xl md:text-4xl font-bold mb-4"
     >
-      Todo lo que <span className="text-gradient animate-bg-shift">necesitas</span> en un solo lugar
+      Todo lo que <span className="text-gradient">necesitas</span> en un solo lugar
     </motion.h2>
     
     <motion.p 
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0 }}
       animate={isInView ? { 
         opacity: 1, 
-        y: 0, 
         transition: { 
-          duration: 0.4, 
-          delay: 0.3 
+          duration: 0.5, 
+          delay: 0.3,
+          ease: "easeOut" 
         } 
       } : {}}
       className="text-lg text-muted-foreground"
@@ -210,13 +186,24 @@ const SectionHeader = memo(({ isInView }: { isInView: boolean }) => (
 
 SectionHeader.displayName = 'SectionHeader';
 
+// Elementos decorativos estáticos para evitar interferencia con animaciones principales
+const Decorations = memo(() => (
+  <>
+    <div className="absolute top-10 right-10 w-64 h-64 bg-gradient-to-bl from-indigo-500/3 to-transparent rounded-full blur-3xl"></div>
+    <div className="absolute bottom-20 left-10 w-48 h-48 bg-gradient-to-tr from-purple-500/3 to-transparent rounded-full blur-3xl"></div>
+    <div className="absolute top-1/2 left-1/4 w-32 h-32 bg-gradient-to-tr from-pink-500/3 to-transparent rounded-full blur-3xl"></div>
+  </>
+));
+
+Decorations.displayName = 'Decorations';
+
 const FeaturesGrid: React.FC = () => {
   // Optimizar usando un solo ref para la sección
   const sectionRef = useRef(null);
   const isInView = useInView(sectionRef, { 
     once: true, 
     amount: 0.1,
-    margin: "0px 0px -20% 0px"
+    margin: "0px 0px -10% 0px"
   });
   
   // Datos estáticos predefinidos para evitar recreaciones
@@ -271,19 +258,11 @@ const FeaturesGrid: React.FC = () => {
     }
   ];
 
-  // Elementos decorativos con movimiento para añadir vida a la sección
-  const Decorations = () => (
-    <>
-      <div className="absolute top-10 right-10 w-64 h-64 bg-gradient-to-bl from-indigo-500/5 to-transparent rounded-full blur-3xl animate-float"></div>
-      <div className="absolute bottom-20 left-10 w-48 h-48 bg-gradient-to-tr from-purple-500/5 to-transparent rounded-full blur-3xl animate-float" style={{ animationDelay: "1s" }}></div>
-      <div className="absolute top-1/2 left-1/4 w-32 h-32 bg-gradient-to-tr from-pink-500/5 to-transparent rounded-full blur-3xl animate-float" style={{ animationDelay: "2s" }}></div>
-    </>
-  );
-
   return (
     <section 
       ref={sectionRef} 
-      className="py-16 md:py-24 bg-gradient-page relative overflow-hidden optimize-size"
+      className="py-16 md:py-24 bg-gradient-page relative overflow-hidden"
+      id="caracteristicas"
     >
       <Decorations />
       
