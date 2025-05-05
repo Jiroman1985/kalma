@@ -7,7 +7,7 @@ import { Loader2, Instagram } from 'lucide-react';
 // Usa el CLIENT_ID del entorno o el valor predeterminado
 const INSTAGRAM_CLIENT_ID = import.meta.env.VITE_INSTAGRAM_CLIENT_ID || '3029546990541926';
 // Actualizada la URL de redirección para que coincida con la configurada en Meta for Developers
-const REDIRECT_URI = 'https://calma-lab.netlify.app/.netlify/functions/instagram-callback';
+const REDIRECT_URI = 'https://kalma-lab.netlify.app/.netlify/functions/instagram-callback';
 
 const InstagramAuthStart = () => {
   const navigate = useNavigate();

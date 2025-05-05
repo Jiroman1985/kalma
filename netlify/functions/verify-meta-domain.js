@@ -11,7 +11,7 @@ exports.handler = async function(event, context) {
 <head>
   <meta charset="UTF-8">
   <title>Domain Verification for Meta</title>
-  <meta property="og:url" content="https://calma-lab.netlify.app/" />
+  <meta property="og:url" content="https://kalma-lab.netlify.app/" />
   <meta property="fb:app_id" content="3029546990541926" />
 </head>
 <body>
