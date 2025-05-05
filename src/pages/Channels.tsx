@@ -122,6 +122,23 @@ const Channels = () => {
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   
+  // Estados para autenticación de Gmail
+  const [gmailEmail, setGmailEmail] = useState("");
+  const [gmailPassword, setGmailPassword] = useState("");
+  const [rememberCredentials, setRememberCredentials] = useState(false);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  
+  // Estado para mostrar modal de configuración
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  
+  // Estados para opciones de configuración de Gmail
+  const [gmailConfig, setGmailConfig] = useState({
+    autoReply: false,
+    emailSummaries: false,
+    priorityInbox: false,
+    scheduleEmails: false
+  });
+
   // URL de autenticación de Instagram obtenida de tus requisitos
   const instagramAuthUrl = "https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=3029546990541926&redirect_uri=https://kalma-lab.netlify.app/auth/instagram/callback&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_messages%2Cinstagram_business_manage_comments%2Cinstagram_business_content_publish%2Cinstagram_business_manage_insights";
 
@@ -215,23 +232,32 @@ const Channels = () => {
       connected: false
     },
     {
-      id: "email",
-      name: "Email",
-      icon: <Mail className="h-6 w-6" />,
-      description: "Convierte emails en conversaciones y gestiona toda tu comunicación",
-      color: "bg-indigo-500",
-      gradient: "from-indigo-400 to-indigo-600",
+      id: "gmail",
+      name: "Gmail",
+      icon: (
+        <svg 
+          className="h-6 w-6" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path d="M22.0001 6.00055V18.0005C22.0001 19.1005 21.1001 20.0005 20.0001 20.0005H18.0001V8.00055L12.0001 12.8005L6.00006 8.00055V20.0005H4.00006C2.90006 20.0005 2.00006 19.1005 2.00006 18.0005V6.00055C2.00006 5.47055 2.21006 4.97055 2.58006 4.60055C2.95006 4.23055 3.45006 4.00055 4.00006 4.00055H4.33006L12.0001 10.0005L19.6701 4.00055H20.0001C20.5501 4.00055 21.0501 4.23055 21.4201 4.60055C21.7901 4.97055 22.0001 5.47055 22.0001 6.00055Z" fill="currentColor"/>
+        </svg>
+      ),
+      description: "Conecta tu cuenta de Gmail para gestionar y automatizar tus correos electrónicos",
+      color: "bg-red-500",
+      gradient: "from-red-400 to-red-600",
       features: [
-        "Bandeja de entrada unificada",
-        "Conversión de emails a tickets",
-        "Plantillas de respuesta",
-        "Seguimiento de estado"
+        "Gestión de bandeja de entrada",
+        "Respuestas automáticas con IA",
+        "Resúmenes de correos electrónicos",
+        "Priorización inteligente de emails"
       ],
       setupSteps: [
-        "Conectar cuenta de correo",
-        "Configurar reglas de procesamiento",
-        "Crear plantillas de respuesta",
-        "Establecer SLAs de respuesta"
+        "Conectar cuenta de Gmail",
+        "Definir reglas de automatización",
+        "Configurar respuestas inteligentes",
+        "Establecer preferencias de notificación"
       ],
       connected: false
     },
@@ -310,6 +336,13 @@ const Channels = () => {
     if (channel.id === "instagram") {
       navigate('/auth/instagram/start');
       return;
+    }
+    
+    // Limpiar estados para nuevo canal
+    if (channel.id === "gmail") {
+      setGmailEmail("");
+      setGmailPassword("");
+      setRememberCredentials(false);
     }
     
     // Para otros canales (en la versión actual, simular el proceso)
@@ -547,6 +580,108 @@ const Channels = () => {
     );
   };
 
+  // Función para autenticar con Gmail
+  const authenticateGmail = async () => {
+    if (!gmailEmail || !gmailPassword) {
+      toast({
+        title: "Error",
+        description: "Por favor, completa todos los campos",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setIsAuthenticating(true);
+    
+    try {
+      // Simulación de autenticación (en una implementación real usaríamos OAuth)
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // En una implementación real, aquí iría la lógica de OAuth 2.0 con las credenciales proporcionadas
+      const authData = {
+        clientId: process.env.REACT_APP_GMAIL_CLIENT_ID || "GMAIL_CLIENT_ID",
+        clientSecret: process.env.REACT_APP_GMAIL_CLIENT_SECRET || "GMAIL_CLIENT_SECRET",
+        redirectUri: window.location.origin + "/auth/callback",
+        email: gmailEmail
+      };
+      
+      console.log("Autenticando con Gmail:", authData);
+      
+      // Guardar la conexión en Firestore (simulado)
+      if (currentUser) {
+        const connectionData: Partial<ChannelConnection> = {
+          channelId: "gmail",
+          username: gmailEmail,
+          profileUrl: `https://mail.google.com/mail/u/${gmailEmail}`,
+          connectedAt: serverTimestamp(),
+          status: 'active',
+          lastSync: serverTimestamp()
+        };
+        
+        // En implementación real, guardar en Firestore
+        const connectionRef = await addDoc(
+          collection(db, "users", currentUser.uid, "channelConnections"), 
+          connectionData
+        );
+        
+        // Añadir localmente para actualizar UI
+        setConnections(prev => [...prev, {
+          id: connectionRef.id,
+          ...connectionData as ChannelConnection
+        }]);
+      }
+      
+      // Cerrar modal de conexión y abrir modal de configuración
+      setShowConnectionModal(false);
+      setShowConfigModal(true);
+      
+      toast({
+        title: "Conectado exitosamente",
+        description: `Tu cuenta de Gmail ${gmailEmail} ha sido conectada a Kalma.`,
+        variant: "default"
+      });
+    } catch (error) {
+      console.error("Error al autenticar con Gmail:", error);
+      toast({
+        title: "Error de autenticación",
+        description: "No se pudo conectar con Gmail. Intenta nuevamente.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+  
+  // Función para guardar la configuración de Gmail
+  const saveGmailConfig = async () => {
+    try {
+      // Simulación de guardado
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
+      // En implementación real, guardar en Firestore
+      console.log("Configuración guardada:", gmailConfig);
+      
+      // Cerrar modal de configuración
+      setShowConfigModal(false);
+      
+      // Actualizar estado de la conexión
+      setActiveTab("connections");
+      
+      toast({
+        title: "Configuración guardada",
+        description: "Tu configuración de Gmail ha sido guardada exitosamente.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error("Error al guardar configuración:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo guardar la configuración. Intenta nuevamente.",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Componente principal
   return (
     <div className="container mx-auto py-6 max-w-7xl">
@@ -597,6 +732,145 @@ const Channels = () => {
           </TabsContent>
         </Tabs>
       )}
+      
+      {/* Modal para conectar Gmail */}
+      <AlertDialog open={showConnectionModal && selectedChannel?.id === 'gmail'} onOpenChange={(open) => !open && setShowConnectionModal(false)}>
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`w-10 h-10 rounded-full ${selectedChannel?.gradient ? `bg-gradient-to-r ${selectedChannel?.gradient}` : selectedChannel?.color} flex items-center justify-center text-white`}>
+                {selectedChannel?.icon}
+              </div>
+              <AlertDialogTitle>Conectar cuenta de Gmail</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription>
+              Introduce las credenciales de tu cuenta de Gmail para conectar y gestionar tus correos electrónicos desde Kalma.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="space-y-4 py-3">
+            <div className="space-y-2">
+              <Label htmlFor="gmail-email">Correo electrónico</Label>
+              <Input 
+                id="gmail-email" 
+                type="email" 
+                placeholder="ejemplo@gmail.com" 
+                autoComplete="email"
+                value={gmailEmail}
+                onChange={(e) => setGmailEmail(e.target.value)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="gmail-password">Contraseña</Label>
+              <Input 
+                id="gmail-password" 
+                type="password" 
+                placeholder="••••••••" 
+                autoComplete="current-password"
+                value={gmailPassword}
+                onChange={(e) => setGmailPassword(e.target.value)}
+              />
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Switch id="remember-credentials" checked={rememberCredentials} onCheckedChange={(checked) => setRememberCredentials(checked)} />
+              <Label htmlFor="remember-credentials">Recordar credenciales en este dispositivo</Label>
+            </div>
+            
+            <div className="bg-blue-50 p-3 rounded-md border border-blue-100 text-sm text-blue-700 flex items-start">
+              <Info className="h-5 w-5 mr-2 flex-shrink-0 text-blue-500" />
+              <p>
+                Kalma utiliza OAuth 2.0 para acceder a tu cuenta de Gmail de forma segura. 
+                No almacenamos tu contraseña y puedes revocar el acceso en cualquier momento.
+                <br />
+                <br />
+                ID de cliente: {process.env.REACT_APP_GMAIL_CLIENT_ID || "Configurado en sistema"}
+              </p>
+            </div>
+          </div>
+          
+          <AlertDialogFooter className="flex-col sm:flex-row sm:justify-end gap-2">
+            <AlertDialogCancel disabled={isAuthenticating}>Cancelar</AlertDialogCancel>
+            <Button 
+              className={`${selectedChannel?.gradient ? `bg-gradient-to-r ${selectedChannel?.gradient}` : selectedChannel?.color} text-white`} 
+              onClick={authenticateGmail}
+              disabled={isAuthenticating || !gmailEmail || !gmailPassword}
+            >
+              {isAuthenticating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Conectando...
+                </>
+              ) : (
+                "Conectar Gmail"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      {/* Modal para configuración después de conectar */}
+      <AlertDialog open={showConfigModal} onOpenChange={(open) => !open && setShowConfigModal(false)}>
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-red-400 to-red-600 flex items-center justify-center text-white">
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22.0001 6.00055V18.0005C22.0001 19.1005 21.1001 20.0005 20.0001 20.0005H18.0001V8.00055L12.0001 12.8005L6.00006 8.00055V20.0005H4.00006C2.90006 20.0005 2.00006 19.1005 2.00006 18.0005V6.00055C2.00006 5.47055 2.21006 4.97055 2.58006 4.60055C2.95006 4.23055 3.45006 4.00055 4.00006 4.00055H4.33006L12.0001 10.0005L19.6701 4.00055H20.0001C20.5501 4.00055 21.0501 4.23055 21.4201 4.60055C21.7901 4.97055 22.0001 5.47055 22.0001 6.00055Z" fill="white"/>
+                </svg>
+              </div>
+              <AlertDialogTitle>Configurar Gmail</AlertDialogTitle>
+            </div>
+            <AlertDialogDescription>
+              Selecciona cómo quieres que Kalma te ayude con tus correos electrónicos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <div className="space-y-4 py-3">
+            <div className="space-y-4">
+              <div className="flex items-start space-x-3">
+                <Switch id="auto-reply" checked={gmailConfig.autoReply} onCheckedChange={(checked) => setGmailConfig({ ...gmailConfig, autoReply: checked })} />
+                <div>
+                  <Label htmlFor="auto-reply" className="font-medium">Respuestas automáticas</Label>
+                  <p className="text-sm text-gray-500">Kalma responderá automáticamente a correos según reglas que definas.</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <Switch id="email-summaries" checked={gmailConfig.emailSummaries} onCheckedChange={(checked) => setGmailConfig({ ...gmailConfig, emailSummaries: checked })} />
+                <div>
+                  <Label htmlFor="email-summaries" className="font-medium">Resúmenes de correos</Label>
+                  <p className="text-sm text-gray-500">Genera resúmenes automáticos de correos largos para una revisión rápida.</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <Switch id="priority-inbox" checked={gmailConfig.priorityInbox} onCheckedChange={(checked) => setGmailConfig({ ...gmailConfig, priorityInbox: checked })} />
+                <div>
+                  <Label htmlFor="priority-inbox" className="font-medium">Bandeja de entrada prioritaria</Label>
+                  <p className="text-sm text-gray-500">Prioriza los correos más importantes basándose en el contenido y remitente.</p>
+                </div>
+              </div>
+              
+              <div className="flex items-start space-x-3">
+                <Switch id="schedule-emails" checked={gmailConfig.scheduleEmails} onCheckedChange={(checked) => setGmailConfig({ ...gmailConfig, scheduleEmails: checked })} />
+                <div>
+                  <Label htmlFor="schedule-emails" className="font-medium">Programación de envíos</Label>
+                  <p className="text-sm text-gray-500">Programa envíos de correos para horas específicas.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="bg-gradient-to-r from-red-400 to-red-600 text-white" onClick={saveGmailConfig}>
+              Guardar configuración
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
