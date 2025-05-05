@@ -4,11 +4,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Instagram } from 'lucide-react';
 
-// IMPORTANTE: Usar directamente los IDs correctos para evitar errores de inyección
-// Este es el Facebook App ID (de Información básica)
-const FACEBOOK_APP_ID = '1431820417985163';
-// Este es el ID de Instagram (usado internamente en la API, no para el login inicial)
-const INSTAGRAM_APP_ID = '3029546990541926';
+// IMPORTANTE: Usar directamente el client_id correcto para Instagram Business
+// Ignoramos la variable de entorno para evitar errores de inyección
+const INSTAGRAM_CLIENT_ID = '3029546990541926'; // ID correcto de la app Business de Instagram
 // URL de redirección
 const REDIRECT_URI = 'https://kalma-lab.netlify.app/.netlify/functions/instagram-callback';
 
@@ -30,9 +28,8 @@ const InstagramAuthStart = () => {
       }
       
       // Log de información de configuración para debugging
-      console.log('Configuración de OAuth Instagram/Facebook:');
-      console.log('- FACEBOOK_APP_ID:', FACEBOOK_APP_ID, '(para la URL de autorización de Facebook)');
-      console.log('- INSTAGRAM_APP_ID:', INSTAGRAM_APP_ID, '(para uso interno en Graph API)');
+      console.log('Configuración de OAuth Instagram:');
+      console.log('- INSTAGRAM_CLIENT_ID:', INSTAGRAM_CLIENT_ID);
       console.log('- REDIRECT_URI:', REDIRECT_URI);
       console.log('- Usuario actual:', currentUser.uid);
       
@@ -44,30 +41,21 @@ const InstagramAuthStart = () => {
       }));
       console.log('- Estado generado:', state);
       
-      // Construir URL de autenticación de Facebook para Instagram Business
-      const authURL = new URL('https://www.facebook.com/v16.0/dialog/oauth');
+      // Construir URL de autenticación de Instagram
+      const authURL = new URL('https://api.instagram.com/oauth/authorize');
       
-      // Agregar parámetros con scopes específicos para Instagram Business
-      // IMPORTANTE: Para Facebook Login debemos usar el Facebook App ID, no el de Instagram
-      authURL.searchParams.append('client_id', FACEBOOK_APP_ID);
+      // Agregar parámetros requeridos (exactamente como se especifica para Instagram)
+      authURL.searchParams.append('client_id', INSTAGRAM_CLIENT_ID);
       authURL.searchParams.append('redirect_uri', REDIRECT_URI);
       authURL.searchParams.append('response_type', 'code');
-      authURL.searchParams.append(
-        'scope',
-        [
-          'pages_show_list',          // necesario para listar páginas
-          'instagram_basic',          // perfil e imágenes
-          'instagram_manage_comments',// moderación de comentarios
-          'instagram_manage_messages' // mensajes
-        ].join(',')
-      );
+      authURL.searchParams.append('scope', 'user_profile,user_media');
       authURL.searchParams.append('state', state);
       
       // Mostrar URL completa para verificación
       console.log('URL de autenticación completa:', authURL.toString());
-      console.log('Verificar que estamos usando el Facebook App ID (1431...), no el Instagram App ID (3029...)');
+      console.log('Verificar que estamos usando api.instagram.com/oauth/authorize');
       
-      // Redireccionar a Facebook para autenticación de Instagram Business
+      // Redireccionar a Instagram para autenticación
       window.location.href = authURL.toString();
     };
     
@@ -86,7 +74,7 @@ const InstagramAuthStart = () => {
           <Instagram className="h-12 w-12 text-pink-500" />
           <h1 className="text-2xl font-bold">Conectando con Instagram</h1>
           <p className="text-gray-500">
-            Te estamos redirigiendo a Facebook para conectar tu cuenta de Instagram Business...
+            Te estamos redirigiendo a Instagram para conectar tu cuenta...
           </p>
           <div className="mt-4">
             <Loader2 className="h-8 w-8 text-pink-500 animate-spin mx-auto" />
@@ -94,9 +82,8 @@ const InstagramAuthStart = () => {
           <div className="text-sm text-gray-500 mt-4">
             <p className="font-medium mb-2">Importante:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Inicia sesión con tu cuenta de Facebook asociada a Instagram</li>
-              <li>Selecciona la página de Facebook conectada a tu cuenta profesional de Instagram</li>
-              <li>Autoriza los permisos solicitados para Instagram Business</li>
+              <li>Inicia sesión con tu cuenta de Instagram</li>
+              <li>Autoriza a kalma para acceder a tu información básica</li>
               <li>Serás redirigido automáticamente a kalma después de autorizar</li>
             </ul>
           </div>

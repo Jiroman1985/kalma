@@ -132,29 +132,25 @@ exports.handler = async function(event, context) {
         return redirectToError('missing_user_id');
       }
       
-      // Usamos el ID y Secret de Facebook para intercambiar el código inicial
-      // Luego usamos el Secret de Instagram para el intercambio con graph.instagram.com
-      const facebook_app_id = '1431820417985163';
-      const facebook_app_secret = 'aebeade7c0eb58a083bb3a75e6baa167'; // Secret de Facebook (Información básica)
-      const instagram_app_id = '3029546990541926';
-      const instagram_app_secret = process.env.INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f'; // Secret de Instagram API
+      // Usamos el ID y Secret de Instagram para todo el flujo
+      const instagram_client_id = '3029546990541926';
+      const instagram_client_secret = process.env.INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f';
       const redirect_uri = 'https://kalma-lab.netlify.app/.netlify/functions/instagram-callback';
 
       console.log('REDIRECT_URI usado en backend:', redirect_uri);
-      console.log('FACEBOOK_APP_ID usado para intercambio inicial:', facebook_app_id);
-      console.log('INSTAGRAM_APP_ID para referencia:', instagram_app_id);
+      console.log('INSTAGRAM_CLIENT_ID usado para el flujo:', instagram_client_id);
 
-      // 1. Obtener el token de Facebook usando el código de autorización de Facebook Login
+      // 1. Obtener el token de corta duración de Instagram
+      console.log('Solicitando token de corta duración a api.instagram.com/oauth/access_token...');
+      
       const params = new URLSearchParams();
-      params.append('client_id', facebook_app_id);
-      params.append('client_secret', facebook_app_secret); // IMPORTANTE: Usamos el secret de Facebook aquí
+      params.append('client_id', instagram_client_id);
+      params.append('client_secret', instagram_client_secret);
       params.append('grant_type', 'authorization_code');
       params.append('redirect_uri', redirect_uri);
       params.append('code', code);
 
-      console.log('Haciendo solicitud a graph.facebook.com para intercambiar el código por token...');
-      
-      const tokenResponse = await fetch('https://graph.facebook.com/v16.0/oauth/access_token', {
+      const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: params.toString()
@@ -162,57 +158,43 @@ exports.handler = async function(event, context) {
 
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
-        console.error('Error en respuesta de token Facebook:', errorText);
+        console.error('Error en respuesta de token de corta duración:', errorText);
         return redirectToError('token_error', errorText);
       }
 
-      const facebookTokenData = await tokenResponse.json();
-      console.log('Respuesta de token de Facebook:', Object.keys(facebookTokenData).join(', '));
+      const shortTokenData = await tokenResponse.json();
+      console.log('Token de corta duración obtenido. Datos recibidos:', Object.keys(shortTokenData).join(', '));
 
-      if (facebookTokenData.error) {
-        return redirectToError('facebook_error', facebookTokenData.error.message);
+      if (!shortTokenData.access_token) {
+        console.error('No se recibió token de corta duración:', shortTokenData);
+        return redirectToError('missing_token', JSON.stringify(shortTokenData));
       }
 
       // 2. Intercambiar por token de Instagram de larga duración
-      console.log('Intercambiando token de Facebook por token de Instagram...');
-      // IMPORTANTE: Usamos el Instagram App Secret aquí, no el de Facebook
-      const longTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${instagram_app_secret}&access_token=${facebookTokenData.access_token}`;
+      console.log('Intercambiando por token de larga duración...');
+      const longTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${instagram_client_secret}&access_token=${shortTokenData.access_token}`;
       
       const longTokenResponse = await fetch(longTokenUrl);
       
       if (!longTokenResponse.ok) {
         const errorText = await longTokenResponse.text();
-        console.error('Error en respuesta de token Instagram:', errorText);
+        console.error('Error en respuesta de token de larga duración:', errorText);
         return redirectToError('long_token_error', errorText);
       }
       
       const longTokenData = await longTokenResponse.json();
-      console.log('Respuesta de token de Instagram:', Object.keys(longTokenData).join(', '));
+      console.log('Token de larga duración obtenido. Datos recibidos:', Object.keys(longTokenData).join(', '));
       
-      if (longTokenData.error) {
-        return redirectToError('instagram_error', longTokenData.error.message);
+      if (!longTokenData.access_token) {
+        console.error('No se recibió token de larga duración:', longTokenData);
+        return redirectToError('missing_long_token', JSON.stringify(longTokenData));
       }
       
-      // 3. Obtener datos del usuario de Instagram usando el token
-      console.log('Obteniendo datos de usuario de Instagram...');
-      const userDataResponse = await fetch(
-        `https://graph.instagram.com/me?fields=id,username&access_token=${longTokenData.access_token}`
-      );
-      
-      let userData = { id: 'unknown', username: 'unknown' };
-      
-      if (userDataResponse.ok) {
-        userData = await userDataResponse.json();
-        console.log('Datos de usuario obtenidos:', Object.keys(userData).join(', '));
-      } else {
-        console.warn('No se pudieron obtener datos de usuario de Instagram, usando valores por defecto');
-      }
-
-      // 4. Guardar tokens y datos en Firebase
+      // 3. Guardar tokens y datos en Firebase
       const instagramData = {
         connected: true,
-        instagramUserId: userData.id,
-        username: userData.username || '',
+        instagramUserId: shortTokenData.user_id,
+        username: shortTokenData.username || '',
         accessToken: longTokenData.access_token, // Token de larga duración
         tokenExpiresIn: longTokenData.expires_in,
         tokenObtainedAt: Date.now(),
@@ -241,22 +223,13 @@ exports.handler = async function(event, context) {
             const channelRef = db.collection('users').doc(userId).collection('channelConnections').doc('instagram');
             await channelRef.set({
               channelId: 'instagram',
-              username: userData.username || '',
+              username: shortTokenData.username || '',
               connectedAt: admin.firestore.FieldValue.serverTimestamp(),
               status: 'active',
               lastSync: admin.firestore.FieldValue.serverTimestamp()
             });
             
             console.log('Conexión de canal guardada');
-            
-            // 5. Redireccionar al frontend con éxito, incluso si Firebase falló
-            return {
-              statusCode: 302,
-              headers: {
-                'Location': `https://kalma-lab.netlify.app/auth/instagram/success?userId=${userId}&instagramId=${userData.id}&accessToken=${encodeURIComponent(longTokenData.access_token)}`
-              },
-              body: ''
-            };
           }
         } catch (firestoreError) {
           console.error('Error al guardar en Firestore, pero continuamos el flujo:', firestoreError.message);
@@ -266,11 +239,11 @@ exports.handler = async function(event, context) {
         console.warn('Firebase no está disponible, omitiendo guardado de datos');
       }
       
-      // 5. Redireccionar al frontend con éxito, incluso si Firebase falló
+      // Redireccionar al frontend con éxito
       return {
         statusCode: 302,
         headers: {
-          'Location': `https://kalma-lab.netlify.app/auth/instagram/success?userId=${userId}&instagramId=${userData.id}&accessToken=${encodeURIComponent(longTokenData.access_token)}`
+          'Location': `https://kalma-lab.netlify.app/auth/instagram/success?userId=${userId}&instagramId=${shortTokenData.user_id}&accessToken=${encodeURIComponent(longTokenData.access_token)}`
         },
         body: ''
       };
