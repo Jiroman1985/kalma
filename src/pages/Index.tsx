@@ -16,6 +16,8 @@ import Login from "./Login";
 import NotFound from "./NotFound";
 import SocialNetworks from "./SocialNetworks";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import FeaturesGrid from "@/components/FeaturesGrid";
+import TimeRecoverySection from "@/components/TimeRecoverySection";
 
 const Index = () => {
   const location = useLocation();
@@ -28,6 +30,8 @@ const Index = () => {
         <Route path="/" element={
           <>
             <HeroSection />
+            <FeaturesGrid />
+            <TimeRecoverySection />
             <FeaturesSection />
             <HowItWorksSection />
             <TestimonialSection />
