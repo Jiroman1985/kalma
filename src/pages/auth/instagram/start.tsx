@@ -41,28 +41,30 @@ const InstagramAuthStart = () => {
       }));
       console.log('- Estado generado:', state);
       
-      // Construir URL de autenticación de Instagram
-      const authURL = new URL('https://api.instagram.com/oauth/authorize');
+      // *** CAMBIO PRINCIPAL: Usar Facebook Login en lugar de Instagram Basic Display ***
+      // Construir URL de autenticación de Facebook para Instagram Business
+      const authURL = new URL('https://www.facebook.com/v16.0/dialog/oauth');
       
-      // Agregar parámetros requeridos
-      const params = {
-        client_id: INSTAGRAM_CLIENT_ID,
-        redirect_uri: REDIRECT_URI,
-        response_type: 'code',
-        scope: 'user_profile,user_media',
-        state: state
-      };
-      
-      // Adjuntar los parámetros a la URL
-      Object.entries(params).forEach(([key, value]) => {
-        authURL.searchParams.append(key, value);
-      });
+      // Agregar parámetros con scopes específicos para Instagram Business
+      authURL.searchParams.append('client_id', INSTAGRAM_CLIENT_ID);
+      authURL.searchParams.append('redirect_uri', REDIRECT_URI);
+      authURL.searchParams.append('response_type', 'code');
+      authURL.searchParams.append(
+        'scope',
+        [
+          'pages_show_list',          // necesario para listar páginas
+          'instagram_basic',          // perfil e imágenes
+          'instagram_manage_comments',// moderación de comentarios
+          'instagram_manage_messages' // mensajes
+        ].join(',')
+      );
+      authURL.searchParams.append('state', state);
       
       // Mostrar URL completa para verificación
       console.log('URL de autenticación completa:', authURL.toString());
-      console.log('Verifica que el client_id sea 3029546990541926 en la URL anterior ☝️');
+      console.log('Verificar que ahora usamos facebook.com en lugar de api.instagram.com');
       
-      // Redireccionar a Instagram para autenticación
+      // Redireccionar a Facebook para autenticación de Instagram Business
       window.location.href = authURL.toString();
     };
     
@@ -81,7 +83,7 @@ const InstagramAuthStart = () => {
           <Instagram className="h-12 w-12 text-pink-500" />
           <h1 className="text-2xl font-bold">Conectando con Instagram</h1>
           <p className="text-gray-500">
-            Te estamos redirigiendo a Instagram para conectar tu cuenta...
+            Te estamos redirigiendo a Facebook para conectar tu cuenta de Instagram Business...
           </p>
           <div className="mt-4">
             <Loader2 className="h-8 w-8 text-pink-500 animate-spin mx-auto" />
@@ -89,8 +91,9 @@ const InstagramAuthStart = () => {
           <div className="text-sm text-gray-500 mt-4">
             <p className="font-medium mb-2">Importante:</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Inicia sesión con tu cuenta de Instagram</li>
-              <li>Autoriza a kalma para acceder a tu información básica</li>
+              <li>Inicia sesión con tu cuenta de Facebook asociada a Instagram</li>
+              <li>Selecciona la página de Facebook conectada a tu cuenta profesional de Instagram</li>
+              <li>Autoriza los permisos solicitados para Instagram Business</li>
               <li>Serás redirigido automáticamente a kalma después de autorizar</li>
             </ul>
           </div>
