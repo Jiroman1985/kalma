@@ -21,6 +21,7 @@ export default {
 			fontFamily: {
 				inter: ['Inter', 'sans-serif'],
 				montserrat: ['Montserrat', 'sans-serif'],
+				heading: ['Montserrat', 'sans-serif'],
 			},
 			colors: {
 				border: 'hsl(var(--border))',
@@ -150,6 +151,58 @@ export default {
 						opacity: '0.85',
 						transform: 'scale(1.03)'
 					}
+				},
+				'float': {
+					'0%, 100%': {
+						transform: 'translateY(0)'
+					},
+					'50%': {
+						transform: 'translateY(-10px)'
+					}
+				},
+				'blink': {
+					'0%, 100%': {
+						opacity: '1'
+					},
+					'50%': {
+						opacity: '0'
+					}
+				},
+				'pulse-slow': {
+					'0%, 100%': {
+						opacity: '1'
+					},
+					'50%': {
+						opacity: '0.6'
+					}
+				},
+				'spin-slow': {
+					'from': {
+						transform: 'rotate(0deg)'
+					},
+					'to': {
+						transform: 'rotate(360deg)'
+					}
+				},
+				'slide-up': {
+					'0%': {
+						transform: 'translateY(20px)',
+						opacity: '0'
+					},
+					'100%': {
+						transform: 'translateY(0)',
+						opacity: '1'
+					}
+				},
+				'slide-in': {
+					'0%': {
+						transform: 'translateX(-20px)',
+						opacity: '0'
+					},
+					'100%': {
+						transform: 'translateX(0)',
+						opacity: '1'
+					}
 				}
 			},
 			animation: {
@@ -160,7 +213,23 @@ export default {
 				'scale-in': 'scale-in 0.25s ease-out',
 				'slide-in-right': 'slide-in-right 0.3s ease-out',
 				'bounce-subtle': 'bounce-subtle 2s ease-in-out infinite',
-				'pulse-glow': 'pulse-glow 2s ease-in-out infinite'
+				'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+				'float': 'float 6s ease-in-out infinite',
+				'blink': 'blink 1s ease-in-out infinite',
+				'pulse-slow': 'pulse-slow 4s ease-in-out infinite',
+				'spin-slow': 'spin-slow 15s linear infinite',
+				'slide-up': 'slide-up 0.4s ease-out',
+				'slide-in': 'slide-in 0.4s ease-out'
+			},
+			transitionDelay: {
+				'100': '100ms',
+				'200': '200ms',
+				'300': '300ms',
+				'400': '400ms',
+				'500': '500ms',
+			},
+			backgroundImage: {
+				'gradient-main': 'linear-gradient(to right, var(--primary) 0%, var(--secondary) 100%)',
 			}
 		}
 	},

@@ -1,10 +1,10 @@
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
-import FeaturesSection from "@/components/FeaturesSection";
-import HowItWorksSection from "@/components/HowItWorksSection";
+import FeatureSection from "@/components/FeatureSection";
+import IntegrationSection from "@/components/IntegrationSection";
+import TimeSection from "@/components/TimeSection";
 import TestimonialSection from "@/components/TestimonialSection";
-import PricingSection from "@/components/PricingSection";
-import CtaSection from "@/components/CtaSection";
+import CallToAction from "@/components/CallToAction";
 import Footer from "@/components/Footer";
 import { Route, Routes, useLocation } from "react-router-dom";
 import Dashboard from "./Dashboard";
@@ -16,8 +16,6 @@ import Login from "./Login";
 import NotFound from "./NotFound";
 import SocialNetworks from "./SocialNetworks";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import FeaturesGrid from "@/components/FeaturesGrid";
-import TimeRecoverySection from "@/components/TimeRecoverySection";
 
 const Index = () => {
   const location = useLocation();
@@ -30,13 +28,11 @@ const Index = () => {
         <Route path="/" element={
           <>
             <HeroSection />
-            <FeaturesGrid />
-            <TimeRecoverySection />
-            <FeaturesSection />
-            <HowItWorksSection />
+            <FeatureSection />
+            <IntegrationSection />
+            <TimeSection />
             <TestimonialSection />
-            <PricingSection />
-            <CtaSection />
+            <CallToAction />
           </>
         } />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
