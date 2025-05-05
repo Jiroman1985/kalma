@@ -1,8 +1,51 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, memo } from "react";
 import { Button } from "./ui/button";
 import { Link, useLocation } from "react-router-dom";
 import { User, Menu, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+
+// Función de throttling para limitar la frecuencia de ejecución
+const throttle = (func: Function, limit: number) => {
+  let inThrottle: boolean;
+  return function(this: any, ...args: any[]) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
+};
+
+// Componente MobileMenu separado y memoizado
+const MobileMenu = memo(({ items }: { items: { href: string; label: string }[] }) => (
+  <div className="md:hidden bg-white/95 backdrop-blur-sm shadow-lg p-4 animate-fade-in-up">
+    <nav className="flex flex-col space-y-4">
+      {items.map((item) => (
+        <a 
+          key={item.href}
+          href={item.href} 
+          className="text-foreground hover:text-primary transition-colors font-medium p-2"
+        >
+          {item.label}
+        </a>
+      ))}
+    </nav>
+  </div>
+));
+
+MobileMenu.displayName = 'MobileMenu';
+
+// Componente de Logo separado y memoizado
+const Logo = memo(() => (
+  <Link to="/" className="flex items-center gap-2">
+    <div className="w-8 h-8 rounded-full bg-gradient-main flex items-center justify-center">
+      <span className="text-white font-bold">K</span>
+    </div>
+    <span className="text-2xl font-bold text-gradient">kalma</span>
+  </Link>
+));
+
+Logo.displayName = 'Logo';
 
 const Navbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -10,25 +53,37 @@ const Navbar: React.FC = () => {
   const { currentUser } = useAuth();
   const location = useLocation();
 
-  useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 10) {
-        setIsScrolled(true);
-      } else {
-        setIsScrolled(false);
-      }
-    };
+  // Lista de elementos de navegación para el menú
+  const navItems = [
+    { href: "#caracteristicas", label: "Características" },
+    { href: "#como-funciona", label: "Cómo Funciona" },
+    { href: "#precios", label: "Precios" }
+  ];
 
+  // Manejador de scroll optimizado con throttling
+  const handleScroll = useCallback(throttle(() => {
+    // Usar requestAnimationFrame para optimizar el rendimiento
+    window.requestAnimationFrame(() => {
+      setIsScrolled(window.scrollY > 10);
+    });
+  }, 100), []);
+
+  useEffect(() => {
     window.addEventListener("scroll", handleScroll);
     return () => {
       window.removeEventListener("scroll", handleScroll);
     };
-  }, []);
+  }, [handleScroll]);
 
   // Cerrar el menú móvil cuando se cambia de ruta
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
+
+  // Función memoizada para cambiar el estado del menú móvil
+  const toggleMobileMenu = useCallback(() => {
+    setMobileMenuOpen(prev => !prev);
+  }, []);
 
   return (
     <header 
@@ -40,18 +95,19 @@ const Navbar: React.FC = () => {
     >
       <div className="container mx-auto flex items-center justify-between px-4">
         <div className="flex items-center">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-gradient-main flex items-center justify-center">
-              <span className="text-white font-bold">K</span>
-            </div>
-            <span className="text-2xl font-bold text-gradient">kalma</span>
-          </Link>
+          <Logo />
         </div>
         
         <nav className="hidden md:flex items-center space-x-8">
-          <a href="#caracteristicas" className="text-foreground hover:text-primary transition-colors font-medium">Características</a>
-          <a href="#como-funciona" className="text-foreground hover:text-primary transition-colors font-medium">Cómo Funciona</a>
-          <a href="#precios" className="text-foreground hover:text-primary transition-colors font-medium">Precios</a>
+          {navItems.map((item) => (
+            <a 
+              key={item.href}
+              href={item.href} 
+              className="text-foreground hover:text-primary transition-colors font-medium"
+            >
+              {item.label}
+            </a>
+          ))}
         </nav>
         
         <div className="flex items-center gap-4">
@@ -82,29 +138,15 @@ const Navbar: React.FC = () => {
             variant="ghost" 
             size="icon" 
             className="md:hidden"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={toggleMobileMenu}
           >
             {mobileMenuOpen ? <X /> : <Menu />}
           </Button>
         </div>
       </div>
       
-      {/* Menú móvil */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-white shadow-lg p-4 animate-fade-in-up">
-          <nav className="flex flex-col space-y-4">
-            <a href="#caracteristicas" className="text-foreground hover:text-primary transition-colors font-medium p-2">
-              Características
-            </a>
-            <a href="#como-funciona" className="text-foreground hover:text-primary transition-colors font-medium p-2">
-              Cómo Funciona
-            </a>
-            <a href="#precios" className="text-foreground hover:text-primary transition-colors font-medium p-2">
-              Precios
-            </a>
-          </nav>
-        </div>
-      )}
+      {/* Menú móvil - renderizado condicional con componente memoizado */}
+      {mobileMenuOpen && <MobileMenu items={navItems} />}
     </header>
   );
 };
