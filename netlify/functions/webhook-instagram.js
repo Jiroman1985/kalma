@@ -1,6 +1,10 @@
 const crypto = require('crypto');
 const admin = require('firebase-admin');
 
+// Control de inicialización de Firebase
+let firebaseInitialized = false;
+let db = null;
+
 // Inicializar Firebase Admin con mejor manejo de errores
 if (!admin.apps.length) {
   try {
@@ -29,6 +33,7 @@ if (!admin.apps.length) {
       console.error('ERROR: Las credenciales de Firebase no contienen project_id');
       console.error('Credenciales recibidas:', Object.keys(serviceAccount).length ? 
         Object.keys(serviceAccount).join(', ') : 'objeto vacío');
+      throw new Error('Service account incompleto: falta project_id');
     }
     
     admin.initializeApp({
@@ -36,15 +41,15 @@ if (!admin.apps.length) {
       databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://kalma-app-default-rtdb.firebaseio.com'
     });
     
-    console.log('Firebase inicializado correctamente para el proyecto:', serviceAccount.project_id || 'desconocido');
+    console.log('Firebase inicializado correctamente para el proyecto:', serviceAccount.project_id);
+    firebaseInitialized = true;
+    db = admin.firestore();
   } catch (error) {
     console.error('Error al inicializar Firebase:', error.message);
-    // No lanzamos el error para permitir que la función siga funcionando
-    // aunque no pueda acceder a Firebase
+    firebaseInitialized = false;
+    // No inicializamos db, quedará como null
   }
 }
-
-const db = admin.firestore();
 
 exports.handler = async function(event, context) {
   console.log('Instagram webhook function triggered');
@@ -116,6 +121,7 @@ exports.handler = async function(event, context) {
       const payload = JSON.parse(event.body);
       console.log('Payload de webhook recibido:', JSON.stringify(payload));
       
+      // Procesamos el evento incluso si Firebase no está disponible
       // Por cada entrada (entry) en el webhook...
       if (payload.entry && Array.isArray(payload.entry)) {
         for (const entry of payload.entry) {
@@ -132,74 +138,65 @@ exports.handler = async function(event, context) {
               console.log(`Recibido cambio de tipo: ${field}`);
               
               // Implementar lógica específica basada en el tipo de cambio
-              switch (field) {
-                case 'comments':
-                  // Procesar nuevos comentarios
-                  console.log('Nuevo comentario:', value.text);
-                  // Guardar en Firestore
-                  try {
-                    await db.collection('instagramEvents')
-                      .doc(value.id || Date.now().toString())
-                      .set({
-                        type: 'comment',
-                        data: value,
-                        createdAt: admin.firestore.FieldValue.serverTimestamp()
-                      });
-                    console.log('Comentario guardado en Firestore');
-                  } catch (dbError) {
-                    console.error('Error al guardar comentario:', dbError);
+              if (firebaseInitialized && db) {
+                try {
+                  // Solo intentamos guardar en Firestore si está disponible
+                  switch (field) {
+                    case 'comments':
+                      // Procesar nuevos comentarios
+                      console.log('Nuevo comentario:', value.text);
+                      await db.collection('instagramEvents')
+                        .doc(value.id || Date.now().toString())
+                        .set({
+                          type: 'comment',
+                          data: value,
+                          createdAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                      console.log('Comentario guardado en Firestore');
+                      break;
+                    
+                    case 'mentions':
+                      console.log('Nueva mención:', value.text);
+                      await db.collection('instagramEvents')
+                        .doc(value.id || Date.now().toString())
+                        .set({
+                          type: 'mention',
+                          data: value,
+                          createdAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                      console.log('Mención guardada en Firestore');
+                      break;
+                    
+                    case 'messages':
+                      console.log('Nuevo mensaje:', value.message);
+                      await db.collection('instagramEvents')
+                        .doc(value.id || Date.now().toString())
+                        .set({
+                          type: 'message',
+                          data: value,
+                          createdAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                      console.log('Mensaje guardado en Firestore');
+                      break;
+                    
+                    default:
+                      console.log(`Tipo de evento no manejado: ${field}`);
+                      await db.collection('instagramEvents')
+                        .doc(Date.now().toString())
+                        .set({
+                          type: field,
+                          data: value,
+                          createdAt: admin.firestore.FieldValue.serverTimestamp()
+                        });
+                      console.log('Evento genérico guardado en Firestore');
                   }
-                  break;
-                
-                case 'mentions':
-                  console.log('Nueva mención:', value.text);
-                  // Guardar en Firestore
-                  try {
-                    await db.collection('instagramEvents')
-                      .doc(value.id || Date.now().toString())
-                      .set({
-                        type: 'mention',
-                        data: value,
-                        createdAt: admin.firestore.FieldValue.serverTimestamp()
-                      });
-                    console.log('Mención guardada en Firestore');
-                  } catch (dbError) {
-                    console.error('Error al guardar mención:', dbError);
-                  }
-                  break;
-                
-                case 'messages':
-                  console.log('Nuevo mensaje:', value.message);
-                  // Guardar en Firestore
-                  try {
-                    await db.collection('instagramEvents')
-                      .doc(value.id || Date.now().toString())
-                      .set({
-                        type: 'message',
-                        data: value,
-                        createdAt: admin.firestore.FieldValue.serverTimestamp()
-                      });
-                    console.log('Mensaje guardado en Firestore');
-                  } catch (dbError) {
-                    console.error('Error al guardar mensaje:', dbError);
-                  }
-                  break;
-                
-                default:
-                  console.log(`Tipo de evento no manejado: ${field}`);
-                  // Guardar como evento genérico
-                  try {
-                    await db.collection('instagramEvents')
-                      .doc(Date.now().toString())
-                      .set({
-                        type: field,
-                        data: value,
-                        createdAt: admin.firestore.FieldValue.serverTimestamp()
-                      });
-                    console.log('Evento genérico guardado en Firestore');
-                  } catch (dbError) {
-                    console.error('Error al guardar evento genérico:', dbError);
-                  }
+                } catch (dbError) {
+                  console.error(`Error al guardar evento ${field} en Firestore:`, dbError.message);
+                  // Continuamos procesando a pesar del error
+                }
+              } else {
+                console.warn('Firebase no disponible, no se guardará el evento:', field);
+                // Procesamos el evento en memoria o lógica alternativa aquí
               }
             }
           }
@@ -207,6 +204,7 @@ exports.handler = async function(event, context) {
       }
       
       // Instagram espera una respuesta 200 OK para confirmar la recepción
+      // Siempre respondemos exitosamente, incluso si hubo errores guardando en Firebase
       return {
         statusCode: 200,
         body: JSON.stringify({ success: true })

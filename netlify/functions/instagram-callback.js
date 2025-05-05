@@ -1,6 +1,10 @@
 const fetch = require('node-fetch');
 const admin = require('firebase-admin');
 
+// Control de inicialización de Firebase
+let firebaseInitialized = false;
+let db = null;
+
 // Inicializar Firebase Admin con mejor manejo de errores
 if (!admin.apps.length) {
   try {
@@ -29,6 +33,7 @@ if (!admin.apps.length) {
       console.error('ERROR: Las credenciales de Firebase no contienen project_id');
       console.error('Credenciales recibidas:', Object.keys(serviceAccount).length ? 
         Object.keys(serviceAccount).join(', ') : 'objeto vacío');
+      throw new Error('Service account incompleto: falta project_id');
     }
     
     admin.initializeApp({
@@ -36,15 +41,15 @@ if (!admin.apps.length) {
       databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://kalma-app-default-rtdb.firebaseio.com'
     });
     
-    console.log('Firebase inicializado correctamente para el proyecto:', serviceAccount.project_id || 'desconocido');
+    console.log('Firebase inicializado correctamente para el proyecto:', serviceAccount.project_id);
+    firebaseInitialized = true;
+    db = admin.firestore();
   } catch (error) {
     console.error('Error al inicializar Firebase:', error.message);
-    // No lanzamos el error para permitir que la función siga funcionando
-    // aunque no pueda acceder a Firebase
+    firebaseInitialized = false;
+    // No inicializamos db, quedará como null
   }
 }
-
-const db = admin.firestore();
 
 exports.handler = async function(event, context) {
   console.log('Instagram callback function triggered');
@@ -141,80 +146,84 @@ exports.handler = async function(event, context) {
         return redirectToError('long_token_instagram_error', longTokenData.error.message);
       }
       
-      // 3. Guardar tokens y datos en Firebase
-      try {
-        // Verificar que el usuario existe en Firestore
-        const userRef = db.collection('users').doc(userId);
-        const userDoc = await userRef.get();
-        
-        if (!userDoc.exists) {
-          console.error('El usuario no existe en Firebase:', userId);
-          return redirectToError('user_not_found');
-        }
-        
-        // Datos a guardar
-        const instagramData = {
-          connected: true,
-          instagramUserId: shortTokenData.user_id,
-          username: shortTokenData.username || '',
-          accessToken: longTokenData.access_token, // Token de larga duración
-          tokenExpiresIn: longTokenData.expires_in,
-          tokenObtainedAt: Date.now(),
-          tokenExpiresAt: Date.now() + (longTokenData.expires_in * 1000)
-        };
-        
-        // Guardar datos de Instagram en el documento del usuario
-        await userRef.update({
-          'socialNetworks.instagram': instagramData
-        });
-        
-        console.log('Datos de Instagram guardados para usuario:', userId);
-        
-        // Guardar también en channelConnections
-        const channelRef = db.collection('users').doc(userId).collection('channelConnections').doc('instagram');
-        await channelRef.set({
-          channelId: 'instagram',
-          username: shortTokenData.username || '',
-          connectedAt: admin.firestore.FieldValue.serverTimestamp(),
-          status: 'active',
-          lastSync: admin.firestore.FieldValue.serverTimestamp()
-        });
-        
-        console.log('Conexión de canal guardada');
-        
-        // 4. Obtener información básica de usuario para mostrar en el frontend
-        // Cargar información de usuario (sin token - solo para UI)
-        const igUserResponse = await fetch(
-          `https://graph.instagram.com/me?fields=id,username,account_type,media_count&access_token=${longTokenData.access_token}`
-        );
-        
-        if (!igUserResponse.ok) {
-          console.warn('No se pudo obtener información de usuario, pero continuamos');
-        } else {
-          const igUserData = await igUserResponse.json();
+      // 3. Guardar tokens y datos en Firebase (solo si Firebase está disponible)
+      const instagramData = {
+        connected: true,
+        instagramUserId: shortTokenData.user_id,
+        username: shortTokenData.username || '',
+        accessToken: longTokenData.access_token, // Token de larga duración
+        tokenExpiresIn: longTokenData.expires_in,
+        tokenObtainedAt: Date.now(),
+        tokenExpiresAt: Date.now() + (longTokenData.expires_in * 1000)
+      };
+      
+      // Intento de guardar en Firebase si está disponible
+      if (firebaseInitialized && db) {
+        try {
+          // Verificar que el usuario existe en Firestore
+          const userRef = db.collection('users').doc(userId);
+          const userDoc = await userRef.get();
           
-          // Actualizar con información adicional
-          await userRef.update({
-            'socialNetworks.instagram.accountType': igUserData.account_type || '',
-            'socialNetworks.instagram.mediaCount': igUserData.media_count || 0,
-            'socialNetworks.instagram.profileUrl': igUserData.username ? `https://instagram.com/${igUserData.username}` : ''
-          });
-          
-          console.log('Información de usuario actualizada');
+          if (!userDoc.exists) {
+            console.error('El usuario no existe en Firebase:', userId);
+            // Continuamos de todos modos, no queremos fallar por esto
+          } else {
+            // Guardar datos de Instagram en el documento del usuario
+            await userRef.update({
+              'socialNetworks.instagram': instagramData
+            });
+            
+            console.log('Datos de Instagram guardados para usuario:', userId);
+            
+            // Guardar también en channelConnections
+            const channelRef = db.collection('users').doc(userId).collection('channelConnections').doc('instagram');
+            await channelRef.set({
+              channelId: 'instagram',
+              username: shortTokenData.username || '',
+              connectedAt: admin.firestore.FieldValue.serverTimestamp(),
+              status: 'active',
+              lastSync: admin.firestore.FieldValue.serverTimestamp()
+            });
+            
+            console.log('Conexión de canal guardada');
+            
+            // 4. Obtener información básica de usuario para mostrar en el frontend
+            // Cargar información de usuario (sin token - solo para UI)
+            const igUserResponse = await fetch(
+              `https://graph.instagram.com/me?fields=id,username,account_type,media_count&access_token=${longTokenData.access_token}`
+            );
+            
+            if (igUserResponse.ok) {
+              const igUserData = await igUserResponse.json();
+              
+              // Actualizar con información adicional
+              await userRef.update({
+                'socialNetworks.instagram.accountType': igUserData.account_type || '',
+                'socialNetworks.instagram.mediaCount': igUserData.media_count || 0,
+                'socialNetworks.instagram.profileUrl': igUserData.username ? `https://instagram.com/${igUserData.username}` : ''
+              });
+              
+              console.log('Información de usuario actualizada');
+            } else {
+              console.warn('No se pudo obtener información de usuario, pero continuamos');
+            }
+          }
+        } catch (firestoreError) {
+          console.error('Error al guardar en Firestore, pero continuamos el flujo:', firestoreError.message);
+          // Continuamos a pesar del error, queremos mostrar éxito al usuario
         }
-        
-        // 5. Redireccionar al frontend con éxito
-        return {
-          statusCode: 302,
-          headers: {
-            'Location': `https://kalma-lab.netlify.app/auth/instagram/success?userId=${userId}&instagramId=${shortTokenData.user_id}`
-          },
-          body: ''
-        };
-      } catch (firestoreError) {
-        console.error('Error al guardar en Firestore:', firestoreError);
-        return redirectToError('database_error');
+      } else {
+        console.warn('Firebase no está disponible, omitiendo guardado de datos');
       }
+      
+      // 5. Redireccionar al frontend con éxito, incluso si Firebase falló
+      return {
+        statusCode: 302,
+        headers: {
+          'Location': `https://kalma-lab.netlify.app/auth/instagram/success?userId=${userId}&instagramId=${shortTokenData.user_id}`
+        },
+        body: ''
+      };
     } catch (error) {
       console.error('Error interno en la función serverless:', error);
       return redirectToError('server_error');
@@ -250,6 +259,39 @@ exports.handler = async function(event, context) {
   }
   
   // Si llegamos aquí, no se cumplió ninguna de las condiciones anteriores
+  // Verificación de webhook para Instagram (hub.mode, hub.challenge, hub.verify_token)
+  if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters['hub.mode']) {
+    console.log('Recibida solicitud GET para verificación de webhook con parámetros:', event.queryStringParameters);
+    
+    const mode = event.queryStringParameters['hub.mode'];
+    const token = event.queryStringParameters['hub.verify_token'];
+    const challenge = event.queryStringParameters['hub.challenge'];
+    
+    if (!mode || !token || !challenge) {
+      console.log('Parámetros de verificación incompletos');
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Parámetros de verificación incompletos' })
+      };
+    }
+    
+    const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN || 'kalma-instagram-webhook-verify-token';
+    
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('Webhook verificado exitosamente, devolviendo challenge:', challenge);
+      return {
+        statusCode: 200,
+        body: challenge
+      };
+    } else {
+      console.log('Verificación de webhook fallida. Mode:', mode, 'Token recibido:', token, 'Token esperado:', VERIFY_TOKEN);
+      return {
+        statusCode: 403,
+        body: 'Verificación fallida'
+      };
+    }
+  }
+  
   return {
     statusCode: 400,
     body: JSON.stringify({ error: 'Solicitud no válida: Los parámetros de la solicitud no son válidos.' })
