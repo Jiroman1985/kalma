@@ -1,24 +1,45 @@
 const crypto = require('crypto');
+const admin = require('firebase-admin');
+
+// Inicializar Firebase Admin si no está ya inicializado
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}')),
+    databaseURL: process.env.FIREBASE_DATABASE_URL
+  });
+}
+
+const db = admin.firestore();
 
 exports.handler = async function(event, context) {
-  console.log('Instagram webhook recibido');
+  console.log('Instagram webhook function triggered');
   
   // Verificación del webhook cuando Instagram lo solicita mediante GET
   if (event.httpMethod === 'GET') {
+    console.log('Recibida solicitud GET para verificación de webhook con parámetros:', event.queryStringParameters);
+    
     const mode = event.queryStringParameters['hub.mode'];
     const token = event.queryStringParameters['hub.verify_token'];
     const challenge = event.queryStringParameters['hub.challenge'];
     
+    if (!mode || !token || !challenge) {
+      console.log('Parámetros de verificación incompletos');
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Parámetros de verificación incompletos' })
+      };
+    }
+    
     const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN || 'kalma-instagram-webhook-verify-token';
     
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('Webhook verificado exitosamente');
+      console.log('Webhook verificado exitosamente, devolviendo challenge:', challenge);
       return {
         statusCode: 200,
         body: challenge
       };
     } else {
-      console.log('Verificación de webhook fallida');
+      console.log('Verificación de webhook fallida. Mode:', mode, 'Token recibido:', token, 'Token esperado:', VERIFY_TOKEN);
       return {
         statusCode: 403,
         body: 'Verificación fallida'
@@ -29,11 +50,14 @@ exports.handler = async function(event, context) {
   // Procesamiento de eventos del webhook mediante POST
   if (event.httpMethod === 'POST') {
     try {
+      console.log('Recibido evento webhook POST');
+      
       // Verificar la firma X-Hub-Signature para validar autenticidad
       const signature = event.headers['x-hub-signature'];
       const CLIENT_SECRET = process.env.INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f';
       
       if (signature) {
+        console.log('Verificando firma de webhook:', signature);
         const [signatureType, signatureHash] = signature.split('=');
         
         if (signatureType === 'sha1') {
@@ -49,15 +73,13 @@ exports.handler = async function(event, context) {
               body: JSON.stringify({ error: 'Firma inválida' })
             };
           }
+          console.log('Firma verificada correctamente');
         }
       }
       
       // Procesar la carga útil del webhook
       const payload = JSON.parse(event.body);
       console.log('Payload de webhook recibido:', JSON.stringify(payload));
-      
-      // Aquí procesaríamos los diferentes tipos de eventos
-      // Por ejemplo, actualizaciones de comentarios, mensajes, reacciones, etc.
       
       // Por cada entrada (entry) en el webhook...
       if (payload.entry && Array.isArray(payload.entry)) {
@@ -79,21 +101,70 @@ exports.handler = async function(event, context) {
                 case 'comments':
                   // Procesar nuevos comentarios
                   console.log('Nuevo comentario:', value.text);
-                  // TODO: Guardar en base de datos, enviar notificación, etc.
+                  // Guardar en Firestore
+                  try {
+                    await db.collection('instagramEvents')
+                      .doc(value.id || Date.now().toString())
+                      .set({
+                        type: 'comment',
+                        data: value,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                      });
+                    console.log('Comentario guardado en Firestore');
+                  } catch (dbError) {
+                    console.error('Error al guardar comentario:', dbError);
+                  }
                   break;
                 
                 case 'mentions':
                   console.log('Nueva mención:', value.text);
-                  // TODO: Procesar menciones
+                  // Guardar en Firestore
+                  try {
+                    await db.collection('instagramEvents')
+                      .doc(value.id || Date.now().toString())
+                      .set({
+                        type: 'mention',
+                        data: value,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                      });
+                    console.log('Mención guardada en Firestore');
+                  } catch (dbError) {
+                    console.error('Error al guardar mención:', dbError);
+                  }
                   break;
                 
                 case 'messages':
                   console.log('Nuevo mensaje:', value.message);
-                  // TODO: Procesar mensajes
+                  // Guardar en Firestore
+                  try {
+                    await db.collection('instagramEvents')
+                      .doc(value.id || Date.now().toString())
+                      .set({
+                        type: 'message',
+                        data: value,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                      });
+                    console.log('Mensaje guardado en Firestore');
+                  } catch (dbError) {
+                    console.error('Error al guardar mensaje:', dbError);
+                  }
                   break;
                 
                 default:
                   console.log(`Tipo de evento no manejado: ${field}`);
+                  // Guardar como evento genérico
+                  try {
+                    await db.collection('instagramEvents')
+                      .doc(Date.now().toString())
+                      .set({
+                        type: field,
+                        data: value,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp()
+                      });
+                    console.log('Evento genérico guardado en Firestore');
+                  } catch (dbError) {
+                    console.error('Error al guardar evento genérico:', dbError);
+                  }
               }
             }
           }

@@ -14,31 +14,8 @@ const db = admin.firestore();
 exports.handler = async function(event, context) {
   console.log('Instagram callback function triggered');
   
-  // Responder a la verificación de webhook si es una solicitud GET
-  if (event.httpMethod === 'GET' && event.queryStringParameters['hub.mode']) {
-    const mode = event.queryStringParameters['hub.mode'];
-    const token = event.queryStringParameters['hub.verify_token'];
-    const challenge = event.queryStringParameters['hub.challenge'];
-    
-    const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN || 'kalma-instagram-webhook-verify-token';
-    
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('Webhook verificado exitosamente');
-      return {
-        statusCode: 200,
-        body: challenge
-      };
-    } else {
-      console.log('Verificación de webhook fallida');
-      return {
-        statusCode: 403,
-        body: 'Verificación fallida'
-      };
-    }
-  }
-  
   // OAuth callback - Instagram redirige aquí después de la autorización
-  if (event.httpMethod === 'GET' && event.queryStringParameters.code) {
+  if (event.httpMethod === 'GET') {
     try {
       const code = event.queryStringParameters.code;
       const state = event.queryStringParameters.state;
@@ -237,10 +214,10 @@ exports.handler = async function(event, context) {
     }
   }
   
-  // Método no permitido para otros tipos de solicitudes
+  // Si llegamos aquí, no se cumplió ninguna de las condiciones anteriores
   return {
-    statusCode: 405,
-    body: JSON.stringify({ error: 'Método no permitido' })
+    statusCode: 400,
+    body: JSON.stringify({ error: 'Solicitud no válida: Los parámetros de la solicitud no son válidos.' })
   };
 };
 

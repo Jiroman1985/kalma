@@ -22,8 +22,14 @@ exports.handler = async function(event, context) {
     const appSecret = process.env.INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f';
     const verifyToken = process.env.INSTAGRAM_VERIFY_TOKEN || 'kalma-instagram-webhook-verify-token';
     
-    // URL del webhook en la función serverless
+    // URL del webhook en la función serverless específica para webhooks
     const webhookUrl = 'https://kalma-lab.netlify.app/.netlify/functions/webhook-instagram';
+    
+    console.log('Configurando webhook con los siguientes parámetros:');
+    console.log('- App ID:', appId);
+    console.log('- URL del webhook:', webhookUrl);
+    console.log('- Token de verificación:', verifyToken);
+    console.log('- Instagram User ID:', instagramUserId);
     
     // 1. Suscribir la aplicación a los eventos de Instagram
     console.log('Configurando suscripción del webhook para Instagram...');

@@ -26,8 +26,11 @@ const InstagramAuthStart = () => {
         return;
       }
       
-      // Log del redirect_uri para debugging
-      console.log('REDIRECT_URI usado en frontend:', REDIRECT_URI);
+      // Log de información de configuración para debugging
+      console.log('Configuración de OAuth Instagram:');
+      console.log('- INSTAGRAM_CLIENT_ID:', INSTAGRAM_CLIENT_ID);
+      console.log('- REDIRECT_URI:', REDIRECT_URI);
+      console.log('- Usuario actual:', currentUser.uid);
       
       // Generamos un estado único con timestamp para prevenir CSRF
       const state = btoa(JSON.stringify({
@@ -35,6 +38,7 @@ const InstagramAuthStart = () => {
         timestamp: Date.now(),
         source: 'kalma-app'
       }));
+      console.log('- Estado generado:', state);
       
       // Construir URL de autenticación de Instagram
       const authURL = new URL('https://api.instagram.com/oauth/authorize');
@@ -53,7 +57,7 @@ const InstagramAuthStart = () => {
         authURL.searchParams.append(key, value);
       });
       
-      console.log('URL de autenticación construida:', authURL.toString());
+      console.log('URL de autenticación completa:', authURL.toString());
       
       // Redireccionar a Instagram para autenticación
       window.location.href = authURL.toString();
