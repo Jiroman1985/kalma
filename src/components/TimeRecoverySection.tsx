@@ -33,108 +33,60 @@ const BenefitItem = memo(({ benefit, index, controls }: {
 
 BenefitItem.displayName = 'BenefitItem';
 
-// Componente del reloj memoizado
-const ClockComponent = memo(({ controls }: { controls: any }) => (
-  <svg className="w-full h-auto" viewBox="0 0 400 400">
-    <circle 
-      cx="200" 
-      cy="200" 
-      r="180" 
-      fill="none" 
-      stroke="#e2e8f0" 
-      strokeWidth="15"
-    />
-    <motion.circle 
-      cx="200" 
-      cy="200" 
-      r="180" 
-      fill="none" 
-      stroke="url(#gradient)" 
-      strokeWidth="15"
-      strokeDasharray="1130"
-      strokeDashoffset="1130"
-      animate={controls}
-      variants={{
-        visible: {
-          strokeDashoffset: 226,
-          transition: { 
-            duration: 1.2, 
-            ease: "easeOut"
-          }
-        }
-      }}
-    />
-    
-    {/* Números del reloj - Pre-renderizados para evitar cálculos en tiempo real */}
-    <text x="200" y="50" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">12</text>
-    <text x="275" y="75" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">1</text>
-    <text x="325" y="125" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">2</text>
-    <text x="350" y="200" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">3</text>
-    <text x="325" y="275" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">4</text>
-    <text x="275" y="325" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">5</text>
-    <text x="200" y="350" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">6</text>
-    <text x="125" y="325" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">7</text>
-    <text x="75" y="275" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">8</text>
-    <text x="50" y="200" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">9</text>
-    <text x="75" y="125" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">10</text>
-    <text x="125" y="75" textAnchor="middle" dominantBaseline="middle" fontSize="18" fontWeight="bold" fill="#64748b">11</text>
-    
-    {/* Manecillas del reloj con animaciones optimizadas */}
-    <motion.line 
-      x1="200" 
-      y1="200" 
-      x2="200" 
-      y2="100" 
-      stroke="#f43f5e" 
-      strokeWidth="6" 
-      strokeLinecap="round"
-      animate={controls}
-      variants={{
-        visible: {
-          rotate: 320,
-          transition: { 
-            duration: 0.6, 
-            ease: "easeOut" 
-          }
-        }
-      }}
-      style={{ transformOrigin: "center center" }}
-    />
-    
-    <motion.line 
-      x1="200" 
-      y1="200" 
-      x2="310" 
-      y2="200" 
-      stroke="#8b5cf6" 
-      strokeWidth="3" 
-      strokeLinecap="round"
-      animate={controls}
-      variants={{
-        visible: {
-          rotate: 240,
-          transition: { 
-            duration: 0.8, 
-            ease: "easeOut" 
-          }
-        }
-      }}
-      style={{ transformOrigin: "center center" }}
-    />
-    
-    <circle cx="200" cy="200" r="10" fill="#8b5cf6" />
-    
-    {/* Definición del gradiente */}
-    <defs>
-      <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-        <stop offset="0%" stopColor="#8b5cf6" />
-        <stop offset="100%" stopColor="#6366f1" />
-      </linearGradient>
-    </defs>
-  </svg>
+// Componente de reloj estático (sin animaciones SVG complejas)
+const StaticClock = memo(({ isInView }: { isInView: boolean }) => (
+  <div className="relative w-full max-w-[400px] mx-auto">
+    {/* Reloj estático con CSS para mejor rendimiento */}
+    <div className="relative aspect-square rounded-full border-[15px] border-slate-200 transform-gpu optimize-paint">
+      {/* Borde de progreso con CSS en lugar de SVG */}
+      <div className={`absolute inset-[-15px] rounded-full border-[15px] border-transparent border-t-primary border-r-primary transition-all duration-1000 ease-out ${isInView ? 'opacity-100' : 'opacity-0'}`} 
+        style={{ 
+          clipPath: 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%, 50% 50%)',
+          transform: isInView ? 'rotate(80deg)' : 'rotate(0deg)',
+          transitionDelay: '0.1s'
+        }}
+      />
+      
+      {/* Números del reloj - pre-renderizados */}
+      <div className="absolute w-full h-full">
+        <div className="absolute top-[5%] left-1/2 -translate-x-1/2 font-bold text-slate-500">12</div>
+        <div className="absolute top-[15%] right-[15%] font-bold text-slate-500">1</div>
+        <div className="absolute top-[35%] right-[5%] font-bold text-slate-500">2</div>
+        <div className="absolute top-1/2 right-[2%] -translate-y-1/2 font-bold text-slate-500">3</div>
+        <div className="absolute bottom-[35%] right-[5%] font-bold text-slate-500">4</div>
+        <div className="absolute bottom-[15%] right-[15%] font-bold text-slate-500">5</div>
+        <div className="absolute bottom-[5%] left-1/2 -translate-x-1/2 font-bold text-slate-500">6</div>
+        <div className="absolute bottom-[15%] left-[15%] font-bold text-slate-500">7</div>
+        <div className="absolute bottom-[35%] left-[5%] font-bold text-slate-500">8</div>
+        <div className="absolute top-1/2 left-[2%] -translate-y-1/2 font-bold text-slate-500">9</div>
+        <div className="absolute top-[35%] left-[5%] font-bold text-slate-500">10</div>
+        <div className="absolute top-[15%] left-[15%] font-bold text-slate-500">11</div>
+      </div>
+      
+      {/* Centro del reloj */}
+      <div className="absolute top-1/2 left-1/2 w-5 h-5 rounded-full bg-purple-500 -translate-x-1/2 -translate-y-1/2" />
+      
+      {/* Manecillas - con CSS Transform en lugar de SVG */}
+      <div className={`absolute top-1/2 left-1/2 w-1.5 h-[40%] bg-purple-500 rounded-full origin-bottom transition-transform duration-700 ease-out ${isInView ? 'opacity-100' : 'opacity-0'}`} 
+        style={{ 
+          transformOrigin: 'center bottom',
+          transform: isInView ? 'translate(-50%, -100%) rotate(240deg)' : 'translate(-50%, -100%) rotate(0deg)',
+          transitionDelay: '0.2s'
+        }} 
+      />
+      
+      <div className={`absolute top-1/2 left-1/2 w-3 h-[30%] bg-pink-500 rounded-full origin-bottom transition-transform duration-700 ease-out ${isInView ? 'opacity-100' : 'opacity-0'}`} 
+        style={{ 
+          transformOrigin: 'center bottom',
+          transform: isInView ? 'translate(-50%, -100%) rotate(320deg)' : 'translate(-50%, -100%) rotate(0deg)',
+          transitionDelay: '0.3s'
+        }} 
+      />
+    </div>
+  </div>
 ));
 
-ClockComponent.displayName = 'ClockComponent';
+StaticClock.displayName = 'StaticClock';
 
 const TimeRecoverySection: React.FC = () => {
   const controls = useAnimation();
@@ -174,21 +126,20 @@ const TimeRecoverySection: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
+            initial={{ opacity: 0, scale: 0.98 }}
             animate={controls}
             variants={{
               visible: { 
                 opacity: 1, 
                 scale: 1,
-                transition: { duration: 0.4 }
+                transition: { duration: 0.3 }
               }
             }}
             className="relative transform-gpu"
           >
-            {/* Contenedor de reloj optimizado con componente memoizado */}
+            {/* Reloj estático con animaciones CSS */}
             <div className="relative max-w-[400px] mx-auto">
-              {/* Reloj como componente separado y memoizado */}
-              <ClockComponent controls={controls} />
+              <StaticClock isInView={isInView} />
               
               {/* Etiqueta de +10 horas */}
               <motion.div 
