@@ -23,6 +23,8 @@ const DashboardLayout = lazy(() => import("./components/DashboardLayout"));
 // Componentes de autenticación de Instagram
 const InstagramAuthStart = lazy(() => import("./pages/auth/instagram/start"));
 const InstagramAuthCallback = lazy(() => import("./pages/auth/instagram/callback"));
+const InstagramAuthSuccess = lazy(() => import("./pages/auth/instagram/success"));
+const InstagramAuthError = lazy(() => import("./pages/auth/instagram/error"));
 
 // Componente de carga
 const LoadingFallback = () => (
@@ -67,6 +69,16 @@ const App = () => (
               <Route path="/auth/instagram/callback" element={
                 <ProtectedRoute>
                   <InstagramAuthCallback />
+                </ProtectedRoute>
+              } />
+              <Route path="/auth/instagram/success" element={
+                <ProtectedRoute>
+                  <InstagramAuthSuccess />
+                </ProtectedRoute>
+              } />
+              <Route path="/auth/instagram/error" element={
+                <ProtectedRoute>
+                  <InstagramAuthError />
                 </ProtectedRoute>
               } />
               
