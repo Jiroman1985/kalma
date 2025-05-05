@@ -4,9 +4,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Instagram } from 'lucide-react';
 
-// IMPORTANTE: Usar directamente el client_id correcto para Instagram Business
-// Ignoramos la variable de entorno para evitar errores de inyección
-const INSTAGRAM_CLIENT_ID = '3029546990541926'; // ID correcto de la app Business de Instagram
+// IMPORTANTE: Usar directamente los IDs correctos para evitar errores de inyección
+// Este es el Facebook App ID (de Información básica)
+const FACEBOOK_APP_ID = '1431820417985163';
+// Este es el ID de Instagram (usado internamente en la API, no para el login inicial)
+const INSTAGRAM_APP_ID = '3029546990541926';
 // URL de redirección
 const REDIRECT_URI = 'https://kalma-lab.netlify.app/.netlify/functions/instagram-callback';
 
@@ -28,8 +30,9 @@ const InstagramAuthStart = () => {
       }
       
       // Log de información de configuración para debugging
-      console.log('Configuración de OAuth Instagram:');
-      console.log('- INSTAGRAM_CLIENT_ID:', INSTAGRAM_CLIENT_ID, '(asegúrate de que sea 3029546990541926)');
+      console.log('Configuración de OAuth Instagram/Facebook:');
+      console.log('- FACEBOOK_APP_ID:', FACEBOOK_APP_ID, '(para la URL de autorización de Facebook)');
+      console.log('- INSTAGRAM_APP_ID:', INSTAGRAM_APP_ID, '(para uso interno en Graph API)');
       console.log('- REDIRECT_URI:', REDIRECT_URI);
       console.log('- Usuario actual:', currentUser.uid);
       
@@ -41,12 +44,12 @@ const InstagramAuthStart = () => {
       }));
       console.log('- Estado generado:', state);
       
-      // *** CAMBIO PRINCIPAL: Usar Facebook Login en lugar de Instagram Basic Display ***
       // Construir URL de autenticación de Facebook para Instagram Business
       const authURL = new URL('https://www.facebook.com/v16.0/dialog/oauth');
       
       // Agregar parámetros con scopes específicos para Instagram Business
-      authURL.searchParams.append('client_id', INSTAGRAM_CLIENT_ID);
+      // IMPORTANTE: Para Facebook Login debemos usar el Facebook App ID, no el de Instagram
+      authURL.searchParams.append('client_id', FACEBOOK_APP_ID);
       authURL.searchParams.append('redirect_uri', REDIRECT_URI);
       authURL.searchParams.append('response_type', 'code');
       authURL.searchParams.append(
@@ -62,7 +65,7 @@ const InstagramAuthStart = () => {
       
       // Mostrar URL completa para verificación
       console.log('URL de autenticación completa:', authURL.toString());
-      console.log('Verificar que ahora usamos facebook.com en lugar de api.instagram.com');
+      console.log('Verificar que estamos usando el Facebook App ID (1431...), no el Instagram App ID (3029...)');
       
       // Redireccionar a Facebook para autenticación de Instagram Business
       window.location.href = authURL.toString();
