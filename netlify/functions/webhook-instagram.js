@@ -1,12 +1,47 @@
 const crypto = require('crypto');
 const admin = require('firebase-admin');
 
-// Inicializar Firebase Admin si no está ya inicializado
+// Inicializar Firebase Admin con mejor manejo de errores
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}')),
-    databaseURL: process.env.FIREBASE_DATABASE_URL
-  });
+  try {
+    let serviceAccount;
+    
+    // Intentar usar credenciales base64 primero (más robusto)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
+      console.log('Inicializando Firebase usando credenciales en Base64');
+      serviceAccount = JSON.parse(
+        Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString()
+      );
+    } 
+    // Si no hay B64, intentar con el JSON directo
+    else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      console.log('Inicializando Firebase usando credenciales JSON');
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } 
+    // Fallback para desarrollo local
+    else {
+      console.warn('ADVERTENCIA: No se encontraron credenciales Firebase. Usando objeto vacío para desarrollo local.');
+      serviceAccount = {};
+    }
+    
+    // Verificar que tengamos los campos mínimos necesarios
+    if (!serviceAccount.project_id) {
+      console.error('ERROR: Las credenciales de Firebase no contienen project_id');
+      console.error('Credenciales recibidas:', Object.keys(serviceAccount).length ? 
+        Object.keys(serviceAccount).join(', ') : 'objeto vacío');
+    }
+    
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: process.env.FIREBASE_DATABASE_URL || 'https://kalma-app-default-rtdb.firebaseio.com'
+    });
+    
+    console.log('Firebase inicializado correctamente para el proyecto:', serviceAccount.project_id || 'desconocido');
+  } catch (error) {
+    console.error('Error al inicializar Firebase:', error.message);
+    // No lanzamos el error para permitir que la función siga funcionando
+    // aunque no pueda acceder a Firebase
+  }
 }
 
 const db = admin.firestore();
@@ -14,13 +49,13 @@ const db = admin.firestore();
 exports.handler = async function(event, context) {
   console.log('Instagram webhook function triggered');
   
-  // Verificación del webhook cuando Instagram lo solicita mediante GET
+  // Responder siempre a la verificación del webhook, incluso si Firebase falló
   if (event.httpMethod === 'GET') {
     console.log('Recibida solicitud GET para verificación de webhook con parámetros:', event.queryStringParameters);
     
-    const mode = event.queryStringParameters['hub.mode'];
-    const token = event.queryStringParameters['hub.verify_token'];
-    const challenge = event.queryStringParameters['hub.challenge'];
+    const mode = event.queryStringParameters?.['hub.mode'];
+    const token = event.queryStringParameters?.['hub.verify_token'];
+    const challenge = event.queryStringParameters?.['hub.challenge'];
     
     if (!mode || !token || !challenge) {
       console.log('Parámetros de verificación incompletos');
