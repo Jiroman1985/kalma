@@ -132,10 +132,12 @@ exports.handler = async function(event, context) {
         return redirectToError('missing_user_id');
       }
       
-      // Usamos el ID de Facebook para intercambiar el código inicial y luego el ID de Instagram para el token de larga duración
+      // Usamos el ID y Secret de Facebook para intercambiar el código inicial
+      // Luego usamos el Secret de Instagram para el intercambio con graph.instagram.com
       const facebook_app_id = '1431820417985163';
+      const facebook_app_secret = 'aebeade7c0eb58a083bb3a75e6baa167'; // Secret de Facebook (Información básica)
       const instagram_app_id = '3029546990541926';
-      const client_secret = process.env.INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f';
+      const instagram_app_secret = process.env.INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f'; // Secret de Instagram API
       const redirect_uri = 'https://kalma-lab.netlify.app/.netlify/functions/instagram-callback';
 
       console.log('REDIRECT_URI usado en backend:', redirect_uri);
@@ -145,7 +147,7 @@ exports.handler = async function(event, context) {
       // 1. Obtener el token de Facebook usando el código de autorización de Facebook Login
       const params = new URLSearchParams();
       params.append('client_id', facebook_app_id);
-      params.append('client_secret', client_secret);
+      params.append('client_secret', facebook_app_secret); // IMPORTANTE: Usamos el secret de Facebook aquí
       params.append('grant_type', 'authorization_code');
       params.append('redirect_uri', redirect_uri);
       params.append('code', code);
@@ -173,7 +175,8 @@ exports.handler = async function(event, context) {
 
       // 2. Intercambiar por token de Instagram de larga duración
       console.log('Intercambiando token de Facebook por token de Instagram...');
-      const longTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${client_secret}&access_token=${facebookTokenData.access_token}`;
+      // IMPORTANTE: Usamos el Instagram App Secret aquí, no el de Facebook
+      const longTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${instagram_app_secret}&access_token=${facebookTokenData.access_token}`;
       
       const longTokenResponse = await fetch(longTokenUrl);
       
