@@ -51,249 +51,126 @@ if (!admin.apps.length) {
   }
 }
 
-exports.handler = async function(event, context) {
+exports.handler = async (event) => {
   console.log('Instagram callback function triggered');
-  console.log('Método HTTP:', event.httpMethod);
-  console.log('URL completa:', event.rawUrl);
-  console.log('Query params:', JSON.stringify(event.queryStringParameters));
   
-  // Webhook verification handling
-  if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters['hub.mode']) {
-    console.log('Procesando verificación de webhook');
-    const mode = event.queryStringParameters['hub.mode'];
-    const token = event.queryStringParameters['hub.verify_token'];
-    const challenge = event.queryStringParameters['hub.challenge'];
-    
-    if (!mode || !token || !challenge) {
-      console.log('Parámetros de verificación incompletos');
+  const { code, state } = event.queryStringParameters;
+  if (!code) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: 'Falta el parámetro "code"' })
+    };
+  }
+  
+  try {
+    // Extraer el userId del state
+    let stateUserId;
+    try {
+      const decodedState = JSON.parse(atob(state));
+      stateUserId = decodedState.userId;
+    } catch (error) {
+      console.error('Error al decodificar state:', error);
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Parámetros de verificación incompletos' })
+        body: JSON.stringify({ error: 'State inválido' })
       };
     }
     
-    const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN || 'kalma-instagram-webhook-verify-token';
+    // 1) Intercambiar code por FB short-lived token
+    console.log('Solicitando Facebook short-lived token...');
+    const fbRes = await fetch(`https://graph.facebook.com/v17.0/oauth/access_token?` + new URLSearchParams({
+      client_id: process.env.FACEBOOK_APP_ID,
+      redirect_uri: process.env.INSTAGRAM_REDIRECT_URI,
+      client_secret: process.env.FACEBOOK_APP_SECRET,
+      code
+    }));
     
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('Webhook verificado exitosamente, devolviendo challenge:', challenge);
+    if (!fbRes.ok) {
+      const errorText = await fbRes.text();
+      console.error('Error al obtener Facebook token:', errorText);
       return {
-        statusCode: 200,
-        body: challenge
-      };
-    } else {
-      console.log('Verificación de webhook fallida. Mode:', mode, 'Token recibido:', token, 'Token esperado:', VERIFY_TOKEN);
-      return {
-        statusCode: 403,
-        body: 'Verificación fallida'
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Error al obtener Facebook token', details: errorText })
       };
     }
-  }
-  
-  // OAuth callback - Instagram redirige aquí después de la autorización
-  if (event.httpMethod === 'GET' && event.queryStringParameters && event.queryStringParameters.code) {
-    console.log('Procesando callback de OAuth con código de autorización');
-    try {
-      const code = event.queryStringParameters.code;
-      const state = event.queryStringParameters.state;
-      
-      if (!code) {
-        console.log('No se recibió el parámetro code');
-        return redirectToError('missing_code');
-      }
-      
-      // Validar el state para evitar CSRF
-      if (!state) {
-        console.log('No se recibió el parámetro state');
-        return redirectToError('missing_state');
-      }
-      
-      // Intentar decodificar el state para obtener el userId
-      let userId;
-      try {
-        const decodedState = JSON.parse(atob(state));
-        userId = decodedState.userId;
-        
-        // Verificar timestamp para evitar ataques de replay
-        const stateTime = decodedState.timestamp;
-        const now = Date.now();
-        const MAX_STATE_AGE = 1000 * 60 * 15; // 15 minutos
-        
-        if (!stateTime || now - stateTime > MAX_STATE_AGE) {
-          console.log('Estado expirado o inválido');
-          return redirectToError('expired_state');
-        }
-      } catch (stateError) {
-        console.error('Error al decodificar state:', stateError);
-        return redirectToError('invalid_state');
-      }
-      
-      if (!userId) {
-        console.log('No se pudo extraer el userId del state');
-        return redirectToError('missing_user_id');
-      }
-      
-      // Usamos el ID y Secret de Instagram para todo el flujo
-      const instagram_client_id = '3029546990541926';
-      const instagram_client_secret = process.env.INSTAGRAM_CLIENT_SECRET || '5ed60bb513324c22a3ec1db6faf9e92f';
-      const redirect_uri = 'https://kalma-lab.netlify.app/.netlify/functions/instagram-callback';
-
-      console.log('REDIRECT_URI usado en backend:', redirect_uri);
-      console.log('INSTAGRAM_CLIENT_ID usado para el flujo:', instagram_client_id);
-
-      // 1. Obtener el token de corta duración de Instagram
-      console.log('Solicitando token de corta duración a api.instagram.com/oauth/access_token...');
-      
-      const params = new URLSearchParams();
-      params.append('client_id', instagram_client_id);
-      params.append('client_secret', instagram_client_secret);
-      params.append('grant_type', 'authorization_code');
-      params.append('redirect_uri', redirect_uri);
-      params.append('code', code);
-
-      const tokenResponse = await fetch('https://api.instagram.com/oauth/access_token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString()
-      });
-
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error('Error en respuesta de token de corta duración:', errorText);
-        return redirectToError('token_error', errorText);
-      }
-
-      const shortTokenData = await tokenResponse.json();
-      console.log('Token de corta duración obtenido. Datos recibidos:', Object.keys(shortTokenData).join(', '));
-
-      if (!shortTokenData.access_token) {
-        console.error('No se recibió token de corta duración:', shortTokenData);
-        return redirectToError('missing_token', JSON.stringify(shortTokenData));
-      }
-
-      // 2. Intercambiar por token de Instagram de larga duración
-      console.log('Intercambiando por token de larga duración...');
-      const longTokenUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${instagram_client_secret}&access_token=${shortTokenData.access_token}`;
-      
-      const longTokenResponse = await fetch(longTokenUrl);
-      
-      if (!longTokenResponse.ok) {
-        const errorText = await longTokenResponse.text();
-        console.error('Error en respuesta de token de larga duración:', errorText);
-        return redirectToError('long_token_error', errorText);
-      }
-      
-      const longTokenData = await longTokenResponse.json();
-      console.log('Token de larga duración obtenido. Datos recibidos:', Object.keys(longTokenData).join(', '));
-      
-      if (!longTokenData.access_token) {
-        console.error('No se recibió token de larga duración:', longTokenData);
-        return redirectToError('missing_long_token', JSON.stringify(longTokenData));
-      }
-      
-      // 3. Guardar tokens y datos en Firebase
-      const instagramData = {
-        connected: true,
-        instagramUserId: shortTokenData.user_id,
-        username: shortTokenData.username || '',
-        accessToken: longTokenData.access_token, // Token de larga duración
-        tokenExpiresIn: longTokenData.expires_in,
-        tokenObtainedAt: Date.now(),
-        tokenExpiresAt: Date.now() + (longTokenData.expires_in * 1000)
-      };
-      
-      // Intento de guardar en Firebase si está disponible
-      if (firebaseInitialized && db) {
-        try {
-          // Verificar que el usuario existe en Firestore
-          const userRef = db.collection('users').doc(userId);
-          const userDoc = await userRef.get();
-          
-          if (!userDoc.exists) {
-            console.error('El usuario no existe en Firebase:', userId);
-            // Continuamos de todos modos, no queremos fallar por esto
-          } else {
-            // Guardar datos de Instagram en el documento del usuario
-            await userRef.update({
-              'socialNetworks.instagram': instagramData
-            });
-            
-            console.log('Datos de Instagram guardados para usuario:', userId);
-            
-            // Guardar también en channelConnections
-            const channelRef = db.collection('users').doc(userId).collection('channelConnections').doc('instagram');
-            await channelRef.set({
-              channelId: 'instagram',
-              username: shortTokenData.username || '',
-              connectedAt: admin.firestore.FieldValue.serverTimestamp(),
-              status: 'active',
-              lastSync: admin.firestore.FieldValue.serverTimestamp()
-            });
-            
-            console.log('Conexión de canal guardada');
-          }
-        } catch (firestoreError) {
-          console.error('Error al guardar en Firestore, pero continuamos el flujo:', firestoreError.message);
-          // Continuamos a pesar del error, queremos mostrar éxito al usuario
-        }
-      } else {
-        console.warn('Firebase no está disponible, omitiendo guardado de datos');
-      }
-      
-      // Redireccionar al frontend con éxito
+    
+    const fbData = await fbRes.json();
+    console.log('Facebook token obtenido. Datos recibidos:', Object.keys(fbData).join(', '));
+    
+    if (!fbData.access_token) {
+      console.error('No se recibió Facebook token:', fbData);
       return {
-        statusCode: 302,
-        headers: {
-          'Location': `https://kalma-lab.netlify.app/auth/instagram/success?userId=${userId}&instagramId=${shortTokenData.user_id}&accessToken=${encodeURIComponent(longTokenData.access_token)}`
-        },
-        body: ''
+        statusCode: 400,
+        body: JSON.stringify({ error: 'No se recibió Facebook token' })
       };
-    } catch (error) {
-      console.error('Error interno en la función serverless:', error);
-      return redirectToError('server_error');
     }
-  }
-  
-  // Procesar solicitudes POST (para compatibilidad con versiones anteriores)
-  if (event.httpMethod === 'POST') {
-    try {
-      const { code, state } = JSON.parse(event.body);
-      if (!code) {
-        console.log('No se recibió el parámetro code');
-        return {
-          statusCode: 400,
-          body: JSON.stringify({ error: 'Falta el parámetro code' })
-        };
-      }
-      
-      // Resto del código similar al flujo GET pero devolviendo JSON
-      // Este método es menos seguro y se mantiene por compatibilidad
-      
+    
+    const fbShortToken = fbData.access_token;
+
+    // 2) Intercambiar FB token por IG long-lived token
+    console.log('Intercambiando por Instagram long-lived token...');
+    const igRes = await fetch(`https://graph.instagram.com/access_token?` + new URLSearchParams({
+      grant_type: 'ig_exchange_token',
+      client_secret: process.env.INSTAGRAM_APP_SECRET,
+      access_token: fbShortToken
+    }));
+    
+    if (!igRes.ok) {
+      const errorText = await igRes.text();
+      console.error('Error al obtener Instagram token:', errorText);
       return {
-        statusCode: 200,
-        body: JSON.stringify({ success: true })
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Error al obtener Instagram token', details: errorText })
       };
-    } catch (error) {
-      console.error('Error en solicitud POST:', error);
+    }
+    
+    const igData = await igRes.json();
+    console.log('Instagram token obtenido. Datos recibidos:', Object.keys(igData).join(', '));
+    
+    if (!igData.access_token) {
+      console.error('No se recibió Instagram token:', igData);
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'No se recibió Instagram token' })
+      };
+    }
+    
+    const igLongToken = igData.access_token;
+    const expiresIn = igData.expires_in;
+
+    // 3) Guardar en Firestore
+    if (!firebaseInitialized || !db) {
+      console.error('Firebase no está inicializado correctamente');
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Error interno', details: error.message })
+        body: JSON.stringify({ error: 'Error de configuración del servidor' })
       };
     }
-  }
-  
-  return {
-    statusCode: 400,
-    body: JSON.stringify({ error: 'Solicitud no válida: Los parámetros de la solicitud no son válidos.' })
-  };
-};
+    
+    console.log('Guardando tokens en Firestore para usuario:', stateUserId);
+    await db.collection('users').doc(stateUserId).update({
+      'socialNetworks.instagram': {
+        accessToken: igLongToken,
+        tokenExpiresAt: Date.now() + expiresIn * 1000,
+        obtainedAt: Date.now()
+      }
+    });
+    
+    console.log('Tokens guardados correctamente');
 
-// Función para redireccionar a página de error
-function redirectToError(errorCode, errorMessage = '') {
-  return {
-    statusCode: 302,
-    headers: {
-      'Location': `https://kalma-lab.netlify.app/auth/instagram/error?code=${errorCode}${errorMessage ? '&message=' + encodeURIComponent(errorMessage) : ''}`
-    },
-    body: ''
-  };
-} 
+    // 4) Redirigir al cliente
+    return {
+      statusCode: 302,
+      headers: {
+        Location: `https://kalma-lab.netlify.app/auth/instagram/success?userId=${stateUserId}&instagramId=${igData.user_id}`
+      },
+      body: ''
+    };
+  } catch (error) {
+    console.error('Error en el procesamiento del callback de Instagram:', error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Error interno del servidor', details: error.message })
+    };
+  }
+}; 
