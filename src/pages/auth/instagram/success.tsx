@@ -2,117 +2,138 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Instagram, Check, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase'; // Asegúrate de que esta importación sea correcta según tu estructura
 
 const InstagramAuthSuccess = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const userId = searchParams.get('userId');
-  const instagramId = searchParams.get('instagramId');
-  const accessToken = searchParams.get('accessToken');
-  const [subscriptionStatus, setSubscriptionStatus] = useState<'pending' | 'success' | 'error'>('pending');
+  const { currentUser } = useAuth();
+  const userId = searchParams.get('userId') || currentUser?.uid;
+  
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'success' | 'error'>('checking');
+  const [message, setMessage] = useState('Verificando conexión...');
 
   useEffect(() => {
-    // Mostrar notificación de éxito
-    toast.success('¡Cuenta de Instagram conectada exitosamente!', {
-      description: 'Configurando webhooks y preparando todo...'
+    if (!userId) {
+      toast.error('Error de autenticación', {
+        description: 'No se pudo identificar el usuario'
+      });
+      setConnectionStatus('error');
+      setMessage('No se pudo identificar el usuario');
+      return;
+    }
+
+    // Mostrar notificación inicial
+    toast.success('Cuenta conectada', {
+      description: 'Verificando la conexión con Instagram...'
     });
     
-    const subscribe = async () => {
-      if (accessToken && instagramId) {
-        try {
-          // Llamar a nuestra función serverless para suscribir la cuenta
-          const response = await fetch('/.netlify/functions/instagram-subscribe-account', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              accessToken,
-              instagramUserId: instagramId
-            }),
+    const verifyConnection = async () => {
+      try {
+        // Verificar en Firestore si la conexión se completó
+        const userRef = doc(db, 'users', userId);
+        const userSnap = await getDoc(userRef);
+        
+        if (!userSnap.exists()) {
+          setConnectionStatus('error');
+          setMessage('No se encontró información del usuario');
+          return;
+        }
+        
+        const userData = userSnap.data();
+        
+        // Verificar si tiene datos de Instagram
+        if (userData.socialNetworks?.instagram?.connected) {
+          setConnectionStatus('success');
+          setMessage('Conexión exitosa con Instagram Business');
+          
+          toast.success('¡Instagram conectado!', {
+            description: 'Tu cuenta de Instagram Business está conectada correctamente'
           });
           
-          const data = await response.json();
-          
-          if (response.ok && data.success) {
-            setSubscriptionStatus('success');
-            toast.success('Webhooks configurados correctamente', {
-              description: 'Tu cuenta de Instagram está completamente conectada.'
-            });
-          } else {
-            console.warn('Error al suscribir webhooks:', data);
-            setSubscriptionStatus('error');
-            toast.warning('Configuración parcial', {
-              description: 'Tu cuenta está conectada, pero los webhooks podrían no funcionar.'
-            });
+          // Obtener páginas de Facebook/Instagram si no se han obtenido ya
+          if (!userData.socialNetworks.instagram.pages) {
+            try {
+              // Llamar a nuestra función para obtener páginas
+              fetch(`/.netlify/functions/instagram-get-pages?userId=${userId}`, {
+                method: 'GET'
+              });
+              
+              // No esperamos la respuesta para no bloquear la UI
+              console.log('Solicitud de páginas iniciada');
+            } catch (error) {
+              console.error('Error al iniciar obtención de páginas:', error);
+            }
           }
-        } catch (error) {
-          console.error('Error al llamar función de suscripción:', error);
-          setSubscriptionStatus('error');
+        } else {
+          setConnectionStatus('error');
+          setMessage('La conexión con Instagram no está completa');
         }
-      } else {
-        console.warn('No hay accessToken o instagramId disponibles para suscripción');
-        setSubscriptionStatus('error');
+      } catch (error) {
+        console.error('Error al verificar conexión:', error);
+        setConnectionStatus('error');
+        setMessage('Error al verificar el estado de la conexión');
       }
     };
     
-    // Intentar suscribir la cuenta
-    subscribe();
+    // Verificar la conexión
+    verifyConnection();
     
     // Redireccionar al dashboard después de un tiempo
     const timer = setTimeout(() => {
       navigate('/dashboard/canales');
-    }, 5000); // Aumentado a 5 segundos para dar tiempo a la suscripción
+    }, 5000);
     
     return () => clearTimeout(timer);
-  }, [navigate, accessToken, instagramId]);
+  }, [navigate, userId, currentUser]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
       <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-lg">
         <div className="flex flex-col items-center text-center space-y-3">
-          <div className="rounded-full bg-green-100 p-3">
-            <Check className="h-8 w-8 text-green-500" />
+          <div className={`rounded-full p-3 ${
+            connectionStatus === 'success' ? 'bg-green-100' : 
+            connectionStatus === 'error' ? 'bg-red-100' : 'bg-blue-100'
+          }`}>
+            {connectionStatus === 'success' ? (
+              <Check className="h-8 w-8 text-green-500" />
+            ) : connectionStatus === 'error' ? (
+              <AlertCircle className="h-8 w-8 text-red-500" />
+            ) : (
+              <span className="h-8 w-8 block rounded-full border-4 border-t-transparent border-blue-500 animate-spin" />
+            )}
           </div>
-          <h1 className="text-2xl font-bold">¡Conexión Exitosa!</h1>
+          
+          <h1 className="text-2xl font-bold">
+            {connectionStatus === 'success' ? '¡Conexión Exitosa!' : 
+             connectionStatus === 'error' ? 'Problema en la conexión' : 
+             'Verificando conexión...'}
+          </h1>
           
           <div className="flex items-center mt-2 space-x-2">
             <Instagram className="h-5 w-5 text-pink-500" />
-            <p className="text-gray-700 font-medium">Instagram conectado correctamente</p>
+            <p className="text-gray-700 font-medium">{message}</p>
           </div>
           
           <p className="text-gray-500 mt-4">
-            Tu cuenta de Instagram ha sido conectada exitosamente a Kalma. 
-            Ahora puedes acceder a tus métricas y gestionar tu presencia en redes sociales.
+            {connectionStatus === 'success' ? 
+              'Tu cuenta de Instagram ha sido conectada a Kalma. Ahora puedes acceder a tus métricas y gestionar tu presencia en redes sociales.' : 
+              connectionStatus === 'error' ? 
+              'Hubo un problema al conectar tu cuenta de Instagram. Por favor, inténtalo nuevamente.' :
+              'Estamos verificando la conexión con Instagram. Esto puede tomar unos momentos...'}
           </p>
-          
-          {/* Estado de suscripción a webhooks */}
-          <div className={`mt-4 px-4 py-3 rounded-md ${
-            subscriptionStatus === 'success' ? 'bg-green-50 text-green-700 border border-green-200' :
-            subscriptionStatus === 'error' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-            'bg-blue-50 text-blue-700 border border-blue-200'
-          }`}>
-            <div className="flex items-center space-x-2">
-              {subscriptionStatus === 'success' ? (
-                <Check className="h-4 w-4" />
-              ) : subscriptionStatus === 'error' ? (
-                <AlertCircle className="h-4 w-4" />
-              ) : (
-                <span className="h-4 w-4 block rounded-full border-2 border-t-transparent border-blue-500 animate-spin" />
-              )}
-              <span>
-                {subscriptionStatus === 'success' ? 'Webhooks configurados correctamente' :
-                 subscriptionStatus === 'error' ? 'Configuración parcial (sin webhooks)' :
-                 'Configurando webhooks...'}
-              </span>
-            </div>
-          </div>
           
           <button 
             onClick={() => navigate('/dashboard/canales')}
-            className="mt-6 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+            className={`mt-6 px-4 py-2 text-white rounded-md transition-colors ${
+              connectionStatus === 'success' ? 'bg-indigo-600 hover:bg-indigo-700' : 
+              connectionStatus === 'error' ? 'bg-red-500 hover:bg-red-600' : 
+              'bg-blue-500 hover:bg-blue-600'
+            }`}
           >
-            Ir al Dashboard
+            {connectionStatus === 'error' ? 'Volver e intentar de nuevo' : 'Ir al Dashboard'}
           </button>
         </div>
       </div>

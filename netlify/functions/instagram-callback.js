@@ -241,18 +241,42 @@ exports.handler = async (event) => {
     }
     
     console.log('Guardando tokens en Firestore para usuario:', stateUserId);
+    
+    // Guardar datos más completos para una vinculación permanente
     await db.collection('users').doc(stateUserId).update({
       'socialNetworks.instagram': {
         accessToken: fbLongToken,
         tokenType: 'facebook_long_lived',
         tokenExpiresAt: Date.now() + expiresIn * 1000,
-        obtainedAt: Date.now()
+        obtainedAt: Date.now(),
+        connected: true, // Indica que la cuenta está conectada
+        lastUpdated: Date.now(),
+        // Estos campos se completarán posteriormente con instagram-get-pages
+        connectedAccountType: 'business',
+        isValid: true
       }
     });
     
     console.log('Tokens guardados correctamente');
 
-    // 4) Redirigir al cliente
+    // 4) Iniciar obtención de páginas en segundo plano
+    try {
+      // Hacemos una llamada a instagram-get-pages en segundo plano
+      // No esperamos a que termine para no retrasar la redirección
+      fetch(`https://kalma-lab.netlify.app/.netlify/functions/instagram-get-pages?userId=${stateUserId}`, {
+        method: 'GET'
+      }).catch(err => {
+        console.log('Error al iniciar obtención de páginas en segundo plano:', err);
+        // Ignoramos el error para no bloquear el flujo principal
+      });
+      
+      console.log('Obtención de páginas iniciada en segundo plano');
+    } catch (error) {
+      console.log('Error al iniciar obtención de páginas:', error);
+      // No bloqueamos el flujo principal si hay error
+    }
+
+    // 5) Redirigir al cliente
     return {
       statusCode: 302,
       headers: {
