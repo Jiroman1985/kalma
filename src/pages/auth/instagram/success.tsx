@@ -1,19 +1,32 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Instagram, Check, AlertCircle } from 'lucide-react';
+import { Instagram, Check, AlertCircle, Facebook } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase'; // Asegúrate de que esta importación sea correcta según tu estructura
+import { db } from '@/lib/firebase';
+
+interface InstagramData {
+  connected?: boolean;
+  connectionType?: string;
+  fbAccessToken?: string;
+  igAccessToken?: string;
+  instagramBusinessId?: string;
+  needsSetup?: boolean;
+  pageId?: string;
+  pageName?: string;
+}
 
 const InstagramAuthSuccess = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
   const userId = searchParams.get('userId') || currentUser?.uid;
+  const instagramId = searchParams.get('instagramId');
   
-  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'success' | 'error'>('checking');
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'success' | 'partial' | 'error'>('checking');
   const [message, setMessage] = useState('Verificando conexión...');
+  const [connectionDetails, setConnectionDetails] = useState<string[]>([]);
 
   useEffect(() => {
     if (!userId) {
@@ -26,8 +39,8 @@ const InstagramAuthSuccess = () => {
     }
 
     // Mostrar notificación inicial
-    toast.success('Cuenta conectada', {
-      description: 'Verificando la conexión con Instagram...'
+    toast.success('Conexión iniciada', {
+      description: 'Verificando datos en la base de datos...'
     });
     
     const verifyConnection = async () => {
@@ -43,38 +56,62 @@ const InstagramAuthSuccess = () => {
         }
         
         const userData = userSnap.data();
+        const instagramData: InstagramData = userData.socialNetworks?.instagram || {};
         
-        // Verificar si tiene datos de Instagram
-        if (userData.socialNetworks?.instagram?.connected) {
-          setConnectionStatus('success');
-          setMessage('Conexión exitosa con Instagram Business');
+        // Verificar si tiene datos básicos de Facebook/Instagram
+        if (instagramData.connected) {
+          // Preparar detalles de la conexión
+          const details: string[] = [];
           
-          toast.success('¡Instagram conectado!', {
-            description: 'Tu cuenta de Instagram Business está conectada correctamente'
-          });
+          // Verificar si tiene token de Facebook
+          if (instagramData.fbAccessToken) {
+            details.push('✅ Token de Facebook obtenido correctamente');
+          } else {
+            details.push('❌ No se encontró token de Facebook');
+          }
           
-          // Obtener páginas de Facebook/Instagram si no se han obtenido ya
-          if (!userData.socialNetworks.instagram.pages) {
-            try {
-              // Llamar a nuestra función para obtener páginas
-              fetch(`/.netlify/functions/instagram-get-pages?userId=${userId}`, {
-                method: 'GET'
-              });
-              
-              // No esperamos la respuesta para no bloquear la UI
-              console.log('Solicitud de páginas iniciada');
-            } catch (error) {
-              console.error('Error al iniciar obtención de páginas:', error);
-            }
+          // Verificar si tiene token específico de Instagram
+          if (instagramData.igAccessToken) {
+            details.push('✅ Token específico de Instagram obtenido');
+          } else {
+            details.push('❌ No se obtuvo token específico de Instagram');
+          }
+          
+          // Verificar si tiene ID de Instagram Business
+          if (instagramData.instagramBusinessId) {
+            details.push(`✅ Cuenta de Instagram Business identificada${instagramData.pageName ? ` (${instagramData.pageName})` : ''}`);
+          } else {
+            details.push('❌ No se encontró cuenta de Instagram Business asociada');
+          }
+          
+          setConnectionDetails(details);
+          
+          // Determinar tipo de conexión
+          if (instagramData.connectionType === 'business' && instagramData.instagramBusinessId) {
+            setConnectionStatus('success');
+            setMessage('Conexión completa con Instagram Business');
+            
+            toast.success('¡Instagram conectado!', {
+              description: 'Tu cuenta de Instagram Business está conectada correctamente'
+            });
+          } else {
+            setConnectionStatus('partial');
+            setMessage('Conexión parcial con Instagram');
+            
+            toast.warning('Conexión parcial', {
+              description: 'Se conectó parcialmente tu cuenta. Algunos datos podrían no estar disponibles.'
+            });
           }
         } else {
           setConnectionStatus('error');
           setMessage('La conexión con Instagram no está completa');
+          setConnectionDetails(['❌ No hay datos de conexión válidos en la base de datos']);
         }
       } catch (error) {
         console.error('Error al verificar conexión:', error);
         setConnectionStatus('error');
         setMessage('Error al verificar el estado de la conexión');
+        setConnectionDetails(['❌ Ocurrió un error inesperado']);
       }
     };
     
@@ -84,10 +121,10 @@ const InstagramAuthSuccess = () => {
     // Redireccionar al dashboard después de un tiempo
     const timer = setTimeout(() => {
       navigate('/dashboard/canales');
-    }, 5000);
+    }, 8000); // Tiempo aumentado para dar más tiempo para leer los detalles
     
     return () => clearTimeout(timer);
-  }, [navigate, userId, currentUser]);
+  }, [navigate, userId, instagramId, currentUser]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4">
@@ -95,10 +132,13 @@ const InstagramAuthSuccess = () => {
         <div className="flex flex-col items-center text-center space-y-3">
           <div className={`rounded-full p-3 ${
             connectionStatus === 'success' ? 'bg-green-100' : 
+            connectionStatus === 'partial' ? 'bg-yellow-100' :
             connectionStatus === 'error' ? 'bg-red-100' : 'bg-blue-100'
           }`}>
             {connectionStatus === 'success' ? (
               <Check className="h-8 w-8 text-green-500" />
+            ) : connectionStatus === 'partial' ? (
+              <Instagram className="h-8 w-8 text-yellow-500" />
             ) : connectionStatus === 'error' ? (
               <AlertCircle className="h-8 w-8 text-red-500" />
             ) : (
@@ -108,6 +148,7 @@ const InstagramAuthSuccess = () => {
           
           <h1 className="text-2xl font-bold">
             {connectionStatus === 'success' ? '¡Conexión Exitosa!' : 
+             connectionStatus === 'partial' ? 'Conexión Parcial' :
              connectionStatus === 'error' ? 'Problema en la conexión' : 
              'Verificando conexión...'}
           </h1>
@@ -117,9 +158,23 @@ const InstagramAuthSuccess = () => {
             <p className="text-gray-700 font-medium">{message}</p>
           </div>
           
+          {/* Detalles de la conexión */}
+          {connectionDetails.length > 0 && (
+            <div className="mt-4 w-full text-left bg-gray-50 rounded-md p-3 border border-gray-200">
+              <p className="font-medium text-sm mb-2">Detalles de la conexión:</p>
+              <ul className="text-sm space-y-1">
+                {connectionDetails.map((detail, index) => (
+                  <li key={index}>{detail}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
           <p className="text-gray-500 mt-4">
             {connectionStatus === 'success' ? 
               'Tu cuenta de Instagram ha sido conectada a Kalma. Ahora puedes acceder a tus métricas y gestionar tu presencia en redes sociales.' : 
+              connectionStatus === 'partial' ?
+              'Se ha conectado parcialmente tu cuenta de Instagram. Algunas funciones podrían estar limitadas. Intenta reiniciar el proceso si necesitas acceso completo.' :
               connectionStatus === 'error' ? 
               'Hubo un problema al conectar tu cuenta de Instagram. Por favor, inténtalo nuevamente.' :
               'Estamos verificando la conexión con Instagram. Esto puede tomar unos momentos...'}
@@ -129,6 +184,7 @@ const InstagramAuthSuccess = () => {
             onClick={() => navigate('/dashboard/canales')}
             className={`mt-6 px-4 py-2 text-white rounded-md transition-colors ${
               connectionStatus === 'success' ? 'bg-indigo-600 hover:bg-indigo-700' : 
+              connectionStatus === 'partial' ? 'bg-yellow-500 hover:bg-yellow-600' :
               connectionStatus === 'error' ? 'bg-red-500 hover:bg-red-600' : 
               'bg-blue-500 hover:bg-blue-600'
             }`}

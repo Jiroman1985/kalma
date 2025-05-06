@@ -224,14 +224,103 @@ exports.handler = async (event) => {
     }
     
     const fbLongToken = fbLongData.access_token;
-    const expiresIn = fbLongData.expires_in || 5184000; // 60 días por defecto si no viene
+    const fbExpiresIn = fbLongData.expires_in || 5184000; // 60 días por defecto si no viene
     
     // Loggear token parcial
     console.log('>> FB long-lived token (parcial):', 
       fbLongToken.substring(0, 6) + '...' + 
       fbLongToken.substring(fbLongToken.length - 6));
-
-    // 3) Guardar en Firestore el token de larga duración de Facebook
+    
+    // 3) Intercambiar token FB por token específico de Instagram (crucial)
+    console.log('Intercambiando token de Facebook por token específico de Instagram...');
+    
+    // Crear URL para intercambio de token de IG
+    const igTokenUrl = `https://graph.instagram.com/access_token?` + 
+      new URLSearchParams({
+        grant_type: 'ig_exchange_token',
+        client_secret: process.env.FACEBOOK_APP_SECRET,
+        access_token: fbLongToken
+      });
+    
+    console.log('>> URL para obtener token de Instagram:', 
+      igTokenUrl.substring(0, igTokenUrl.indexOf('access_token=') + 13) + '...TOKEN_OCULTO...');
+    
+    let igLongToken = null;
+    let igExpiresIn = null;
+    
+    // Intentar obtener token específico de Instagram
+    try {
+      const igTokenRes = await fetch(igTokenUrl);
+      
+      if (igTokenRes.ok) {
+        const igTokenData = await igTokenRes.json();
+        console.log('Token específico de Instagram obtenido. Datos:', Object.keys(igTokenData).join(', '));
+        
+        if (!igTokenData.error && igTokenData.access_token) {
+          igLongToken = igTokenData.access_token;
+          igExpiresIn = igTokenData.expires_in || 5184000; // 60 días por defecto
+          
+          console.log('>> Token específico de Instagram (parcial):', 
+            igLongToken.substring(0, 6) + '...' + 
+            igLongToken.substring(igLongToken.length - 6));
+        } else {
+          console.error('Error en respuesta de Instagram:', igTokenData.error || 'Sin token');
+        }
+      } else {
+        const errorText = await igTokenRes.text();
+        console.error('Error al obtener token específico de Instagram:', errorText);
+      }
+    } catch (error) {
+      console.error('Excepción al obtener token de Instagram:', error);
+    }
+    
+    // 4) Obtener páginas de FB e ID de Instagram Business
+    console.log('Obteniendo páginas de Facebook e ID de Instagram Business...');
+    
+    let paginaConInstagram = null;
+    let instagramBusinessId = null;
+    let pageId = null;
+    let pageToken = null;
+    
+    try {
+      const pagesUrl = `https://graph.facebook.com/v17.0/me/accounts?` + 
+        new URLSearchParams({
+          access_token: fbLongToken,
+          fields: 'name,instagram_business_account'
+        });
+      
+      const pagesRes = await fetch(pagesUrl);
+      
+      if (pagesRes.ok) {
+        const pagesData = await pagesRes.json();
+        console.log('Respuesta de páginas recibida:', Object.keys(pagesData).join(', '));
+        
+        if (pagesData.data && Array.isArray(pagesData.data) && pagesData.data.length > 0) {
+          console.log(`Se encontraron ${pagesData.data.length} páginas de Facebook`);
+          
+          // Buscar la primera página que tenga una cuenta de Instagram asociada
+          paginaConInstagram = pagesData.data.find(page => page.instagram_business_account && page.instagram_business_account.id);
+          
+          if (paginaConInstagram) {
+            console.log('Se encontró página con Instagram Business:', paginaConInstagram.name);
+            instagramBusinessId = paginaConInstagram.instagram_business_account.id;
+            pageId = paginaConInstagram.id;
+            pageToken = paginaConInstagram.access_token;
+          } else {
+            console.log('No se encontró ninguna página con cuenta de Instagram Business asociada');
+          }
+        } else {
+          console.log('No se encontraron páginas de Facebook');
+        }
+      } else {
+        const errorText = await pagesRes.text();
+        console.error('Error al obtener páginas de Facebook:', errorText);
+      }
+    } catch (error) {
+      console.error('Excepción al obtener páginas de Facebook:', error);
+    }
+    
+    // 5) Guardar datos en Firestore según lo que hayamos podido obtener
     if (!firebaseInitialized || !db) {
       console.error('Firebase no está inicializado correctamente');
       return {
@@ -240,47 +329,67 @@ exports.handler = async (event) => {
       };
     }
     
-    console.log('Guardando tokens en Firestore para usuario:', stateUserId);
-    
-    // Guardar datos más completos para una vinculación permanente
-    await db.collection('users').doc(stateUserId).update({
-      'socialNetworks.instagram': {
-        accessToken: fbLongToken,
-        tokenType: 'facebook_long_lived',
-        tokenExpiresAt: Date.now() + expiresIn * 1000,
-        obtainedAt: Date.now(),
-        connected: true, // Indica que la cuenta está conectada
-        lastUpdated: Date.now(),
-        // Estos campos se completarán posteriormente con instagram-get-pages
-        connectedAccountType: 'business',
-        isValid: true
-      }
-    });
-    
-    console.log('Tokens guardados correctamente');
-
-    // 4) Iniciar obtención de páginas en segundo plano
     try {
-      // Hacemos una llamada a instagram-get-pages en segundo plano
-      // No esperamos a que termine para no retrasar la redirección
-      fetch(`https://kalma-lab.netlify.app/.netlify/functions/instagram-get-pages?userId=${stateUserId}`, {
-        method: 'GET'
-      }).catch(err => {
-        console.log('Error al iniciar obtención de páginas en segundo plano:', err);
-        // Ignoramos el error para no bloquear el flujo principal
+      let instagramData = {
+        fbAccessToken: fbLongToken,
+        fbTokenExpiresAt: Date.now() + fbExpiresIn * 1000,
+        obtainedAt: Date.now(),
+        lastUpdated: Date.now(),
+        connected: true,
+        isValid: true
+      };
+      
+      // Añadir datos del token específico de Instagram si lo obtuvimos
+      if (igLongToken) {
+        instagramData = {
+          ...instagramData,
+          igAccessToken: igLongToken,
+          igTokenExpiresAt: Date.now() + igExpiresIn * 1000
+        };
+      }
+      
+      // Añadir datos de Instagram Business si los obtuvimos
+      if (instagramBusinessId && pageId && pageToken) {
+        instagramData = {
+          ...instagramData,
+          instagramBusinessId,
+          pageId,
+          pageName: paginaConInstagram.name,
+          pageAccessToken: pageToken,
+          connectionType: 'business'
+        };
+      } else {
+        instagramData = {
+          ...instagramData,
+          connectionType: 'incomplete',
+          needsSetup: true
+        };
+      }
+      
+      console.log('Guardando datos en Firestore para usuario:', stateUserId);
+      await db.collection('users').doc(stateUserId).update({
+        'socialNetworks.instagram': instagramData
       });
       
-      console.log('Obtención de páginas iniciada en segundo plano');
+      console.log('Datos guardados correctamente en Firestore');
     } catch (error) {
-      console.log('Error al iniciar obtención de páginas:', error);
-      // No bloqueamos el flujo principal si hay error
+      console.error('Error al guardar datos en Firestore:', error);
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: 'Error al guardar datos', details: error.message })
+      };
     }
-
-    // 5) Redirigir al cliente
+    
+    // 6) Redirigir al cliente
+    console.log('Redirigiendo al cliente...');
+    const redirectUrl = instagramBusinessId
+      ? `https://kalma-lab.netlify.app/auth/instagram/success?userId=${stateUserId}&instagramId=${instagramBusinessId}`
+      : `https://kalma-lab.netlify.app/auth/instagram/success?userId=${stateUserId}`;
+    
     return {
       statusCode: 302,
       headers: {
-        Location: `https://kalma-lab.netlify.app/auth/instagram/success?userId=${stateUserId}`
+        Location: redirectUrl
       },
       body: ''
     };
