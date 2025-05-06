@@ -85,6 +85,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useNavigate } from "react-router-dom";
+import { checkGmailConnection } from "@/lib/emailService";
 
 // Interfaces para representar los canales y configuraciones
 interface Channel {
@@ -123,6 +124,7 @@ const Channels = () => {
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
   
   // Estados para autenticación de Gmail
+  const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailEmail, setGmailEmail] = useState("");
   const [gmailPassword, setGmailPassword] = useState("");
   const [rememberCredentials, setRememberCredentials] = useState(false);
@@ -294,6 +296,7 @@ const Channels = () => {
     if (currentUser) {
       loadConnections();
       checkInstagramConnection(); // Verificar si Instagram ya está conectado
+      checkGmailConnectionStatus(); // Verificar si Gmail ya está conectado
     } else {
       setIsLoading(false);
     }
@@ -401,6 +404,44 @@ const Channels = () => {
     }
   };
 
+  // Función para verificar si Gmail ya está conectado
+  const checkGmailConnectionStatus = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const { connected, profileInfo } = await checkGmailConnection(currentUser.uid);
+      
+      setGmailConnected(connected);
+      
+      if (connected && profileInfo?.email) {
+        setGmailEmail(profileInfo.email);
+        
+        // Verificar si ya existe en las conexiones, si no, añadirlo
+        const existingConnection = connections.find(conn => 
+          conn.channelId === "gmail" && conn.username === profileInfo.email
+        );
+        
+        if (!existingConnection) {
+          // Añadir a la lista de conexiones para mostrar en UI
+          const connectionData: ChannelConnection = {
+            id: `gmail_${new Date().getTime()}`,
+            channelId: "gmail",
+            username: profileInfo.email,
+            profileUrl: `https://mail.google.com/mail/u/${profileInfo.email}`,
+            profileImage: profileInfo.picture,
+            connectedAt: Timestamp.now(),
+            status: 'active',
+            lastSync: Timestamp.now()
+          };
+          
+          setConnections(prev => [...prev, connectionData]);
+        }
+      }
+    } catch (error) {
+      console.error("Error al verificar conexión de Gmail:", error);
+    }
+  };
+
   // Función para conectar un canal
   const connectChannel = (channel: Channel) => {
     // Si es Instagram, verificar si ya está conectado
@@ -423,11 +464,11 @@ const Channels = () => {
       return;
     }
     
-    // Limpiar estados para nuevo canal
+    // Si es Gmail, usar la autenticación de OAuth a través de nuestra función
     if (channel.id === "gmail") {
-      setGmailEmail("");
-      setGmailPassword("");
-      setRememberCredentials(false);
+      // Usar la función handleGmailConnection que redirige a la autenticación de OAuth
+      handleGmailConnection();
+      return;
     }
     
     // Para otros canales (en la versión actual, simular el proceso)
@@ -440,9 +481,19 @@ const Channels = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {channels.map((channel) => {
-          // Verificar si es Instagram y usar estado específico
+          // Verificar si es Instagram o Gmail y usar estado específico
           const isInstagram = channel.id === 'instagram';
-          const isConnected = isInstagram ? instagramConnected : connections.some(conn => conn.channelId === channel.id);
+          const isGmail = channel.id === 'gmail';
+          
+          let isConnected = false;
+          
+          if (isInstagram) {
+            isConnected = instagramConnected;
+          } else if (isGmail) {
+            isConnected = gmailConnected;
+          } else {
+            isConnected = connections.some(conn => conn.channelId === channel.id);
+          }
           
           return (
             <motion.div
@@ -532,6 +583,11 @@ const Channels = () => {
                             Cambiar cuenta
                           </>
                         )}
+                      </>
+                    ) : isGmail && gmailConnected ? (
+                      <>
+                        <Settings className="h-4 w-4 mr-1" />
+                        Configurar
                       </>
                     ) : isConnected ? (
                       <>
@@ -787,6 +843,22 @@ const Channels = () => {
         variant: "destructive"
       });
     }
+  };
+
+  // Añadir la función para conectar Gmail
+  const handleGmailConnection = async () => {
+    if (!currentUser) {
+      // Mensaje de error si no hay usuario autenticado
+      toast({
+        title: "Error",
+        description: "Debes iniciar sesión para conectar tu cuenta de Gmail.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Redireccionar a la función serverless que inicia el flujo de OAuth
+    window.location.href = `/.netlify/functions/gmail-auth?userId=${currentUser.uid}`;
   };
 
   // Componente principal

@@ -3,6 +3,7 @@
   publish = "dist"
   command = "npm run build"
   base = "/"
+  functions = "netlify/functions"
 
 # Configuración de despliegue para la rama principal
 [context.production]
@@ -25,9 +26,22 @@
   # IMPORTANTE: Debes configurar estos valores en el panel de Netlify
   # FACEBOOK_APP_SECRET debe configurarse como variable de entorno en Netlify
   # Son secretos y no deben estar en el archivo de configuración
+  NETLIFY_SKIP_TOML_VALIDATION = "1"
 
 # Configuración de redirecciones
 [[redirects]]
   from = "/*"
   to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/auth/instagram/callback"
+  to = "/.netlify/functions/instagram-callback"
+  status = 200
+
+[[redirects]]
+  from = "/auth/gmail/callback"
+  to = "/.netlify/functions/gmail-callback"
+  status = 200
+
   status = 200 

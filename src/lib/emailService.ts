@@ -411,4 +411,44 @@ export const getEmailCounts = async (userId: string): Promise<Record<EmailFolder
       unread: 0
     };
   }
+};
+
+/**
+ * Verifica si el usuario tiene una conexión activa con Gmail
+ */
+export const checkGmailConnection = async (userId: string): Promise<{
+  connected: boolean;
+  profileInfo?: {
+    email?: string;
+    name?: string;
+    picture?: string;
+  };
+}> => {
+  try {
+    const socialTokensRef = doc(db, "socialTokens", userId);
+    const socialTokensDoc = await getDoc(socialTokensRef);
+    
+    if (socialTokensDoc.exists() && socialTokensDoc.data().gmail) {
+      const gmailData = socialTokensDoc.data().gmail;
+      
+      // Verificar si tenemos información de perfil
+      if (gmailData.profile) {
+        return {
+          connected: true,
+          profileInfo: {
+            email: gmailData.profile.email,
+            name: gmailData.profile.name,
+            picture: gmailData.profile.picture
+          }
+        };
+      }
+      
+      return { connected: true };
+    }
+    
+    return { connected: false };
+  } catch (error) {
+    console.error("Error al verificar conexión con Gmail:", error);
+    return { connected: false };
+  }
 }; 
