@@ -239,7 +239,7 @@ exports.handler = async (event) => {
       new URLSearchParams({
         grant_type: 'ig_exchange_token',
         client_secret: process.env.FACEBOOK_APP_SECRET,
-        access_token: fbLongToken
+        access_token: fbShortToken
       });
     
     console.log('>> URL para obtener token de Instagram:', 

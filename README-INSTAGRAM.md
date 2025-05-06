@@ -6,10 +6,10 @@ Este documento explica en detalle el flujo completo de autenticación y uso de l
 
 La autenticación con Instagram Business requiere varios pasos debido a que necesitamos:
 
-1. Un token de usuario de Facebook
-2. Identificar las páginas de Facebook administradas por el usuario
-3. Obtener la cuenta de Instagram Business asociada a una página
-4. Obtener un token de Instagram específico
+1. Un token de usuario de Facebook (corto)
+2. Un token específico de Instagram (largo)
+3. Identificar las páginas de Facebook administradas por el usuario
+4. Obtener la cuenta de Instagram Business asociada a una página
 
 ## Flujo de autenticación paso a paso
 
@@ -40,8 +40,11 @@ La función serverless realiza estos pasos:
      &client_secret={FACEBOOK_APP_SECRET}
      &code={CODE}
    ```
+   
+   ⚠️ **IMPORTANTE**: El token obtenido en este paso (FB short-lived token) es el que debe
+   usarse para intercambiar por el token de Instagram en el paso 3.
 
-2. **Intercambiar por token de larga duración de Facebook**
+2. **Intercambiar por token de larga duración de Facebook** (opcional, para uso de Facebook)
    ```
    GET https://graph.facebook.com/v17.0/oauth/access_token
      ?grant_type=fb_exchange_token
@@ -50,20 +53,21 @@ La función serverless realiza estos pasos:
      &fb_exchange_token={FB_SHORT_TOKEN}
    ```
 
-3. **Obtener token específico de Instagram**
+3. **Obtener token específico de Instagram** (usando el token corto de Facebook)
    ```
    GET https://graph.instagram.com/access_token
      ?grant_type=ig_exchange_token
      &client_secret={FACEBOOK_APP_SECRET}
-     &access_token={FB_LONG_TOKEN}
+     &access_token={FB_SHORT_TOKEN}
    ```
 
 4. **Obtener páginas de Facebook e identificar Instagram Business**
    ```
    GET https://graph.facebook.com/v17.0/me/accounts
-     ?access_token={FB_LONG_TOKEN}
+     ?access_token={FB_TOKEN}
      &fields=name,instagram_business_account
    ```
+   Nota: Aquí puede usarse tanto el token corto como el largo de Facebook.
 
 5. **Guardar toda la información en Firestore**
    ```
