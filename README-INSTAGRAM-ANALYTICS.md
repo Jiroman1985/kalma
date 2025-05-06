@@ -1,162 +1,104 @@
-# Integración de Instagram en Analytics
+# Análisis y Métricas de Instagram en Kalma
 
-Este documento explica cómo funciona la integración entre Instagram y el panel de Analytics de Kalma.
+Este documento describe en detalle las capacidades de análisis de Instagram Business implementadas en Kalma. La integración proporciona una visión completa del rendimiento de la cuenta de Instagram, con métricas avanzadas y recomendaciones personalizadas.
 
-## Arquitectura de la integración
+## Métricas disponibles
 
-El flujo completo para mostrar datos de Instagram en Analytics consta de tres componentes principales:
+### Métricas básicas
+- **Número de seguidores**: Total de seguidores de la cuenta
+- **Número de seguidos**: Cuentas que sigue el usuario
+- **Publicaciones totales**: Cantidad de posts publicados
+- **Engagement rate**: Tasa de interacción promedio (likes + comentarios / seguidores * 100)
 
-1. **Almacenamiento de tokens** - Los tokens de acceso y el ID de Instagram se guardan en Firestore después de la autenticación con Facebook/Instagram.
+### Métricas avanzadas
+- **Engagement por publicación**: Desglose del engagement individual de cada post
+- **Tipos de contenido**: Distribución entre fotos, videos y carruseles
+- **Mejores momentos para publicar**: Análisis de días y horas con mayor engagement
+- **Hashtags más efectivos**: Análisis de los hashtags más utilizados
+- **Frecuencia de publicación**: Promedio de publicaciones por día
 
-2. **API de Instagram Insights** - Un endpoint serverless en Netlify que consulta la API de Instagram Business y devuelve métricas formateadas.
+## Visualizaciones
 
-3. **Componente InstagramMetrics** - Un componente de React que muestra las métricas obtenidas y gestiona los estados de conexión.
+La plataforma ofrece varias visualizaciones para interpretar mejor los datos:
 
-## Datos almacenados en Firestore
+1. **Gráfico de tendencia de seguidores**: Evolución del número de seguidores
+2. **Gráfico de engagement**: Engagement de las últimas publicaciones
+3. **Gráfico circular de tipos de contenido**: Distribución de fotos, videos y carruseles
+4. **Gráfico de barras de hashtags**: Los hashtags más utilizados y su frecuencia
+5. **Gráfico de horas óptimas**: Las mejores horas del día para publicar
 
-Después de completar la autenticación, se guardan estos datos en:
+## Recomendaciones inteligentes
+
+El sistema analiza los datos para ofrecer recomendaciones personalizadas:
+
+- **Optimización de engagement**: Sugerencias para aumentar la tasa de interacción
+- **Mejores momentos para publicar**: Recomendaciones sobre cuándo publicar para maximizar el alcance
+- **Estrategia de hashtags**: Sugerencias sobre los hashtags más efectivos
+- **Balance de contenido**: Recomendaciones sobre qué tipos de contenido priorizar
+
+## Implementación técnica
+
+### API de Instagram Business
+
+La integración utiliza la API de Instagram Business a través de Graph API de Facebook:
 
 ```
-/users/{userId}/socialTokens/instagram
-```
-
-Los datos almacenados incluyen:
-- `accessToken`: Token de página de Facebook (válido para Instagram Business API)
-- `instagramUserId`: ID de la cuenta de Instagram Business
-- `tokenExpiry`: Timestamp de cuando expira el token (60 días)
-- `username`: Nombre de usuario de Instagram (si está disponible)
-- `lastSynced`: Fecha y hora de la última sincronización
-- `followerCount`: Último número de seguidores conocido
-- `mediaCount`: Último número de publicaciones conocido
-
-## API de Instagram Insights
-
-Se ha implementado un endpoint serverless en:
-
-```
-/.netlify/functions/instagram-insights
-```
-
-### Parámetros
-
-- `userId` (requerido): ID del usuario
-- `username` (opcional): Nombre de usuario de Instagram para Business Discovery
-
-### Respuesta
-
-Devuelve un objeto JSON con datos de la cuenta de Instagram:
-
-```json
-{
-  "username": "nombre_de_cuenta",
-  "name": "Nombre Completo",
-  "profile_picture_url": "https://...",
-  "biography": "Descripción del perfil",
-  "followers_count": 1234,
-  "follows_count": 567,
-  "media_count": 89,
-  "posts": [
-    {
-      "id": "id_del_post",
-      "media_type": "IMAGE",
-      "permalink": "https://instagram.com/p/...",
-      "like_count": 45,
-      "comments_count": 12,
-      "timestamp": "2023-05-15T12:30:00+0000"
-    },
-    // Más posts...
-  ]
-}
-```
-
-### Códigos de estado
-
-- `200`: Éxito, devuelve los datos
-- `400`: Faltan parámetros requeridos o datos incompletos
-- `401`: Token expirado o inválido
-- `403`: Problemas de permisos (cuenta no es Business)
-- `404`: No se encontraron datos
-- `500`: Error interno del servidor
-
-### Ejemplo de uso
-
-```javascript
-// En un componente de React
-const fetchInsights = async (userId) => {
-  try {
-    const response = await fetch(`/.netlify/functions/instagram-insights?userId=${userId}`);
-    
-    if (!response.ok) {
-      const error = await response.json();
-      if (error.error === 'TOKEN_EXPIRED') {
-        // Mostrar mensaje para reconectar
-      }
-      throw new Error(error.message);
-    }
-    
-    const data = await response.json();
-    // Usar los datos para actualizar la UI
-  } catch (error) {
-    console.error('Error:', error);
+GET https://graph.facebook.com/v17.0/{igUserId}
+  ?fields=business_discovery.username({username}){
+    username,name,profile_picture_url,biography,website,follows_count,followers_count,
+    media_count,media.limit(25){id,caption,media_type,media_url,permalink,
+    thumbnail_url,timestamp,like_count,comments_count,children{media_url,media_type}}
   }
-};
+  &access_token={pageAccessToken}
 ```
 
-## Flujo en la UI
+### Endpoint de Insights
 
-### Componente Channels
+El endpoint `instagram-insights` realiza las siguientes funciones:
 
-1. **Verificación de conexión**: Al cargar, verifica si existe una conexión activa con Instagram.
-2. **Estado de conexión**: Muestra "Conectado" o "Expirado" según el estado.
-3. **Botones contextuales**:
-   - "Conectar" (si no hay conexión)
-   - "Cambiar cuenta" (si hay conexión activa)
-   - "Reconectar" (si el token expiró)
+1. Verifica la validez del token de acceso
+2. Obtiene datos básicos del perfil y publicaciones recientes
+3. Calcula métricas avanzadas (engagement, mejores momentos para publicar, etc.)
+4. Analiza hashtags y tipos de contenido
+5. Devuelve un objeto JSON con todos los datos procesados
 
 ### Componente InstagramMetrics
 
-1. **Verificación de conexión**: Al cargar, verifica si hay tokens válidos.
-2. **Estados de conexión**:
-   - `loading`: Cargando datos
-   - `connected`: Conectado y con datos
-   - `disconnected`: Sin conexión
-   - `expired`: Token expirado
-   - `error`: Error en la conexión
-3. **Métricas**: Muestra métricas reales cuando está conectado:
-   - Número de seguidores
-   - Número de publicaciones
-   - Engagement por publicación
-   - Gráficos de crecimiento
+El componente `InstagramMetrics.tsx` procesa los datos del endpoint y:
 
-## Reconexión de cuenta
+1. Verifica el estado de la conexión (conectado, desconectado, expirado)
+2. Muestra métricas básicas en tarjetas y gráficos
+3. Visualiza métricas avanzadas en gráficos interactivos
+4. Genera recomendaciones personalizadas basadas en el análisis de datos
 
-Cuando un token expira (después de aproximadamente 60 días), el usuario debe reconectar su cuenta:
+## Limitaciones y consideraciones
 
-1. Se muestra un mensaje de "Token expirado" en Analytics
-2. El usuario hace clic en "Reconectar" en el panel de Canales
-3. Se ejecuta la función `disconnectInstagram()` que:
-   - Marca el token como inválido
-   - Actualiza el estado en la UI
-4. El usuario es redirigido al flujo de autenticación de Facebook/Instagram
-5. Después de la autenticación, se guardan los nuevos tokens
-6. Al volver a Analytics, se muestran los datos actualizados
+- Las métricas avanzadas analizan solo las últimas 25 publicaciones
+- La predicción de mejores momentos para publicar se basa en datos históricos
+- El engagement rate se calcula usando likes y comentarios (no incluye guardados o compartidos)
+- Las recomendaciones son generadas algorítmicamente y deben considerarse como sugerencias
 
-## Manejo de errores
+## Mejoras futuras planificadas
 
-- **Token expirado**: Se muestra un mensaje para reconectar
-- **Cuenta no conectada**: Se muestra un botón para conectar
-- **Errores de API**: Se muestra un mensaje genérico con opción para reintentar
-- **Sin datos**: Se muestran gráficos vacíos o mensajes informativos
+- **Análisis de competencia**: Comparar métricas con otras cuentas del mismo sector
+- **Análisis de contenido con IA**: Detectar automáticamente qué tipo de contenido genera más engagement
+- **Predicciones de crecimiento**: Proyecciones de crecimiento basadas en tendencias históricas
+- **Exportación de informes**: Generación de informes PDF con métricas clave
+- **Alertas y notificaciones**: Notificaciones sobre cambios importantes en las métricas
 
-## Consideraciones de seguridad
+## Solución de problemas
 
-- Los tokens de acceso solo se almacenan en Firestore con reglas de seguridad
-- Las llamadas a la API se realizan desde funciones serverless, nunca desde el cliente
-- Los tokens expirados se marcan como inválidos para evitar su uso
+### Token inválido o expirado
+Si aparece un error de token inválido, es necesario volver a conectar la cuenta desde la sección Canales.
 
-## Mejoras futuras
+### No aparecen datos o aparecen incompletos
+Verifica que:
+- La cuenta esté conectada como Instagram Business (no personal)
+- La cuenta tenga publicaciones visibles públicamente
+- El token tenga los permisos necesarios
 
-- Implementar renovación automática de tokens
-- Añadir más métricas de engagement
-- Mostrar análisis de mejores horarios para publicar
-- Añadir notificaciones de crecimiento o caídas significativas 
+### Error en carga de métricas
+Si el componente muestra un error al cargar métricas:
+1. Verifica la consola del navegador para ver errores específicos
+2. Comprueba que el endpoint `instagram-insights` responda correctamente
+3. Intenta reconectar la cuenta desde Canales 

@@ -150,7 +150,7 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
         const username = instagramData.username || '';
         
         // Llamar al endpoint de Instagram Insights
-        const insightsEndpoint = `/.netlify/functions/instagram/insights?userId=${currentUser.uid}${username ? `&username=${username}` : ''}`;
+        const insightsEndpoint = `/.netlify/functions/instagram-insights?userId=${currentUser.uid}${username ? `&username=${username}` : ''}`;
         const response = await fetch(insightsEndpoint);
         
         // Si la respuesta no es exitosa, manejar los diferentes tipos de error
@@ -227,11 +227,49 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
               name: `Post ${index + 1}`,
               engagement: totalEngagement,
               likes: post.like_count || 0,
-              comments: post.comments_count || 0
+              comments: post.comments_count || 0,
+              engagement_rate: post.engagement_rate || 0,
+              date: format(new Date(post.timestamp), 'dd/MM')
             };
           }).slice(0, 10); // Limitar a 10 posts
           
           setEngagementData(engagementByPost);
+          
+          // Si tenemos métricas avanzadas
+          if (insights.metrics) {
+            // Establecer el engagement rate global
+            setEngagementRate(insights.metrics.engagement_rate || 0);
+            
+            // Preparar datos para gráfica de tipos de contenido
+            const contentTypeData = [
+              { name: 'Fotos', value: insights.metrics.content_types.image || 0 },
+              { name: 'Videos', value: insights.metrics.content_types.video || 0 },
+              { name: 'Carruseles', value: insights.metrics.content_types.carousel || 0 }
+            ];
+            
+            // Preparar datos para gráfica de mejores momentos para publicar
+            const hourlyActivityData = Array.from({ length: 24 }, (_, hour) => {
+              // Si es la mejor hora, destacarla
+              const isBestHour = hour === insights.metrics.best_posting_times.hour;
+              return {
+                hour,
+                activity: isBestHour ? 1 : 0.2, // Destacar la mejor hora
+                label: `${hour}:00`
+              };
+            });
+            
+            setInteractionData(contentTypeData);
+            setHourlyActivity(hourlyActivityData);
+            
+            // Si hay hashtags, prepararlos para mostrar
+            if (insights.metrics.top_hashtags && insights.metrics.top_hashtags.length > 0) {
+              const hashtagData = insights.metrics.top_hashtags.map(ht => ({
+                name: `#${ht.tag}`,
+                count: ht.count
+              }));
+              setFollowerDemographics(hashtagData);
+            }
+          }
         } else {
           // Datos de engagement simulados basados en el número de seguidores
           const simulatedEngagement = Array.from({ length: 10 }, (_, i) => {
@@ -726,6 +764,71 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
     return null;
   };
 
+  // Después de renderConnectionStatus, añadir esta nueva función para mostrar recomendaciones
+  const renderRecommendations = () => {
+    if (!hasInstagramData || connectionStatus !== 'connected') return null;
+    
+    return (
+      <Card className="p-4 bg-white border-t-4 border-blue-500">
+        <h3 className="text-lg font-medium mb-3 flex items-center">
+          <Info className="h-5 w-5 mr-2 text-blue-500" />
+          Recomendaciones para mejorar tu cuenta
+        </h3>
+        
+        <div className="space-y-3 text-sm">
+          {engagementRate < 3 && (
+            <div className="flex items-start space-x-2">
+              <TrendingUp className="h-4 w-4 text-amber-500 mt-0.5" />
+              <div>
+                <p className="font-medium">Aumenta tu engagement</p>
+                <p className="text-gray-600">Tu tasa de engagement ({engagementRate.toFixed(2)}%) está por debajo del promedio recomendado (3-5%). 
+                  Intenta generar más interacción con preguntas en tus publicaciones y responder más comentarios.</p>
+              </div>
+            </div>
+          )}
+          
+          {hourlyActivity.some(h => h.activity > 0.5) && (
+            <div className="flex items-start space-x-2">
+              <Clock className="h-4 w-4 text-green-500 mt-0.5" />
+              <div>
+                <p className="font-medium">Mejor momento para publicar</p>
+                <p className="text-gray-600">Tus seguidores están más activos alrededor de las {hourlyActivity.find(h => h.activity > 0.5)?.hour || '18'}:00. 
+                  Intenta publicar contenido importante a esta hora para maximizar el alcance.</p>
+              </div>
+            </div>
+          )}
+          
+          {followerDemographics.length > 0 && (
+            <div className="flex items-start space-x-2">
+              <ZoomIn className="h-4 w-4 text-purple-500 mt-0.5" />
+              <div>
+                <p className="font-medium">Optimiza el uso de hashtags</p>
+                <p className="text-gray-600">Tus hashtags más efectivos son {followerDemographics.slice(0, 2).map(h => h.name).join(', ')}. 
+                  Considera usarlos con más frecuencia para aumentar el alcance de tus publicaciones.</p>
+              </div>
+            </div>
+          )}
+          
+          {interactionData.length > 0 && (
+            <div className="flex items-start space-x-2">
+              <BarChart3 className="h-4 w-4 text-indigo-500 mt-0.5" />
+              <div>
+                <p className="font-medium">Tipos de contenido</p>
+                <p className="text-gray-600">
+                  {interactionData[0].value > interactionData[1].value && interactionData[0].value > interactionData[2].value
+                    ? "Las fotos generan la mayor parte de tu contenido. Considera diversificar con más videos para aumentar el engagement."
+                    : interactionData[1].value > interactionData[0].value && interactionData[1].value > interactionData[2].value
+                    ? "Los videos funcionan bien en tu cuenta. Sigue creando contenido en video para mantener a tu audiencia interesada."
+                    : "Los carruseles tienen buen rendimiento. Úsalos para contar historias más detalladas y aumentar el tiempo de interacción."}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Mostrar mensaje de estado de conexión si no está conectado o hay error */}
@@ -966,6 +1069,105 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
             </div>
           </div>
         </>
+      )}
+
+      {/* Recomendaciones y mejores prácticas */}
+      {connectionStatus === 'connected' && (
+        <div className="mt-8 space-y-6">
+          <h2 className="text-xl font-bold">Recomendaciones y Análisis</h2>
+          {renderRecommendations()}
+        </div>
+      )}
+      
+      {/* Hashtags más utilizados */}
+      {connectionStatus === 'connected' && followerDemographics.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-bold mb-4">Hashtags más efectivos</h2>
+          <Card className="p-4">
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={followerDemographics}
+                  layout="vertical"
+                  margin={{ top: 20, right: 30, left: 80, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis type="number" />
+                  <YAxis dataKey="name" type="category" />
+                  <Tooltip 
+                    formatter={(value: any) => [`${value} usos`, 'Frecuencia']}
+                  />
+                  <Bar dataKey="count" fill="#8884d8" radius={[0, 4, 4, 0]}>
+                    {followerDemographics.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={`#${(index * 500 + 8884).toString(16).slice(0, 6)}d8`} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
+      )}
+      
+      {/* Mejores horas para publicar */}
+      {connectionStatus === 'connected' && hourlyActivity.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-bold mb-4">Mejores horas para publicar</h2>
+          <Card className="p-4">
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={hourlyActivity}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="label" />
+                  <YAxis hide />
+                  <Tooltip 
+                    formatter={(value: any, name: string) => [value > 0.5 ? 'Mejor hora' : 'Hora regular', 'Actividad']}
+                    cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
+                  />
+                  <Bar dataKey="activity" fill="#82ca9d">
+                    {hourlyActivity.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.activity > 0.5 ? '#4ade80' : '#e5e7eb'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
+      )}
+      
+      {/* Distribución por tipo de contenido */}
+      {connectionStatus === 'connected' && interactionData.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-bold mb-4">Tipos de contenido</h2>
+          <Card className="p-4">
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={interactionData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={true}
+                    outerRadius={100}
+                    dataKey="value"
+                    nameKey="name"
+                    label={(entry) => entry.name}
+                  >
+                    {interactionData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index === 0 ? '#f472b6' : index === 1 ? '#3b82f6' : '#a855f7'} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: any) => [`${value} publicaciones`, 'Cantidad']} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );
