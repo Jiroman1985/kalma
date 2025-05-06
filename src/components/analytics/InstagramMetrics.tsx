@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import {
   Instagram, Users, Clock, ArrowUpRight, TrendingUp,
-  Heart, MessageCircle, Repeat, Bookmark, BarChart3, UserRound, ZoomIn, Info
+  Heart, MessageCircle, Repeat, Bookmark, BarChart3, UserRound, ZoomIn, Info, AlertCircle
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
@@ -26,6 +26,8 @@ import {
   updateDoc,
   setDoc
 } from "firebase/firestore";
+import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
 
 // Datos para cuando no hay conexión o datos disponibles
 const NO_DATA_MESSAGE = "N/A";
@@ -94,6 +96,11 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
   const [followerGrowth, setFollowerGrowth] = useState<any[]>([]);
   const [hourlyActivity, setHourlyActivity] = useState<any[]>([]);
 
+  // Estado para conexión
+  const [connectionStatus, setConnectionStatus] = useState<
+    'loading' | 'connected' | 'disconnected' | 'error' | 'expired'
+  >('loading');
+
   useEffect(() => {
     const fetchData = async () => {
       if (!currentUser) return;
@@ -103,141 +110,188 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
       try {
         console.log("🔍 [InstagramMetrics] Cargando datos de Instagram para:", currentUser.uid);
         
-        // 1. Obtener información de la cuenta de Instagram conectada
+        // 1. Verificar si el usuario tiene una cuenta de Instagram conectada
         const userRef = doc(db, "users", currentUser.uid);
-        const userDoc = await getDoc(userRef);
-        const userData = userDoc.data();
+        const socialTokensRef = doc(db, "users", currentUser.uid, "socialTokens", "instagram");
+        const socialTokensDoc = await getDoc(socialTokensRef);
         
-        // Comprobar si existe una cuenta de Instagram conectada
-        if (!userData?.socialNetworks?.instagram) {
-          console.log("⚠️ [InstagramMetrics] El usuario no tiene configuración de Instagram");
-          setHasInstagramData(false);
-          generateSimulatedData();
-          setLoading(false);
-          return;
-        }
-
-        // Comprobar si la cuenta está conectada
-        if (!userData.socialNetworks.instagram.connected) {
-          console.log("⚠️ [InstagramMetrics] Usuario tiene configuración de Instagram pero no está conectada");
-          setHasInstagramData(false);
+        if (!socialTokensDoc.exists()) {
+          console.log("⚠️ [InstagramMetrics] El usuario no tiene una cuenta de Instagram conectada");
+          setConnectionStatus('disconnected');
           generateSimulatedData();
           setLoading(false);
           return;
         }
         
-        console.log("✅ [InstagramMetrics] Cuenta de Instagram conectada:", userData.socialNetworks.instagram);
+        const instagramData = socialTokensDoc.data();
+        
+        // Verificar que tengamos accessToken e instagramUserId
+        if (!instagramData.accessToken || !instagramData.instagramUserId) {
+          console.log("⚠️ [InstagramMetrics] Datos de conexión incompletos");
+          setConnectionStatus('disconnected');
+          generateSimulatedData();
+          setLoading(false);
+          return;
+        }
+        
+        // Verificar si el token está caducado
+        if (instagramData.tokenExpiry && Date.now() > instagramData.tokenExpiry) {
+          console.log("⚠️ [InstagramMetrics] Token caducado:", new Date(instagramData.tokenExpiry));
+          setConnectionStatus('expired');
+          generateSimulatedData();
+          setLoading(false);
+          return;
+        }
+        
+        // 2. Llamar al endpoint para obtener métricas reales
+        console.log("🔍 [InstagramMetrics] Solicitando datos a API...");
+        
+        // Obtenemos el username si lo tenemos guardado
+        const username = instagramData.username || '';
+        
+        // Llamar al endpoint de Instagram Insights
+        const insightsEndpoint = `/.netlify/functions/instagram/insights?userId=${currentUser.uid}${username ? `&username=${username}` : ''}`;
+        const response = await fetch(insightsEndpoint);
+        
+        // Si la respuesta no es exitosa, manejar los diferentes tipos de error
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("❌ [InstagramMetrics] Error en la API:", errorData);
+          
+          if (errorData.error === 'TOKEN_EXPIRED') {
+            console.log("⚠️ [InstagramMetrics] Token expirado o inválido");
+            setConnectionStatus('expired');
+          } else if (errorData.error === 'TOKEN_NOT_FOUND') {
+            console.log("⚠️ [InstagramMetrics] No se encontró conexión");
+            setConnectionStatus('disconnected');
+          } else {
+            console.log("⚠️ [InstagramMetrics] Error general en la API");
+            setConnectionStatus('error');
+          }
+          
+          generateSimulatedData();
+          setLoading(false);
+          return;
+        }
+        
+        // Procesar la respuesta exitosa
+        const insights = await response.json();
+        console.log("✅ [InstagramMetrics] Datos recibidos:", insights);
+        
+        // Actualizar estados con datos reales
+        setConnectionStatus('connected');
         setHasInstagramData(true);
+        setInstagramUsername(insights.username || '');
         
-        // Guardamos el nombre de usuario de Instagram
-        const igUsername = userData.socialNetworks.instagram.username;
-        if (igUsername) {
-          setInstagramUsername(igUsername);
-          console.log(`👤 [InstagramMetrics] Cuenta conectada: @${igUsername}`);
-        } else {
-          console.log("⚠️ [InstagramMetrics] Cuenta conectada pero sin nombre de usuario");
-        }
+        // Actualizar métricas principales
+        setFollowerCount(insights.followers_count || 0);
+        setTotalInteractions(insights.media_count || 0); // Usamos media_count como aproximación
         
-        // Extraer todos los datos disponibles de la cuenta de Instagram
-        const instagramData = userData.socialNetworks.instagram;
-        console.log("📊 [InstagramMetrics] Datos disponibles:", instagramData);
-        
-        // Si hay analíticas almacenadas, las cargamos
-        if (instagramData.analytics) {
-          console.log("📈 [InstagramMetrics] Cargando analytics:", instagramData.analytics);
-          setAnalytics(instagramData.analytics);
-          setFollowerCount(instagramData.analytics.followerCount || 0);
-          setEngagementRate(instagramData.analytics.engagementRate || 0);
-          setResponseTime(instagramData.analytics.responseTime || 0);
-        } else {
-          console.log("⚠️ [InstagramMetrics] No hay analytics disponibles");
-          // Si no hay analytics pero sí hay followerCount, podemos usarlo
-          if (instagramData.followerCount) {
-            console.log(`👥 [InstagramMetrics] Usando followerCount: ${instagramData.followerCount}`);
-            setFollowerCount(instagramData.followerCount);
-          }
-        }
-        
-        // Intentamos crear o actualizar las analíticas si es necesario
-        if (!instagramData.analytics && instagramData.accessToken) {
-          console.log("🔄 [InstagramMetrics] Creando analytics para la cuenta");
-          const newAnalytics = await updateInstagramAnalytics(userRef, instagramData);
-          if (newAnalytics) {
-            console.log("✅ [InstagramMetrics] Analytics creados:", newAnalytics);
-            setAnalytics(newAnalytics);
-            setFollowerCount(newAnalytics.followerCount || 0);
-            setEngagementRate(newAnalytics.engagementRate || 0);
-            setResponseTime(newAnalytics.responseTime || 0);
-          }
-        }
-        
-        // 2. Obtener mensajes de Instagram
-        console.log("📨 [InstagramMetrics] Consultando mensajes de Instagram");
-        let instagramMessages: InstagramMessage[] = [];
-        
-        try {
-          // Usamos query basada en índices creados
-          const messagesQuery = query(
-            collection(db, "messages"),
-            where("userId", "==", currentUser.uid),
-            where("platform", "==", "instagram")
-          );
+        // Construir datos para gráficos
+        const createPastData = (currentValue: number, days: number = 30) => {
+          // Generar un historial simulado basado en el valor actual
+          const data = [];
+          let lastValue = currentValue;
           
-          const messagesSnapshot = await getDocs(messagesQuery);
-          console.log(`📨 [InstagramMetrics] Mensajes encontrados: ${messagesSnapshot.size}`);
-          
-          if (!messagesSnapshot.empty) {
-            messagesSnapshot.forEach(doc => {
-              const messageData = doc.data() as InstagramMessage;
-              instagramMessages.push({
-                ...messageData,
-                id: doc.id
-              });
+          for (let i = days; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            
+            // Pequeña variación aleatoria (±2%)
+            const randomChange = 1 + (Math.random() * 0.04 - 0.02);
+            lastValue = i === days ? currentValue * 0.85 : Math.round(lastValue * randomChange);
+            
+            data.push({
+              date: format(date, 'dd/MM'),
+              value: lastValue
             });
-            
-            // Ordenamos manualmente
-            instagramMessages.sort((a, b) => {
-              // Convertir timestamps a números para comparar
-              const timeA = a.createdAt ? 
-                (typeof a.createdAt === 'number' ? a.createdAt : a.createdAt.toMillis()) : 0;
-              const timeB = b.createdAt ? 
-                (typeof b.createdAt === 'number' ? b.createdAt : b.createdAt.toMillis()) : 0;
-              
-              return timeB - timeA; // Ordenar descendente
-            });
-            
-            setMessages(instagramMessages);
-            
-            // Calcular métricas basadas en los mensajes
-            calculateMetricsFromMessages(instagramMessages);
-          } else {
-            console.log("⚠️ [InstagramMetrics] No se encontraron mensajes de Instagram");
-            // Si no hay mensajes pero la cuenta está conectada, generar gráficos con datos básicos
-            if (hasInstagramData) {
-              console.log("⚠️ [InstagramMetrics] No hay mensajes pero sí hay cuenta conectada");
-              generateChartDataFromBasics(userData.socialNetworks.instagram);
-            }
           }
-        } catch (error) {
-          console.error("❌ [InstagramMetrics] Error al consultar mensajes:", error);
           
-          // Si la cuenta está conectada pero no podemos acceder a los mensajes, usar datos disponibles
-          if (hasInstagramData) {
-            console.log("⚠️ [InstagramMetrics] Error al acceder a mensajes, usando datos básicos");
-            generateChartDataFromBasics(userData.socialNetworks.instagram);
-          } else {
-            console.log("⚠️ [InstagramMetrics] No se pudieron obtener datos, generando simulación");
-            generateSimulatedData();
+          // Asegurar que el último valor coincide con el actual
+          if (data.length > 0) {
+            data[data.length - 1].value = currentValue;
           }
+          
+          return data;
+        };
+        
+        // Generar datos para las gráficas basados en los insights reales
+        setFollowerData(createPastData(insights.followers_count));
+        setFollowerGrowth(createPastData(insights.followers_count));
+        
+        // Si tenemos posts, crear datos de engagement basados en ellos
+        if (insights.posts && insights.posts.length > 0) {
+          const engagementByPost = insights.posts.map((post: any, index: number) => {
+            const totalEngagement = (post.like_count || 0) + (post.comments_count || 0);
+            return {
+              name: `Post ${index + 1}`,
+              engagement: totalEngagement,
+              likes: post.like_count || 0,
+              comments: post.comments_count || 0
+            };
+          }).slice(0, 10); // Limitar a 10 posts
+          
+          setEngagementData(engagementByPost);
+        } else {
+          // Datos de engagement simulados basados en el número de seguidores
+          const simulatedEngagement = Array.from({ length: 10 }, (_, i) => {
+            const baseEngagement = Math.round(insights.followers_count * (Math.random() * 0.05 + 0.02));
+            return {
+              name: `Post ${i + 1}`,
+              engagement: baseEngagement,
+              likes: Math.round(baseEngagement * 0.9),
+              comments: Math.round(baseEngagement * 0.1)
+            };
+          });
+          
+          setEngagementData(simulatedEngagement);
         }
         
-        // Si no hay datos de Instagram ni mensajes, generar datos simulados
-        if (!hasInstagramData && instagramMessages.length === 0 && !userData?.socialNetworks?.instagram?.connected) {
-          console.log("🔄 [InstagramMetrics] No hay datos, generando simulación");
-          generateSimulatedData();
-        }
+        // Datos de actividad horaria (simulados pero realistas)
+        const simulatedHourlyData = Array.from({ length: 24 }, (_, hour) => {
+          // Patrón realista: más actividad por la tarde/noche
+          let activityFactor = 1;
+          if (hour >= 7 && hour < 10) activityFactor = 1.5; // Mañana
+          if (hour >= 12 && hour < 14) activityFactor = 2.5; // Mediodía
+          if (hour >= 19 && hour < 23) activityFactor = 3; // Noche
+          
+          const value = Math.round(insights.followers_count * 0.001 * activityFactor * (Math.random() * 0.5 + 0.75));
+          
+          return {
+            hour: hour.toString().padStart(2, '0') + ':00',
+            value
+          };
+        });
+        
+        setHourlyActivity(simulatedHourlyData);
+        setHourlyData(simulatedHourlyData);
+        
+        // Tipos de interacción simulados basados en patrones típicos
+        const interactionTypesData = [
+          { name: 'Likes', value: 75 },
+          { name: 'Comentarios', value: 15 },
+          { name: 'Guardados', value: 7 },
+          { name: 'Compartidos', value: 3 }
+        ];
+        
+        setInteractionData(interactionTypesData);
+        
+        // Datos demográficos simulados
+        const demographicsData = [
+          { name: '18-24', value: 30 },
+          { name: '25-34', value: 35 },
+          { name: '35-44', value: 20 },
+          { name: '45-54', value: 10 },
+          { name: '55+', value: 5 }
+        ];
+        
+        setFollowerDemographics(demographicsData);
+        
+        console.log("✅ [InstagramMetrics] Datos e insights procesados correctamente");
+        
       } catch (error) {
         console.error("❌ [InstagramMetrics] Error al cargar datos:", error);
+        setConnectionStatus('error');
         generateSimulatedData();
       } finally {
         setLoading(false);
@@ -604,223 +658,315 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
   const totalShares = dailyEngagement.reduce((sum, day) => sum + day.shares, 0);
   const totalSaves = dailyEngagement.reduce((sum, day) => sum + day.saves, 0);
   
-  return (
-    <div className="space-y-8">
-      {/* Tarjetas de métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard
-          title="Seguidores"
-          value={followerCount}
-          icon={<Users className="h-5 w-5" />}
-          description="Total de seguidores"
-          trend="+3.2%"
-          trendDirection="up"
-          loading={loading}
-          color="pink"
-        />
-        
-        <MetricCard
-          title="Engagement"
-          value={`${engagementRate}%`}
-          icon={<ArrowUpRight className="h-5 w-5" />}
-          description="Tasa de interacción"
-          trend="+0.8%"
-          trendDirection="up"
-          loading={loading}
-          color="purple"
-        />
-        
-        <MetricCard
-          title="Mensajes directos"
-          value={directMessages}
-          icon={<Instagram className="h-5 w-5" />}
-          description="Mensajes recibidos"
-          trend="+12%"
-          trendDirection="up"
-          loading={loading}
-          color="blue"
-        />
-        
-        <MetricCard
-          title="Tiempo de respuesta"
-          value={`${responseTime} min`}
-          icon={<Clock className="h-5 w-5" />}
-          description="Tiempo promedio de respuesta"
-          trend="-5%"
-          trendDirection="down"
-          loading={loading}
-          color="amber"
-        />
-      </div>
-
-      {/* Gráficos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Engagement diario */}
-        <ChartContainer
-          title="Engagement diario"
-          description="Interacciones en los últimos 30 días"
-          isLoading={loading}
-        >
-          <div className="flex flex-wrap gap-3 mb-4 justify-center">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-pink-500"></div>
-              <span className="text-xs">Likes: {totalLikes}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-              <span className="text-xs">Comentarios: {totalComments}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span className="text-xs">Compartidos: {totalShares}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-              <span className="text-xs">Guardados: {totalSaves}</span>
+  // Renderizar contenido según estado de conexión
+  const renderConnectionStatus = () => {
+    if (connectionStatus === 'disconnected') {
+      return (
+        <Card className="bg-slate-50 p-6 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <Instagram className="h-12 w-12 text-slate-400" />
+            <div>
+              <h3 className="text-lg font-semibold">Instagram no conectado</h3>
+              <p className="text-slate-500 mb-4">Necesitas conectar tu cuenta de Instagram Business para ver tus métricas.</p>
+              <Button 
+                variant="default" 
+                className="bg-gradient-to-r from-purple-500 to-pink-500"
+                onClick={() => window.location.href = '/dashboard/channels'}
+              >
+                Conectar Instagram
+              </Button>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={dailyEngagement}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tickFormatter={(value) => value.split('-')[2]}
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip
-                formatter={(value, name) => [value, 
-                  name === "likes" ? "Likes" : 
-                  name === "comments" ? "Comentarios" : 
-                  name === "shares" ? "Compartidos" : "Guardados"
-                ]}
-                labelFormatter={(label) => new Date(label).toLocaleDateString()}
-              />
-              <Bar dataKey="likes" name="likes" stackId="a" fill="#EC4899" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="comments" name="comments" stackId="a" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="shares" name="shares" stackId="a" fill="#10B981" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="saves" name="saves" stackId="a" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartContainer>
-
-        {/* Tipos de interacción */}
-        <ChartContainer
-          title="Tipos de interacción"
-          description="Distribución de engagement"
-          isLoading={loading}
-        >
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={interactionData}
-                cx="50%"
-                cy="50%"
-                labelLine={true}
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="value"
-                nameKey="name"
-                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+        </Card>
+      );
+    }
+    
+    if (connectionStatus === 'expired') {
+      return (
+        <Card className="bg-slate-50 p-6 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <AlertCircle className="h-12 w-12 text-amber-500" />
+            <div>
+              <h3 className="text-lg font-semibold">Conexión expirada</h3>
+              <p className="text-slate-500 mb-4">El token de Instagram ha expirado. Por favor, vuelve a conectar tu cuenta.</p>
+              <Button 
+                variant="default" 
+                className="bg-gradient-to-r from-amber-500 to-orange-500"
+                onClick={() => window.location.href = '/dashboard/channels'}
               >
-                {interactionData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => [`${value}`, ""]} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+                Reconectar Instagram
+              </Button>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+    
+    if (connectionStatus === 'error') {
+      return (
+        <Card className="bg-slate-50 p-6 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <AlertCircle className="h-12 w-12 text-red-500" />
+            <div>
+              <h3 className="text-lg font-semibold">Error de conexión</h3>
+              <p className="text-slate-500 mb-4">Ocurrió un error al obtener las métricas de Instagram. Por favor, intenta reconectar tu cuenta.</p>
+              <Button 
+                variant="default" 
+                className="bg-gradient-to-r from-red-500 to-rose-500"
+                onClick={() => window.location.href = '/dashboard/channels'}
+              >
+                Revisar conexión
+              </Button>
+            </div>
+          </div>
+        </Card>
+      );
+    }
+    
+    return null;
+  };
 
-        {/* Actividad por hora */}
-        <ChartContainer
-          title="Actividad por hora"
-          description="Hora óptima para publicar"
-          isLoading={loading}
-        >
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={hourlyData}>
-              <defs>
-                <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8A2BE2" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#8A2BE2" stopOpacity={0.1}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="hour"
-                tickFormatter={(hour) => `${hour}h`}
-                tick={{ fontSize: 12 }}
+  return (
+    <div className="space-y-6 animate-fade-in-up">
+      {/* Mostrar mensaje de estado de conexión si no está conectado o hay error */}
+      {connectionStatus !== 'connected' && connectionStatus !== 'loading' && renderConnectionStatus()}
+      
+      {/* Mostrar los datos si estamos cargando o conectados */}
+      {(connectionStatus === 'connected' || connectionStatus === 'loading') && (
+        <>
+          {/* Encabezado con información de cuenta */}
+          {!loading && hasInstagramData && (
+            <div className="mb-6 flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl">
+                <Instagram className="h-8 w-8" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold">{instagramUsername ? `@${instagramUsername}` : 'Instagram Business'}</h2>
+                <p className="text-gray-500">Análisis de engagement e interacción</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Resto del contenido existente */}
+          <div className="space-y-8">
+            {/* Tarjetas de métricas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <MetricCard
+                title="Seguidores"
+                value={followerCount}
+                icon={<Users className="h-5 w-5" />}
+                description="Total de seguidores"
+                trend="+3.2%"
+                trendDirection="up"
+                loading={loading}
+                color="pink"
               />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip
-                formatter={(value) => [`${value} interacciones`, "Actividad"]}
-                labelFormatter={(hour) => `${hour}:00 - ${hour}:59`}
+              
+              <MetricCard
+                title="Engagement"
+                value={`${engagementRate}%`}
+                icon={<ArrowUpRight className="h-5 w-5" />}
+                description="Tasa de interacción"
+                trend="+0.8%"
+                trendDirection="up"
+                loading={loading}
+                color="purple"
               />
-              <Area
-                type="monotone"
-                dataKey="activity"
-                name="Actividad"
-                stroke="#8A2BE2"
-                fillOpacity={1}
-                fill="url(#colorActivity)"
+              
+              <MetricCard
+                title="Mensajes directos"
+                value={directMessages}
+                icon={<Instagram className="h-5 w-5" />}
+                description="Mensajes recibidos"
+                trend="+12%"
+                trendDirection="up"
+                loading={loading}
+                color="blue"
               />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartContainer>
+              
+              <MetricCard
+                title="Tiempo de respuesta"
+                value={`${responseTime} min`}
+                icon={<Clock className="h-5 w-5" />}
+                description="Tiempo promedio de respuesta"
+                trend="-5%"
+                trendDirection="down"
+                loading={loading}
+                color="amber"
+              />
+            </div>
 
-        {/* Crecimiento de seguidores */}
-        <ChartContainer
-          title="Crecimiento de seguidores"
-          description="Evolución en el último mes"
-          isLoading={loading}
-        >
-          <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={followerGrowth}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tickFormatter={(value) => value.split('-')[2]}
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis 
-                yAxisId="left"
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis 
-                yAxisId="right"
-                orientation="right"
-                tick={{ fontSize: 12 }}
-              />
-              <Tooltip
-                formatter={(value, name) => [
-                  value,
-                  name === "followers" ? "Seguidores" : "Nuevos seguidores"
-                ]}
-                labelFormatter={(label) => new Date(label).toLocaleDateString()}
-              />
-              <Legend />
-              <Bar
-                dataKey="growth"
-                name="Nuevos seguidores"
-                yAxisId="right"
-                fill="#E1306C"
-                radius={[4, 4, 0, 0]}
-              />
-              <Line
-                type="monotone"
-                dataKey="followers"
-                name="Seguidores"
-                yAxisId="left"
-                stroke="#833AB4"
-                strokeWidth={2}
-                dot={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </ChartContainer>
-      </div>
+            {/* Gráficos */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Engagement diario */}
+              <ChartContainer
+                title="Engagement diario"
+                description="Interacciones en los últimos 30 días"
+                isLoading={loading}
+              >
+                <div className="flex flex-wrap gap-3 mb-4 justify-center">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-pink-500"></div>
+                    <span className="text-xs">Likes: {totalLikes}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                    <span className="text-xs">Comentarios: {totalComments}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span className="text-xs">Compartidos: {totalShares}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                    <span className="text-xs">Guardados: {totalSaves}</span>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={dailyEngagement}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(value) => value.split('-')[2]}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip
+                      formatter={(value, name) => [value, 
+                        name === "likes" ? "Likes" : 
+                        name === "comments" ? "Comentarios" : 
+                        name === "shares" ? "Compartidos" : "Guardados"
+                      ]}
+                      labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                    />
+                    <Bar dataKey="likes" name="likes" stackId="a" fill="#EC4899" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="comments" name="comments" stackId="a" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="shares" name="shares" stackId="a" fill="#10B981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="saves" name="saves" stackId="a" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Tipos de interacción */}
+              <ChartContainer
+                title="Tipos de interacción"
+                description="Distribución de engagement"
+                isLoading={loading}
+              >
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={interactionData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={true}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                      nameKey="name"
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    >
+                      {interactionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => [`${value}`, ""]} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Actividad por hora */}
+              <ChartContainer
+                title="Actividad por hora"
+                description="Hora óptima para publicar"
+                isLoading={loading}
+              >
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={hourlyData}>
+                    <defs>
+                      <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8A2BE2" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#8A2BE2" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="hour"
+                      tickFormatter={(hour) => `${hour}h`}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip
+                      formatter={(value) => [`${value} interacciones`, "Actividad"]}
+                      labelFormatter={(hour) => `${hour}:00 - ${hour}:59`}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="activity"
+                      name="Actividad"
+                      stroke="#8A2BE2"
+                      fillOpacity={1}
+                      fill="url(#colorActivity)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+
+              {/* Crecimiento de seguidores */}
+              <ChartContainer
+                title="Crecimiento de seguidores"
+                description="Evolución en el último mes"
+                isLoading={loading}
+              >
+                <ResponsiveContainer width="100%" height={300}>
+                  <ComposedChart data={followerGrowth}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(value) => value.split('-')[2]}
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis 
+                      yAxisId="left"
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{ fontSize: 12 }}
+                    />
+                    <Tooltip
+                      formatter={(value, name) => [
+                        value,
+                        name === "followers" ? "Seguidores" : "Nuevos seguidores"
+                      ]}
+                      labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                    />
+                    <Legend />
+                    <Bar
+                      dataKey="growth"
+                      name="Nuevos seguidores"
+                      yAxisId="right"
+                      fill="#E1306C"
+                      radius={[4, 4, 0, 0]}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="followers"
+                      name="Seguidores"
+                      yAxisId="left"
+                      stroke="#833AB4"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

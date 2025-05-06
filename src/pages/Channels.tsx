@@ -144,6 +144,10 @@ const Channels = () => {
 
   const navigate = useNavigate();
 
+  // Estado para Instagram
+  const [instagramConnected, setInstagramConnected] = useState(false);
+  const [instagramTokenExpired, setInstagramTokenExpired] = useState(false);
+
   // Definición de canales disponibles
   const channels: Channel[] = [
     {
@@ -288,6 +292,7 @@ const Channels = () => {
   useEffect(() => {
     if (currentUser) {
       loadConnections();
+      checkInstagramConnection();
     } else {
       setIsLoading(false);
     }
@@ -330,121 +335,221 @@ const Channels = () => {
     }
   };
 
-  // Función para conectar un canal
+  // Función para verificar el estado de la conexión con Instagram
+  const checkInstagramConnection = async () => {
+    if (!currentUser) return;
+    
+    try {
+      // Verificar si existe el documento de Instagram en socialTokens
+      const socialTokenRef = doc(db, 'users', currentUser.uid, 'socialTokens', 'instagram');
+      const socialTokenDoc = await getDoc(socialTokenRef);
+      
+      if (socialTokenDoc.exists()) {
+        const instagramData = socialTokenDoc.data();
+        console.log('Datos de conexión Instagram encontrados:', Object.keys(instagramData));
+        
+        // Verificar si tenemos los datos necesarios
+        if (instagramData.accessToken && instagramData.instagramUserId) {
+          console.log('Instagram conectado con ID:', instagramData.instagramUserId);
+          
+          // Verificar si el token está expirado
+          if (instagramData.tokenExpiry && Date.now() > instagramData.tokenExpiry) {
+            console.log('Token de Instagram expirado:', new Date(instagramData.tokenExpiry));
+            setInstagramTokenExpired(true);
+          } else {
+            setInstagramTokenExpired(false);
+          }
+          
+          setInstagramConnected(true);
+          
+          // Actualizar la lista de canales para marcar Instagram como conectado
+          const updatedChannels = channels.map(channel => 
+            channel.id === 'instagram' 
+              ? { ...channel, connected: true } 
+              : channel
+          );
+          
+          return instagramData;
+        }
+      }
+      
+      console.log('Instagram no conectado o datos incompletos');
+      setInstagramConnected(false);
+      setInstagramTokenExpired(false);
+      return null;
+      
+    } catch (error) {
+      console.error('Error al verificar conexión de Instagram:', error);
+      setInstagramConnected(false);
+      setInstagramTokenExpired(false);
+      return null;
+    }
+  };
+  
+  // Función para desconectar una cuenta de Instagram
+  const disconnectInstagram = async () => {
+    if (!currentUser) return;
+    
+    try {
+      // Mostrar confirmación antes de desconectar
+      if (!window.confirm('¿Estás seguro que deseas desconectar tu cuenta de Instagram? Tendrás que volver a conectarla para acceder a tus métricas.')) {
+        return;
+      }
+      
+      // Eliminar datos de socialTokens/instagram
+      const socialTokenRef = doc(db, 'users', currentUser.uid, 'socialTokens', 'instagram');
+      await setDoc(socialTokenRef, {
+        disconnectedAt: new Date().toISOString(),
+        accessToken: null,
+        instagramUserId: null
+      }, { merge: true });
+      
+      // Actualizar también en la estructura legacy
+      const userRef = doc(db, 'users', currentUser.uid);
+      await updateDoc(userRef, {
+        'socialNetworks.instagram.connected': false,
+        'socialNetworks.instagram.isValid': false,
+        'socialNetworks.instagram.disconnectedAt': new Date().toISOString()
+      });
+      
+      // Actualizar el estado en la interfaz
+      setInstagramConnected(false);
+      setInstagramTokenExpired(false);
+      
+      toast({
+        title: "Cuenta desconectada",
+        description: "Tu cuenta de Instagram ha sido desconectada correctamente.",
+      });
+      
+      // Actualizar la lista de canales para marcar Instagram como desconectado
+      const updatedChannels = channels.map(channel => 
+        channel.id === 'instagram' 
+          ? { ...channel, connected: false } 
+          : channel
+      );
+      
+    } catch (error) {
+      console.error('Error al desconectar Instagram:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo desconectar la cuenta de Instagram.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Modificar la función connectChannel para manejar la reconexión de Instagram
   const connectChannel = (channel: Channel) => {
-    // Si es Instagram, redirigir a la página de inicio de autenticación
-    if (channel.id === "instagram") {
-      navigate('/auth/instagram/start');
+    if (!currentUser) {
+      toast({
+        title: "Inicia sesión",
+        description: "Debes iniciar sesión para conectar canales",
+        variant: "destructive",
+      });
       return;
     }
-    
-    // Limpiar estados para nuevo canal
-    if (channel.id === "gmail") {
-      setGmailEmail("");
-      setGmailPassword("");
-      setRememberCredentials(false);
+
+    console.log(`Conectando canal: ${channel.id}`);
+
+    // Para Instagram, verificar si ya está conectado
+    if (channel.id === 'instagram') {
+      if (instagramConnected) {
+        // Si ya está conectado, primero desconectar
+        disconnectInstagram().then(() => {
+          // Luego redireccionar para conectar de nuevo
+          window.location.href = channel.authUrl || '/auth/instagram/start';
+        });
+      } else {
+        // Si no está conectado, conectar directamente
+        window.location.href = channel.authUrl || '/auth/instagram/start';
+      }
+      return;
     }
-    
-    // Para otros canales (en la versión actual, simular el proceso)
-    setSelectedChannel(channel);
-    setShowConnectionModal(true);
+
+    // Para Gmail, mostrar modal de configuración
+    if (channel.id === 'gmail') {
+      setSelectedChannel(channel);
+      setShowConnectionModal(true);
+      return;
+    }
+
+    toast({
+      title: "Próximamente",
+      description: `La conexión con ${channel.name} estará disponible próximamente`,
+    });
   };
 
   // Renderizado de tarjetas de canales
   const renderChannelCards = () => {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {channels.map((channel) => {
-          const isConnected = connections.some(conn => conn.channelId === channel.id);
-          
-          return (
-            <motion.div
-              key={channel.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="h-full"
+    return channels.map((channel) => {
+      // Verificar si Instagram está conectado para personalizar el botón
+      const isInstagram = channel.id === 'instagram';
+      const instagramBtnText = instagramConnected 
+        ? (instagramTokenExpired ? "Reconectar" : "Cambiar cuenta") 
+        : "Conectar";
+      
+      return (
+        <Card 
+          key={channel.id} 
+          className={`overflow-hidden transition-all hover:shadow-lg ${
+            channel.connected || (isInstagram && instagramConnected) ? 'border-2 border-blue-500/40' : ''
+          }`}
+        >
+          <CardHeader className={`bg-gradient-to-r ${channel.gradient || channel.color} text-white`}>
+            <div className="flex justify-between items-start">
+              <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                {channel.icon}
+              </div>
+              {/* Mostrar indicador de conexión */}
+              {(channel.connected || (isInstagram && instagramConnected)) && (
+                <div className="bg-white/80 text-xs rounded-full px-2 py-1 font-medium text-gray-800 flex items-center">
+                  <CheckCircle className="h-3 w-3 mr-1 text-green-500" />
+                  Conectado
+                </div>
+              )}
+              {(isInstagram && instagramTokenExpired) && (
+                <div className="bg-amber-100 text-xs rounded-full px-2 py-1 font-medium text-amber-800 flex items-center">
+                  <Clock className="h-3 w-3 mr-1 text-amber-500" />
+                  Expirado
+                </div>
+              )}
+            </div>
+            <CardTitle className="text-xl font-bold mt-2">{channel.name}</CardTitle>
+            <CardDescription className="text-white/80">
+              {channel.description}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            <h4 className="font-semibold mb-3">Características principales:</h4>
+            <ul className="space-y-2 mb-5">
+              {channel.features.map((feature, index) => (
+                <li key={index} className="flex items-start">
+                  <CheckCircle className="h-4 w-4 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-gray-600">{feature}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+          <CardFooter className="bg-gray-50 px-6 py-4">
+            <Button
+              variant="default"
+              className={`w-full ${
+                isInstagram
+                  ? instagramTokenExpired
+                    ? "bg-amber-500 hover:bg-amber-600"
+                    : instagramConnected
+                    ? "bg-blue-500 hover:bg-blue-600" 
+                    : "bg-purple-500 hover:bg-purple-600"
+                  : ""
+              }`}
+              onClick={() => connectChannel(channel)}
             >
-              <Card className="h-full flex flex-col shadow-md hover:shadow-lg transition-shadow border-t-4 overflow-hidden" style={{ borderTopColor: channel.color.replace('bg-', '').includes('-') ? `#8B5CF6` : `var(--${channel.color.replace('bg-', '')})` }}>
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between">
-                    <div className={`w-12 h-12 rounded-full ${channel.gradient ? `bg-gradient-to-r ${channel.gradient}` : channel.color} flex items-center justify-center text-white mb-2`}>
-                      {channel.icon}
-                    </div>
-                    {isConnected ? (
-                      <Badge className="bg-green-100 text-green-800 hover:bg-green-200 hover:text-green-900">
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                        Conectado
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <CardTitle className="text-xl">{channel.name}</CardTitle>
-                  <CardDescription className="text-sm line-clamp-2">
-                    {channel.description}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex-grow">
-                  <h4 className="text-sm font-medium mb-2 flex items-center">
-                    <Sparkles className="h-4 w-4 mr-1 text-amber-500" />
-                    Características
-                  </h4>
-                  <ul className="text-sm space-y-1 mb-4">
-                    {channel.features.slice(0, 3).map((feature, idx) => (
-                      <li key={idx} className="flex items-start">
-                        <CheckCircle className="h-3.5 w-3.5 text-green-500 mr-2 mt-0.5 flex-shrink-0" />
-                        <span className="text-gray-600">{feature}</span>
-                      </li>
-                    ))}
-                    {channel.features.length > 3 && (
-                      <li className="text-xs text-gray-500 pl-5 italic">
-                        {`+ ${channel.features.length - 3} más`}
-                      </li>
-                    )}
-                  </ul>
-                </CardContent>
-                <CardFooter className="pt-2 flex justify-between items-center border-t bg-gray-50">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          className="text-gray-600 hover:text-gray-900"
-                        >
-                          <Info className="h-4 w-4" />
-                          <span className="sr-only">Más información</span>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        Ver documentación detallada
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                  
-                  <Button 
-                    onClick={() => connectChannel(channel)}
-                    className={`${isConnected ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : `bg-gradient-to-r ${channel.gradient || channel.color}`} rounded-full`}
-                    size="sm"
-                  >
-                    {isConnected ? (
-                      <>
-                        <Settings className="h-4 w-4 mr-1" />
-                        Configurar
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4 mr-1" />
-                        Conectar
-                      </>
-                    )}
-                  </Button>
-                </CardFooter>
-              </Card>
-            </motion.div>
-          );
-        })}
-      </div>
-    );
+              {isInstagram ? instagramBtnText : "Conectar"}
+            </Button>
+          </CardFooter>
+        </Card>
+      );
+    });
   };
 
   // Renderizado de tarjetas de conexiones activas
