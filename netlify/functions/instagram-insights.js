@@ -34,6 +34,53 @@ if (!admin.apps.length) {
   }
 }
 
+// Función para guardar métricas históricas
+const guardarMetricasHistoricas = async (userId, insights) => {
+  if (!firebaseInitialized || !db) {
+    console.error('Firebase no está inicializado para guardar métricas históricas');
+    return false;
+  }
+  
+  try {
+    const fecha = new Date();
+    const fechaStr = fecha.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+    
+    // Comprobar si ya existe registro para hoy
+    const metricasRef = db.collection('users').doc(userId)
+      .collection('instagramMetrics').doc(fechaStr);
+      
+    const doc = await metricasRef.get();
+    
+    if (!doc.exists) {
+      // Solo guardar una vez al día
+      console.log(`📊 [Instagram Insights] Guardando métricas históricas para ${fechaStr}`);
+      
+      await metricasRef.set({
+        fecha: admin.firestore.Timestamp.fromDate(fecha),
+        seguidores: insights.followers_count || 0,
+        engagement: insights.metrics?.engagement_rate || 0,
+        mensajesDirectos: insights.direct_messages_count || 0,
+        tiempoRespuesta: insights.response_time || 0,
+        interacciones: {
+          likes: insights.posts?.reduce((sum, post) => sum + (post.like_count || 0), 0) || 0,
+          comentarios: insights.posts?.reduce((sum, post) => sum + (post.comments_count || 0), 0) || 0,
+          guardados: 0, // Esta información no está disponible directamente en la API
+          compartidos: 0 // Esta información no está disponible directamente en la API
+        }
+      });
+      
+      console.log(`✅ [Instagram Insights] Métricas históricas guardadas para: ${fechaStr}`);
+      return true;
+    } else {
+      console.log(`ℹ️ [Instagram Insights] Ya existía registro de métricas para hoy (${fechaStr})`);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ [Instagram Insights] Error al guardar métricas históricas:', error);
+    return false;
+  }
+};
+
 exports.handler = async (event, context) => {
   // Permitir solo solicitudes GET
   if (event.httpMethod !== 'GET') {
@@ -44,7 +91,7 @@ exports.handler = async (event, context) => {
   }
 
   // Extraer userId del query string
-  const { userId, username } = event.queryStringParameters || {};
+  const { userId, username, forceUpdate } = event.queryStringParameters || {};
   
   if (!userId) {
     return {
@@ -53,7 +100,9 @@ exports.handler = async (event, context) => {
     };
   }
 
-  console.log(`📊 [Instagram Insights] Obteniendo datos para usuario: ${userId}`);
+  // Verificar si debemos forzar actualización
+  const skipCache = forceUpdate === 'true';
+  console.log(`📊 [Instagram Insights] Obteniendo datos para usuario: ${userId}${skipCache ? ' (forzando actualización)' : ''}`);
   
   try {
     if (!firebaseInitialized || !db) {
@@ -62,6 +111,34 @@ exports.handler = async (event, context) => {
         statusCode: 500,
         body: JSON.stringify({ error: 'Error de configuración del servidor' })
       };
+    }
+
+    // Verificar caché si no estamos forzando actualización
+    if (!skipCache) {
+      // Comprobar si hay datos en caché
+      const configRef = db.collection('users').doc(userId).collection('config').doc('instagram');
+      const configDoc = await configRef.get();
+      
+      if (configDoc.exists) {
+        const config = configDoc.data();
+        if (config.ultimaActualizacion && config.cacheData) {
+          const ultimaAct = config.ultimaActualizacion.toDate();
+          const ahora = new Date();
+          
+          // Si hace menos de 3 horas, usar caché
+          if ((ahora.getTime() - ultimaAct.getTime()) < 3 * 60 * 60 * 1000) {
+            console.log(`📊 [Instagram Insights] Usando datos en caché de hace ${Math.round((ahora.getTime() - ultimaAct.getTime()) / (60 * 1000))} minutos`);
+            return {
+              statusCode: 200,
+              body: JSON.stringify({
+                ...config.cacheData,
+                fromCache: true,
+                cacheTimestamp: config.ultimaActualizacion.toDate().toISOString()
+              })
+            };
+          }
+        }
+      }
     }
 
     // 1. Obtener los tokens e ID de Instagram guardados en Firestore
@@ -411,6 +488,16 @@ exports.handler = async (event, context) => {
       });
       
       console.log(`📊 [Instagram Insights] Métricas obtenidas: ${insights.followers_count} seguidores, ${insights.media_count} posts, Engagement: ${insights.metrics.engagement_rate.toFixed(2)}%`);
+      
+      // Guardar métricas históricas
+      await guardarMetricasHistoricas(userId, insights);
+      
+      // Actualizar caché
+      const configRef = db.collection('users').doc(userId).collection('config').doc('instagram');
+      await configRef.set({
+        ultimaActualizacion: admin.firestore.Timestamp.now(),
+        cacheData: insights
+      }, { merge: true });
       
       return {
         statusCode: 200,

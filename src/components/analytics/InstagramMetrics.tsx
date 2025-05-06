@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import {
   Instagram, Users, Clock, ArrowUpRight, TrendingUp,
-  Heart, MessageCircle, Repeat, Bookmark, BarChart3, UserRound, ZoomIn, Info, AlertCircle
+  Heart, MessageCircle, Repeat, Bookmark, BarChart3, UserRound, ZoomIn, Info, AlertCircle, ExternalLink, MessageSquare
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
@@ -96,6 +96,11 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
   const [followerGrowth, setFollowerGrowth] = useState<any[]>([]);
   const [hourlyActivity, setHourlyActivity] = useState<any[]>([]);
 
+  // Estados para métricas históricas
+  const [metricasHistoricas, setMetricasHistoricas] = useState<any[]>([]);
+  const [comparativaSeguidores, setComparativaSeguidores] = useState<number>(0);
+  const [comparativaEngagement, setComparativaEngagement] = useState<number>(0);
+
   // Estado para conexión
   const [connectionStatus, setConnectionStatus] = useState<
     'loading' | 'connected' | 'disconnected' | 'error' | 'expired'
@@ -109,6 +114,44 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
       
       try {
         console.log("🔍 [InstagramMetrics] Cargando datos de Instagram para:", currentUser.uid);
+        
+        // Comprobar última actualización y decide si forzar actualización
+        const comprobarActualizacion = async () => {
+          try {
+            // Comprobar última actualización
+            const configRef = doc(db, "users", currentUser.uid, "config", "instagram");
+            const configDoc = await getDoc(configRef);
+            
+            const ahora = new Date();
+            let actualizar = true;
+            
+            if (configDoc.exists()) {
+              const config = configDoc.data();
+              if (config.ultimaActualizacion) {
+                const ultimaAct = config.ultimaActualizacion.toDate();
+                // Si hace menos de 3 horas, no actualizar
+                if ((ahora.getTime() - ultimaAct.getTime()) < 3 * 60 * 60 * 1000) {
+                  actualizar = false;
+                  console.log("🕒 [InstagramMetrics] Datos actualizados recientemente, no forzando actualización");
+                }
+              }
+            }
+            
+            if (actualizar) {
+              console.log("🔄 [InstagramMetrics] Forzando actualización de datos...");
+              // Llamar al endpoint para forzar actualización
+              await fetch(`/.netlify/functions/instagram-insights?userId=${currentUser.uid}&forceUpdate=true`);
+              
+              // No es necesario actualizar configuración aquí, el endpoint lo hace
+            }
+          } catch (error) {
+            console.error("❌ [InstagramMetrics] Error al comprobar actualización:", error);
+            // Continuar con el proceso normal aunque haya error
+          }
+        };
+        
+        // Intentar forzar actualización si es necesario
+        await comprobarActualizacion();
         
         // 1. Verificar si el usuario tiene una cuenta de Instagram conectada
         const userRef = doc(db, "users", currentUser.uid);
@@ -352,12 +395,62 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
         
         console.log("✅ [InstagramMetrics] Datos e insights procesados correctamente");
         
+        // Procesar datos
+        generateChartDataFromBasics(insights);
+        setConnectionStatus('connected');
+        setHasInstagramData(true);
+        
+        // Cargar datos históricos
+        await cargarHistorico();
       } catch (error) {
         console.error("❌ [InstagramMetrics] Error al cargar datos:", error);
         setConnectionStatus('error');
         generateSimulatedData();
       } finally {
         setLoading(false);
+      }
+    };
+    
+    const cargarHistorico = async () => {
+      try {
+        console.log("📈 [InstagramMetrics] Cargando histórico de métricas...");
+        const historicRef = collection(db, "users", currentUser.uid, "instagramMetrics");
+        const q = query(historicRef, orderBy("fecha", "desc"), limit(30));
+        const snapshot = await getDocs(q);
+        
+        if (snapshot.empty) {
+          console.log("ℹ️ [InstagramMetrics] No se encontraron datos históricos");
+          return;
+        }
+        
+        const datos = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })).reverse(); // Invertir para orden cronológico
+        
+        console.log(`📊 [InstagramMetrics] Datos históricos cargados: ${datos.length} registros`);
+        setMetricasHistoricas(datos);
+        
+        // Calcular comparativa (diferencia con hace 7 días)
+        if (datos.length > 7) {
+          const seguidoresActuales = datos[datos.length - 1].seguidores;
+          const seguidoresAnteriores = datos[datos.length - 8].seguidores;
+          
+          if (seguidoresAnteriores > 0) {
+            const diferencia = ((seguidoresActuales - seguidoresAnteriores) / seguidoresAnteriores) * 100;
+            setComparativaSeguidores(parseFloat(diferencia.toFixed(1)));
+          }
+          
+          const engagementActual = datos[datos.length - 1].engagement;
+          const engagementAnterior = datos[datos.length - 8].engagement;
+          
+          if (engagementAnterior > 0) {
+            const diferenciaEng = ((engagementActual - engagementAnterior) / engagementAnterior) * 100;
+            setComparativaEngagement(parseFloat(diferenciaEng.toFixed(1)));
+          }
+        }
+      } catch (error) {
+        console.error("❌ [InstagramMetrics] Error al cargar histórico:", error);
       }
     };
     
@@ -865,233 +958,313 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
           {/* Encabezado con información de cuenta */}
           {!loading && hasInstagramData && (
             <div className="mb-6 flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-2xl">
-                <Instagram className="h-8 w-8" />
+              <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-pink-500 via-purple-500 to-blue-400 flex items-center justify-center overflow-hidden border-2 border-white shadow-lg">
+                <Instagram className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold">{instagramUsername ? `@${instagramUsername}` : 'Instagram Business'}</h2>
-                <p className="text-gray-500">Análisis de engagement e interacción</p>
+                <h2 className="text-2xl font-semibold flex items-center gap-2">
+                  {instagramUsername ? `@${instagramUsername}` : "Instagram"}
+                  {instagramUsername && (
+                    <a href={`https://instagram.com/${instagramUsername}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-gray-600">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  )}
+                </h2>
+                <p className="text-gray-500 text-sm">Análisis de engagement e interacción</p>
               </div>
             </div>
           )}
           
-          {/* Resto del contenido existente */}
+          {/* Tarjetas de métricas principales */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <MetricCard
+              title="Seguidores"
+              value={String(followerCount)}
+              icon={<Users className="h-4 w-4" />}
+              trendValue={comparativaSeguidores}
+              trendLabel="vs. semana anterior"
+              isLoading={loading}
+            />
+            <MetricCard
+              title="Engagement"
+              value={`${engagementRate.toFixed(2)}%`}
+              icon={<ArrowUpRight className="h-4 w-4" />}
+              trendValue={comparativaEngagement}
+              trendLabel="vs. semana anterior"
+              isLoading={loading}
+            />
+            <MetricCard
+              title="Tiempo de respuesta"
+              value={responseTime > 0 ? `${responseTime} min` : NO_DATA_MESSAGE}
+              icon={<Clock className="h-4 w-4" />}
+              trendValue={-5}
+              trendLabel="vs. mes anterior"
+              trendDirection="down-good"
+              isLoading={loading}
+            />
+            <MetricCard
+              title="Mensajes directos"
+              value={String(directMessages)}
+              icon={<MessageSquare className="h-4 w-4" />}
+              trendValue={12}
+              trendLabel="vs. mes anterior"
+              isLoading={loading}
+            />
+          </div>
+
+          {/* Histórico de seguidores */}
+          {metricasHistoricas.length > 0 && (
+            <ChartContainer
+              title="Evolución de seguidores"
+              description="Histórico de los últimos 30 días"
+              isLoading={loading}
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={metricasHistoricas}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="id" 
+                    tickFormatter={(value) => {
+                      const fecha = value ? value.split('-')[2] : '';
+                      return fecha;
+                    }}
+                  />
+                  <YAxis />
+                  <Tooltip 
+                    formatter={(value) => [`${value} seguidores`, "Total"]}
+                    labelFormatter={(label) => {
+                      if (typeof label === 'string') {
+                        const partes = label.split('-');
+                        if (partes.length === 3) {
+                          return `${partes[2]}/${partes[1]}/${partes[0]}`;
+                        }
+                      }
+                      return label;
+                    }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="seguidores" 
+                    stroke="#E1306C" 
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          )}
+
+          {/* Histórico de engagement */}
+          {metricasHistoricas.length > 0 && (
+            <ChartContainer
+              title="Evolución de engagement"
+              description="Porcentaje de engagement en los últimos 30 días"
+              isLoading={loading}
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={metricasHistoricas}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="id" 
+                    tickFormatter={(value) => {
+                      const fecha = value ? value.split('-')[2] : '';
+                      return fecha;
+                    }}
+                  />
+                  <YAxis />
+                  <Tooltip 
+                    formatter={(value) => [`${parseFloat(value as string).toFixed(2)}%`, "Engagement"]}
+                    labelFormatter={(label) => {
+                      if (typeof label === 'string') {
+                        const partes = label.split('-');
+                        if (partes.length === 3) {
+                          return `${partes[2]}/${partes[1]}/${partes[0]}`;
+                        }
+                      }
+                      return label;
+                    }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="engagement" 
+                    stroke="#833AB4" 
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          )}
+
+          {/* Otros gráficos existentes... */}
           <div className="space-y-8">
-            {/* Tarjetas de métricas */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <MetricCard
-                title="Seguidores"
-                value={followerCount}
-                icon={<Users className="h-5 w-5" />}
-                description="Total de seguidores"
-                trend="+3.2%"
-                trendDirection="up"
-                loading={loading}
-                color="pink"
-              />
-              
-              <MetricCard
-                title="Engagement"
-                value={`${engagementRate}%`}
-                icon={<ArrowUpRight className="h-5 w-5" />}
-                description="Tasa de interacción"
-                trend="+0.8%"
-                trendDirection="up"
-                loading={loading}
-                color="purple"
-              />
-              
-              <MetricCard
-                title="Mensajes directos"
-                value={directMessages}
-                icon={<Instagram className="h-5 w-5" />}
-                description="Mensajes recibidos"
-                trend="+12%"
-                trendDirection="up"
-                loading={loading}
-                color="blue"
-              />
-              
-              <MetricCard
-                title="Tiempo de respuesta"
-                value={`${responseTime} min`}
-                icon={<Clock className="h-5 w-5" />}
-                description="Tiempo promedio de respuesta"
-                trend="-5%"
-                trendDirection="down"
-                loading={loading}
-                color="amber"
-              />
-            </div>
-
-            {/* Gráficos */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Engagement diario */}
-              <ChartContainer
-                title="Engagement diario"
-                description="Interacciones en los últimos 30 días"
-                isLoading={loading}
-              >
-                <div className="flex flex-wrap gap-3 mb-4 justify-center">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-pink-500"></div>
-                    <span className="text-xs">Likes: {totalLikes}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-xs">Comentarios: {totalComments}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    <span className="text-xs">Compartidos: {totalShares}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                    <span className="text-xs">Guardados: {totalSaves}</span>
-                  </div>
+            {/* Engagement diario */}
+            <ChartContainer
+              title="Engagement diario"
+              description="Interacciones en los últimos 30 días"
+              isLoading={loading}
+            >
+              <div className="flex flex-wrap gap-3 mb-4 justify-center">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-pink-500"></div>
+                  <span className="text-xs">Likes: {totalLikes}</span>
                 </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={dailyEngagement}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={(value) => value.split('-')[2]}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      formatter={(value, name) => [value, 
-                        name === "likes" ? "Likes" : 
-                        name === "comments" ? "Comentarios" : 
-                        name === "shares" ? "Compartidos" : "Guardados"
-                      ]}
-                      labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                    />
-                    <Bar dataKey="likes" name="likes" stackId="a" fill="#EC4899" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="comments" name="comments" stackId="a" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="shares" name="shares" stackId="a" fill="#10B981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="saves" name="saves" stackId="a" fill="#F59E0B" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                  <span className="text-xs">Comentarios: {totalComments}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span className="text-xs">Compartidos: {totalShares}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                  <span className="text-xs">Guardados: {totalSaves}</span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={dailyEngagement}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) => value.split('-')[2]}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    formatter={(value, name) => [value, 
+                      name === "likes" ? "Likes" : 
+                      name === "comments" ? "Comentarios" : 
+                      name === "shares" ? "Compartidos" : "Guardados"
+                    ]}
+                    labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                  />
+                  <Bar dataKey="likes" name="likes" stackId="a" fill="#EC4899" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="comments" name="comments" stackId="a" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="shares" name="shares" stackId="a" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="saves" name="saves" stackId="a" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
 
-              {/* Tipos de interacción */}
-              <ChartContainer
-                title="Tipos de interacción"
-                description="Distribución de engagement"
-                isLoading={loading}
-              >
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={interactionData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={true}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      nameKey="name"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {interactionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => [`${value}`, ""]} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ChartContainer>
+            {/* Tipos de interacción */}
+            <ChartContainer
+              title="Tipos de interacción"
+              description="Distribución de engagement"
+              isLoading={loading}
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={interactionData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={true}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    nameKey="name"
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  >
+                    {interactionData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => [`${value}`, ""]} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
 
-              {/* Actividad por hora */}
-              <ChartContainer
-                title="Actividad por hora"
-                description="Hora óptima para publicar"
-                isLoading={loading}
-              >
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={hourlyData}>
-                    <defs>
-                      <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8A2BE2" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#8A2BE2" stopOpacity={0.1}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="hour"
-                      tickFormatter={(hour) => `${hour}h`}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis tick={{ fontSize: 12 }} />
-                    <Tooltip
-                      formatter={(value) => [`${value} interacciones`, "Actividad"]}
-                      labelFormatter={(hour) => `${hour}:00 - ${hour}:59`}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="activity"
-                      name="Actividad"
-                      stroke="#8A2BE2"
-                      fillOpacity={1}
-                      fill="url(#colorActivity)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartContainer>
+            {/* Actividad por hora */}
+            <ChartContainer
+              title="Actividad por hora"
+              description="Hora óptima para publicar"
+              isLoading={loading}
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={hourlyData}>
+                  <defs>
+                    <linearGradient id="colorActivity" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8A2BE2" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#8A2BE2" stopOpacity={0.1}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="hour"
+                    tickFormatter={(hour) => `${hour}h`}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    formatter={(value) => [`${value} interacciones`, "Actividad"]}
+                    labelFormatter={(hour) => `${hour}:00 - ${hour}:59`}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="activity"
+                    name="Actividad"
+                    stroke="#8A2BE2"
+                    fillOpacity={1}
+                    fill="url(#colorActivity)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartContainer>
 
-              {/* Crecimiento de seguidores */}
-              <ChartContainer
-                title="Crecimiento de seguidores"
-                description="Evolución en el último mes"
-                isLoading={loading}
-              >
-                <ResponsiveContainer width="100%" height={300}>
-                  <ComposedChart data={followerGrowth}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={(value) => value.split('-')[2]}
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis 
-                      yAxisId="left"
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis 
-                      yAxisId="right"
-                      orientation="right"
-                      tick={{ fontSize: 12 }}
-                    />
-                    <Tooltip
-                      formatter={(value, name) => [
-                        value,
-                        name === "followers" ? "Seguidores" : "Nuevos seguidores"
-                      ]}
-                      labelFormatter={(label) => new Date(label).toLocaleDateString()}
-                    />
-                    <Legend />
-                    <Bar
-                      dataKey="growth"
-                      name="Nuevos seguidores"
-                      yAxisId="right"
-                      fill="#E1306C"
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="followers"
-                      name="Seguidores"
-                      yAxisId="left"
-                      stroke="#833AB4"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </div>
+            {/* Crecimiento de seguidores */}
+            <ChartContainer
+              title="Crecimiento de seguidores"
+              description="Evolución en el último mes"
+              isLoading={loading}
+            >
+              <ResponsiveContainer width="100%" height={300}>
+                <ComposedChart data={followerGrowth}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(value) => value.split('-')[2]}
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis 
+                    yAxisId="left"
+                    tick={{ fontSize: 12 }}
+                  />
+                  <YAxis 
+                    yAxisId="right"
+                    orientation="right"
+                    tick={{ fontSize: 12 }}
+                  />
+                  <Tooltip
+                    formatter={(value, name) => [
+                      value,
+                      name === "followers" ? "Seguidores" : "Nuevos seguidores"
+                    ]}
+                    labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                  />
+                  <Legend />
+                  <Bar
+                    dataKey="growth"
+                    name="Nuevos seguidores"
+                    yAxisId="right"
+                    fill="#E1306C"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="followers"
+                    name="Seguidores"
+                    yAxisId="left"
+                    stroke="#833AB4"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </ChartContainer>
           </div>
         </>
       )}
