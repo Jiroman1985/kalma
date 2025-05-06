@@ -35,7 +35,8 @@ import {
   addDoc,
   serverTimestamp
 } from "firebase/firestore";
-import { WhatsAppMessage, getAgentRespondedMessages } from "@/lib/whatsappService";
+import { WhatsAppMessage, getWhatsAppMessages } from "@/lib/whatsappService";
+import { EmailMessage, getEmailMessages, replyToEmail, searchEmails } from "@/lib/emailService";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -69,6 +70,8 @@ interface SocialMediaMessage {
   read: boolean;
   replied: boolean;
   accountId: string;
+  threadId?: string;   // Para identificar hilos de conversación
+  subject?: string;    // Para correos electrónicos
 }
 
 const Conversations = () => {
@@ -91,6 +94,8 @@ const Conversations = () => {
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const { currentUser } = useAuth();
   const { toast } = useToast();
+  const [selectedThread, setSelectedThread] = useState<EmailMessage[] | null>(null);
+  const [loadingThread, setLoadingThread] = useState<boolean>(false);
 
   useEffect(() => {
     const fetchConversations = async () => {
@@ -152,218 +157,245 @@ const Conversations = () => {
 
   // Obtener conversaciones de WhatsApp
   const fetchWhatsAppConversations = async (): Promise<Conversation[]> => {
-    // Usar la nueva función que obtiene mensajes respondidos por agente IA
-    const respondedByAgentMessages = await getAgentRespondedMessages(currentUser.uid, 50);
+    if (!currentUser) return [];
     
-    if (respondedByAgentMessages.length === 0) {
+    // Obtener mensajes de WhatsApp utilizando la función de servicio
+    const whatsappMessages = await getWhatsAppMessages(currentUser.uid, 100);
+    
+    if (whatsappMessages.length === 0) {
+      console.log("No se encontraron mensajes de WhatsApp");
       return [];
     }
     
-    // Obtener todos los mensajes para encontrar las respuestas
-    const whatsappCollectionRef = collection(db, 'users', currentUser.uid, 'whatsapp');
-    const messagesQuery = query(whatsappCollectionRef, orderBy("timestamp", "desc"));
-    const messagesSnapshot = await getDocs(messagesQuery);
+    console.log(`Encontrados ${whatsappMessages.length} mensajes de WhatsApp`);
     
-    // Extraer los mensajes de respuesta
-    const allMessages: WhatsAppMessage[] = [];
-    messagesSnapshot.forEach(doc => {
-      const message = doc.data() as WhatsAppMessage;
-      message.id = doc.id;
-      allMessages.push(message);
-    });
-    
-    // Crear conversaciones con los mensajes respondidos por agente y sus respuestas
+    // Crear conversaciones a partir de los mensajes
     const conversationsData: Conversation[] = [];
     
-    for (const message of respondedByAgentMessages) {
-      // Buscar la respuesta como mensaje separado si existe
-      let responseMessage = allMessages.find(msg => 
-        msg.originalMessageId === message.messageId
+    // Agrupar mensajes por contacto (from)
+    const messagesByContact = new Map<string, WhatsAppMessage[]>();
+    
+    whatsappMessages.forEach(message => {
+      // Ignorar mensajes sin remitente o cuerpo
+      if (!message.from || !message.body) return;
+      
+      const contactId = message.isFromMe ? message.to : message.from;
+      if (!messagesByContact.has(contactId)) {
+        messagesByContact.set(contactId, []);
+      }
+      
+      messagesByContact.get(contactId)?.push(message);
+    });
+    
+    // Para cada contacto, crear una conversación con el mensaje más reciente
+    for (const [contactId, messages] of messagesByContact.entries()) {
+      // Ordenar mensajes por timestamp (el más reciente primero)
+      messages.sort((a, b) => {
+        const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : 
+                     typeof a.timestamp === 'number' ? a.timestamp : 0;
+        const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : 
+                     typeof b.timestamp === 'number' ? b.timestamp : 0;
+        return timeB - timeA;
+      });
+      
+      // El primer mensaje del array es el más reciente
+      const latestMessage = messages[0];
+      
+      // Buscar respuesta al mensaje si existe
+      const responseMessage = messages.find(msg => 
+        msg.originalMessageId === latestMessage.messageId
       );
       
-      // Si no hay mensaje de respuesta separado pero existe texto de respuesta en el mensaje original
-      const hasAgentResponseInSameDoc = typeof message.agentResponseText === 'string' && message.agentResponseText.trim().length > 0;
-      
-      // Si tenemos respuesta en el mismo documento, crear un mensaje simulado de respuesta
-      if (!responseMessage && hasAgentResponseInSameDoc) {
-        responseMessage = {
-          id: `${message.id}_response`,
-          messageId: `${message.id}_response`,
-          body: message.agentResponseText || '',
-          from: message.to, // Invertimos remitente y destinatario
-          to: message.from,
-          timestamp: message.timestamp, // Usamos el mismo timestamp por ahora
-          isFromMe: true,
-          senderName: 'Asistente IA',
-          messageType: 'chat',
-          responded: false,
-          originalMessageId: message.messageId
-        } as WhatsAppMessage;
-      }
-      
-      if (message.from && message.body) {
-        conversationsData.push({
-          id: message.id,
-          user: message.senderName || "Usuario de WhatsApp",
-          contactId: message.from,
-          originalMessage: message,
-          responseMessage: responseMessage,
-          platform: 'whatsapp',
-          timestamp: message.timestamp || new Date(),
-          isRead: true, // Asumimos que los mensajes de WhatsApp ya fueron leídos
-          isReplied: !!responseMessage
-        });
-      }
+      conversationsData.push({
+        id: latestMessage.id,
+        user: latestMessage.senderName || contactId,
+        contactId: contactId,
+        originalMessage: latestMessage,
+        responseMessage: responseMessage,
+        platform: 'whatsapp',
+        timestamp: latestMessage.timestamp || new Date(),
+        isRead: latestMessage.status === 'read',
+        isReplied: !!responseMessage || latestMessage.responded || false
+      });
     }
     
     return conversationsData;
   };
 
-  // Obtener conversaciones de redes sociales
+  // Obtener conversaciones de redes sociales y correos electrónicos
   const fetchSocialMediaConversations = async (): Promise<Conversation[]> => {
-    // En un caso real, obtendríamos estos mensajes de Firestore
-    // Para esta implementación, usaremos datos simulados
+    if (!currentUser) return [];
     
-    const socialMessages: SocialMediaMessage[] = [
-      // Instagram
-      {
-        id: "sm1",
-        platform: "instagram",
-        sender: {
-          name: "cliente_satisfecho",
-          avatar: "https://randomuser.me/api/portraits/women/32.jpg"
-        },
-        content: "Hola, ¿tienen disponible el modelo nuevo en color azul? Lo vi en su última publicación y me encantó.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutos atrás
-        read: true,
-        replied: false,
-        accountId: "instagram1"
-      },
-      {
-        id: "sm2",
-        platform: "instagram",
-        sender: {
-          name: "nuevo_seguidor",
-          avatar: "https://randomuser.me/api/portraits/men/55.jpg"
-        },
-        content: "Acabo de descubrir su perfil y me encantan sus productos. ¿Hacen colaboraciones con influencers? Tengo 10K seguidores en mi cuenta de lifestyle.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 día atrás
-        read: false,
-        replied: false,
-        accountId: "instagram1"
-      },
+    const socialConversations: Conversation[] = [];
+    
+    try {
+      // 1. Obtener conversaciones de correo electrónico desde Firebase usando el servicio de email
+      const emailMessages = await getEmailMessages(currentUser.uid, 50);
       
-      // Facebook
-      {
-        id: "sm3",
-        platform: "facebook",
-        sender: {
-          name: "Juan Pérez",
-          avatar: "https://randomuser.me/api/portraits/men/42.jpg"
-        },
-        content: "Me encantó su producto, ¿hacen envíos a Canarias? Tengo familia allí y quiero enviarles un regalo.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 horas atrás
-        read: true,
-        replied: true,
-        accountId: "facebook1"
-      },
-      
-      // Twitter
-      {
-        id: "sm4",
-        platform: "twitter",
-        sender: {
-          name: "@usuario_interesado",
-          avatar: "https://randomuser.me/api/portraits/women/22.jpg"
-        },
-        content: "¿Cuándo estará disponible la próxima colección? ¡Estoy muy emocionada! #NuevaColeccion #Moda #Ansiosa",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4), // 4 horas atrás
-        read: false,
-        replied: false,
-        accountId: "twitter1"
-      },
-      
-      // Gmail
-      {
-        id: "sm5",
-        platform: "gmail",
-        sender: {
-          name: "cliente_corporativo@empresa.com",
-          avatar: ""
-        },
-        content: "Estimados señores,\n\nEstamos interesados en realizar un pedido mayorista para nuestra cadena de tiendas. ¿Podrían enviarnos su catálogo actual con precios para distribuidores?\n\nAgradecemos su atención.\n\nAtentamente,\nDpto. Compras - Empresa S.A.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 días atrás
-        read: true,
-        replied: false,
-        accountId: "gmail1"
-      },
-      
-      // Google Reviews
-      {
-        id: "sm6",
-        platform: "googleReviews",
-        sender: {
-          name: "Ana Martín",
-          avatar: "https://randomuser.me/api/portraits/women/33.jpg"
-        },
-        content: "⭐⭐⭐ La tienda está bien, pero el tiempo de espera para la entrega fue más largo de lo prometido. Por lo demás todo correcto.",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 36), // 36 horas atrás
-        read: false,
-        replied: false,
-        accountId: "googleReviews1"
+      if (emailMessages.length > 0) {
+        console.log(`Encontrados ${emailMessages.length} mensajes de email`);
+        
+        // Procesar emails
+        emailMessages.forEach(email => {
+          // Convertir datos del servicio al formato SocialMediaMessage
+          const emailMessage: SocialMediaMessage = {
+            id: email.id,
+            platform: 'gmail',
+            sender: {
+              name: email.senderName || email.from || "desconocido@email.com",
+              avatar: email.senderAvatar || ""
+            },
+            content: email.body || email.subject || "",
+            timestamp: email.timestamp || email.createdAt,
+            read: email.isRead || false,
+            replied: email.isReplied || false,
+            accountId: email.accountId || "gmail1",
+            threadId: email.threadId,
+            subject: email.subject
+          };
+          
+          // Crear conversación a partir del mensaje
+          socialConversations.push({
+            id: email.id,
+            user: emailMessage.sender.name,
+            userAvatar: emailMessage.sender.avatar,
+            contactId: emailMessage.sender.name,
+            originalMessage: emailMessage,
+            platform: 'gmail',
+            timestamp: emailMessage.timestamp,
+            isRead: emailMessage.read,
+            isReplied: emailMessage.replied
+          });
+        });
+      } else {
+        console.log("No se encontraron mensajes de email");
       }
-    ];
+      
+      // 2. Añadir datos simulados para otras redes sociales
+      // (Mantenemos los datos simulados mientras implementamos las demás redes)
+      
+      const socialMessages: SocialMediaMessage[] = [
+        // Instagram
+        {
+          id: "sm1",
+          platform: "instagram",
+          sender: {
+            name: "cliente_satisfecho",
+            avatar: "https://randomuser.me/api/portraits/women/32.jpg"
+          },
+          content: "Hola, ¿tienen disponible el modelo nuevo en color azul? Lo vi en su última publicación y me encantó.",
+          timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutos atrás
+          read: true,
+          replied: false,
+          accountId: "instagram1",
+          threadId: "sm1_thread",
+          subject: "Modelo nuevo en color azul"
+        },
+        // Facebook
+        {
+          id: "sm3",
+          platform: "facebook",
+          sender: {
+            name: "Juan Pérez",
+            avatar: "https://randomuser.me/api/portraits/men/42.jpg"
+          },
+          content: "Me encantó su producto, ¿hacen envíos a Canarias? Tengo familia allí y quiero enviarles un regalo.",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 horas atrás
+          read: true,
+          replied: true,
+          accountId: "facebook1",
+          threadId: "sm3_thread",
+          subject: "Regalo para familia"
+        },
+        // Twitter
+        {
+          id: "sm4",
+          platform: "twitter",
+          sender: {
+            name: "@usuario_interesado",
+            avatar: "https://randomuser.me/api/portraits/women/22.jpg"
+          },
+          content: "¿Cuándo estará disponible la próxima colección? ¡Estoy muy emocionada! #NuevaColeccion #Moda #Ansiosa",
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4), // 4 horas atrás
+          read: false,
+          replied: false,
+          accountId: "twitter1",
+          threadId: "sm4_thread",
+          subject: "Próxima colección"
+        }
+      ];
+      
+      // Convertir mensajes simulados a formato Conversation y añadir a las conversaciones
+      socialMessages.forEach(msg => {
+        socialConversations.push({
+          id: msg.id,
+          user: msg.sender.name,
+          userAvatar: msg.sender.avatar,
+          contactId: msg.sender.name,
+          originalMessage: msg,
+          platform: msg.platform as any,
+          timestamp: msg.timestamp,
+          isRead: msg.read,
+          isReplied: msg.replied
+        });
+      });
+      
+    } catch (error) {
+      console.error("Error al obtener conversaciones sociales:", error);
+    }
     
-    // Convertir a formato Conversation
-    return socialMessages.map(msg => ({
-      id: msg.id,
-      user: msg.sender.name,
-      userAvatar: msg.sender.avatar,
-      contactId: msg.sender.name,
-      originalMessage: msg,
-      platform: msg.platform as any,
-      timestamp: msg.timestamp,
-      isRead: msg.read,
-      isReplied: msg.replied
-    }));
+    return socialConversations;
   };
 
-  // Manejar clic en enviar respuesta
-  const handleReply = async () => {
-    if (!replyingTo || !replyText.trim() || !currentUser) {
-      return;
-    }
-
+  // Actualizar función sendReply para usar el servicio de email para respuestas
+  const sendReply = async () => {
+    if (!replyingTo || !replyText.trim()) return;
+    
     setSendingReply(true);
+    
     try {
-      // La respuesta depende de la plataforma
       if (replyingTo.platform === 'whatsapp') {
-        // Para WhatsApp: Guardar respuesta en Firestore
-        const whatsappMsg = replyingTo.originalMessage as WhatsAppMessage;
-        const responseMessage = {
-          messageId: `response_${new Date().getTime()}`,
+        // Lógica para responder mensajes de WhatsApp (se mantiene igual)
+        const whatsappMessage = replyingTo.originalMessage as WhatsAppMessage;
+        
+        // Crear un mensaje de respuesta en Firestore
+        const responseData = {
           body: replyText,
-          from: whatsappMsg.to, // Inverso del mensaje original
-          to: whatsappMsg.from,
+          from: whatsappMessage.to, // Invertir el destinatario como remitente
+          to: whatsappMessage.from, // Invertir el remitente como destinatario
           timestamp: serverTimestamp(),
           isFromMe: true,
-          senderName: 'Asistente',
-          messageType: 'chat',
+          senderName: "Mi Empresa", // O usar un nombre más específico
+          messageType: "text",
+          originalMessageId: whatsappMessage.messageId || whatsappMessage.id,
           responded: false,
-          originalMessageId: whatsappMsg.messageId
+          platform: "whatsapp",
+          userId: currentUser.uid,
+          status: "sent",
+          type: "text"
         };
-
-        // Guardar la respuesta como nuevo mensaje
-        await addDoc(collection(db, 'users', currentUser.uid, 'whatsapp'), responseMessage);
-
+        
+        // Guardar respuesta en Firestore
+        const messagesRef = collection(db, "messages");
+        await addDoc(messagesRef, responseData);
+        
         // Actualizar el mensaje original para marcarlo como respondido
-        if (whatsappMsg.id) {
-          const originalMessageRef = doc(db, 'users', currentUser.uid, 'whatsapp', whatsappMsg.id);
-          await updateDoc(originalMessageRef, {
-            responded: true
-          });
+        const originalMessageRef = doc(db, "messages", whatsappMessage.id);
+        await updateDoc(originalMessageRef, {
+          responded: true,
+          updatedAt: serverTimestamp()
+        });
+      } 
+      else if (replyingTo.platform === 'gmail') {
+        // Usar el servicio de email para enviar respuestas
+        const emailId = replyingTo.id;
+        const response = await replyToEmail(currentUser.uid, emailId, replyText);
+        
+        if (!response) {
+          throw new Error("No se pudo enviar la respuesta al correo electrónico");
         }
-      } else {
+      }
+      else {
         // Para redes sociales: En un escenario real, esto enviaría la respuesta a través de API
         // En esta versión de demostración, simularemos la respuesta
 
@@ -552,6 +584,103 @@ const Conversations = () => {
       default:
         return <Badge variant="outline">Otro</Badge>;
     }
+  };
+
+  // Cargar el hilo completo de una conversación de email
+  const loadEmailThread = async (conversation: Conversation) => {
+    if (conversation.platform !== 'gmail') return;
+    
+    setLoadingThread(true);
+    try {
+      const emailMessage = conversation.originalMessage as SocialMediaMessage;
+      const threadId = emailMessage.threadId || emailMessage.id;
+      
+      // Buscar todos los emails relacionados con este hilo
+      const threadEmails = await searchEmails(currentUser.uid, threadId);
+      
+      if (threadEmails.length > 0) {
+        // Ordenar por fecha (más antiguos primero)
+        threadEmails.sort((a, b) => {
+          const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : 
+                      typeof a.timestamp === 'number' ? a.timestamp : 0;
+          const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : 
+                      typeof b.timestamp === 'number' ? b.timestamp : 0;
+          return timeA - timeB;
+        });
+        
+        setSelectedThread(threadEmails);
+      } else {
+        // Si no hay hilos relacionados, mostrar solo el email actual
+        setSelectedThread([{
+          id: emailMessage.id,
+          subject: emailMessage.subject || '',
+          body: emailMessage.content,
+          from: emailMessage.sender.name,
+          to: 'yo',
+          timestamp: emailMessage.timestamp as Timestamp,
+          isRead: emailMessage.read,
+          isReplied: emailMessage.replied,
+          userId: currentUser.uid,
+          createdAt: emailMessage.timestamp as Timestamp,
+          platform: 'email'
+        }]);
+      }
+    } catch (error) {
+      console.error("Error al cargar hilo de correos:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo cargar la conversación completa. Intenta nuevamente.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingThread(false);
+    }
+  };
+
+  // Actualizar handleConversationClick para cargar hilos de email
+  const handleConversationClick = (conversation: Conversation) => {
+    setReplyingTo(conversation);
+    
+    // Si es un correo electrónico, intentar cargar el hilo completo
+    if (conversation.platform === 'gmail') {
+      loadEmailThread(conversation);
+    } else {
+      // Para otras plataformas, resetear el hilo seleccionado
+      setSelectedThread(null);
+    }
+  };
+
+  // Render de un hilo de correo electrónico
+  const renderEmailThread = () => {
+    if (!selectedThread || !replyingTo || replyingTo.platform !== 'gmail') return null;
+    
+    return (
+      <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-4">
+        <h3 className="text-sm font-medium text-gray-700">Conversación completa:</h3>
+        
+        {selectedThread.map((email, index) => (
+          <div 
+            key={email.id} 
+            className={`p-3 rounded-lg ${email.from === 'yo' ? 'bg-blue-50 ml-8' : 'bg-white mr-8'}`}
+          >
+            <div className="flex justify-between items-start mb-2">
+              <div className="text-sm font-semibold">{email.from}</div>
+              <div className="text-xs text-gray-500">
+                {formatTimestamp(email.timestamp).formatted}
+              </div>
+            </div>
+            
+            {index === 0 && email.subject && (
+              <div className="text-sm font-medium mb-2">
+                {email.subject}
+              </div>
+            )}
+            
+            <div className="text-sm whitespace-pre-wrap">{email.body}</div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   const filteredConversations = getFilteredConversations();
@@ -759,7 +888,7 @@ const Conversations = () => {
                         />
                         <div className="flex justify-end mt-2">
                           <Button 
-                            onClick={handleReply} 
+                            onClick={sendReply} 
                             disabled={sendingReply || !replyText.trim()}
                             className="flex items-center gap-2"
                           >
@@ -817,6 +946,77 @@ const Conversations = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Conversación seleccionada */}
+      {replyingTo && (
+        <Card className="mt-4">
+          <CardHeader className="pb-2">
+            <div className="flex justify-between items-center">
+              <CardTitle className="text-lg flex items-center gap-2">
+                {getPlatformIcon(replyingTo.platform)}
+                <span>Responder a {replyingTo.user}</span>
+              </CardTitle>
+              <Button variant="ghost" onClick={() => setReplyingTo(null)} className="h-8 w-8 p-0">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <CardDescription>
+              {replyingTo.platform === 'whatsapp' ? 
+                (replyingTo.originalMessage as WhatsAppMessage).from : 
+                (replyingTo.originalMessage as SocialMediaMessage).sender.name}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Mostrar el hilo completo para emails */}
+            {replyingTo.platform === 'gmail' && renderEmailThread()}
+            
+            {/* Mensaje Original */}
+            <div className={`${getPlatformBgColor(replyingTo.platform)} p-3 rounded-lg mb-4`}>
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex gap-2 items-center">
+                  <Avatar className="h-6 w-6">
+                    <AvatarImage src={replyingTo.userAvatar} />
+                    <AvatarFallback>{replyingTo.user.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium">{replyingTo.user}</span>
+                </div>
+                <span className="text-xs text-gray-500">
+                  {formatTimestamp(replyingTo.timestamp).formatted}
+                </span>
+              </div>
+              <p className="text-sm">
+                {getMessageContent(replyingTo.originalMessage)}
+              </p>
+            </div>
+            
+            {/* Campo para responder */}
+            <div className="border rounded-lg p-2 bg-white">
+              <Textarea
+                ref={replyInputRef}
+                placeholder="Escribe tu respuesta..."
+                className="border-0 focus-visible:ring-0 resize-none"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                rows={4}
+              />
+              <div className="flex justify-end mt-2">
+                <Button 
+                  onClick={sendReply} 
+                  disabled={sendingReply || !replyText.trim()}
+                  className="flex items-center gap-2"
+                >
+                  {sendingReply ? (
+                    <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  Enviar
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
