@@ -330,6 +330,42 @@ exports.handler = async (event) => {
     }
     
     try {
+      // NUEVA ESTRUCTURA: Guardamos en socialTokens/instagram según las instrucciones
+      // siguiendo el formato recomendado
+      
+      console.log('Guardando datos en Firestore para usuario:', stateUserId);
+      
+      // 1. Guardar token de Instagram y su fecha de expiración
+      if (igLongToken) {
+        await db
+          .collection('users').doc(stateUserId)
+          .collection('socialTokens').doc('instagram')
+          .set({
+            accessToken: igLongToken,
+            tokenExpiry: Date.now() + igExpiresIn * 1000,
+            lastSynced: new Date().toISOString()
+          }, { merge: true });
+        
+        console.log('Token de Instagram guardado en socialTokens/instagram');
+      } else {
+        console.warn('No se pudo obtener token de Instagram para guardar');
+      }
+      
+      // 2. Guardar ID de Instagram Business si está disponible
+      if (instagramBusinessId) {
+        await db
+          .collection('users').doc(stateUserId)
+          .collection('socialTokens').doc('instagram')
+          .set({ 
+            instagramUserId: instagramBusinessId 
+          }, { merge: true });
+        
+        console.log('ID de Instagram Business guardado:', instagramBusinessId);
+      } else {
+        console.warn('No se encontró ID de Instagram Business para guardar');
+      }
+      
+      // 3. Mantener compatibilidad con la estructura anterior (opcional)
       let instagramData = {
         fbAccessToken: fbLongToken,
         fbTokenExpiresAt: Date.now() + fbExpiresIn * 1000,
@@ -366,12 +402,11 @@ exports.handler = async (event) => {
         };
       }
       
-      console.log('Guardando datos en Firestore para usuario:', stateUserId);
       await db.collection('users').doc(stateUserId).update({
         'socialNetworks.instagram': instagramData
       });
       
-      console.log('Datos guardados correctamente en Firestore');
+      console.log('Datos también guardados en la estructura legacy (socialNetworks.instagram)');
     } catch (error) {
       console.error('Error al guardar datos en Firestore:', error);
       return {
@@ -380,11 +415,13 @@ exports.handler = async (event) => {
       };
     }
     
-    // 6) Redirigir al cliente
+    // 6) Redirigir al cliente a la página de éxito
     console.log('Redirigiendo al cliente...');
-    const redirectUrl = instagramBusinessId
-      ? `https://kalma-lab.netlify.app/auth/instagram/success?userId=${stateUserId}&instagramId=${instagramBusinessId}`
-      : `https://kalma-lab.netlify.app/auth/instagram/success?userId=${stateUserId}`;
+    
+    // CORREGIR: Usar la ruta correcta (/dashboard/canales) en la redirección
+    const successUrl = 'https://kalma-lab.netlify.app/auth/instagram/success';
+    const redirectUrl = `${successUrl}?userId=${stateUserId}` + 
+      (instagramBusinessId ? `&instagramId=${instagramBusinessId}` : '');
     
     return {
       statusCode: 302,

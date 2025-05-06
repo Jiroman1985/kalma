@@ -58,8 +58,24 @@ const InstagramAuthSuccess = () => {
         const userData = userSnap.data();
         const instagramData: InstagramData = userData.socialNetworks?.instagram || {};
         
+        // NUEVA VERIFICACIÓN: También checar en socialTokens/instagram
+        let socialTokenRef;
+        let socialTokenSnap;
+        let tokenData = null;
+        
+        try {
+          socialTokenRef = doc(db, 'users', userId, 'socialTokens', 'instagram');
+          socialTokenSnap = await getDoc(socialTokenRef);
+          if (socialTokenSnap.exists()) {
+            tokenData = socialTokenSnap.data();
+            console.log('Datos encontrados en socialTokens/instagram:', Object.keys(tokenData));
+          }
+        } catch (tokenError) {
+          console.error('Error al verificar socialTokens:', tokenError);
+        }
+        
         // Verificar si tiene datos básicos de Facebook/Instagram
-        if (instagramData.connected) {
+        if (instagramData.connected || tokenData?.accessToken) {
           // Preparar detalles de la conexión
           const details: string[] = [];
           
@@ -71,14 +87,14 @@ const InstagramAuthSuccess = () => {
           }
           
           // Verificar si tiene token específico de Instagram
-          if (instagramData.igAccessToken) {
+          if (instagramData.igAccessToken || tokenData?.accessToken) {
             details.push('✅ Token específico de Instagram obtenido');
           } else {
             details.push('❌ No se obtuvo token específico de Instagram');
           }
           
           // Verificar si tiene ID de Instagram Business
-          if (instagramData.instagramBusinessId) {
+          if (instagramData.instagramBusinessId || tokenData?.instagramUserId) {
             details.push(`✅ Cuenta de Instagram Business identificada${instagramData.pageName ? ` (${instagramData.pageName})` : ''}`);
           } else {
             details.push('❌ No se encontró cuenta de Instagram Business asociada');
@@ -87,7 +103,8 @@ const InstagramAuthSuccess = () => {
           setConnectionDetails(details);
           
           // Determinar tipo de conexión
-          if (instagramData.connectionType === 'business' && instagramData.instagramBusinessId) {
+          if ((instagramData.connectionType === 'business' && instagramData.instagramBusinessId) || 
+              (tokenData?.accessToken && tokenData?.instagramUserId)) {
             setConnectionStatus('success');
             setMessage('Conexión completa con Instagram Business');
             
@@ -120,7 +137,7 @@ const InstagramAuthSuccess = () => {
     
     // Redireccionar al dashboard después de un tiempo
     const timer = setTimeout(() => {
-      navigate('/dashboard/canales');
+      navigate('/dashboard/channels');
     }, 8000); // Tiempo aumentado para dar más tiempo para leer los detalles
     
     return () => clearTimeout(timer);
@@ -181,7 +198,7 @@ const InstagramAuthSuccess = () => {
           </p>
           
           <button 
-            onClick={() => navigate('/dashboard/canales')}
+            onClick={() => navigate('/dashboard/channels')}
             className={`mt-6 px-4 py-2 text-white rounded-md transition-colors ${
               connectionStatus === 'success' ? 'bg-indigo-600 hover:bg-indigo-700' : 
               connectionStatus === 'partial' ? 'bg-yellow-500 hover:bg-yellow-600' :
