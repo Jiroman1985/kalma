@@ -100,7 +100,7 @@ exports.handler = async function(event, context) {
 async function exchangeCodeForTokens(code) {
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-  const REDIRECT_URI = process.env.URL + '/auth/gmail/callback';
+  const REDIRECT_URI = process.env.URL_GOOGLE + '/auth/gmail/callback';
   
   try {
     const response = await axios.post('https://oauth2.googleapis.com/token', {

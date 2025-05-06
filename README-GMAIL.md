@@ -20,7 +20,7 @@ Configurar las siguientes variables en Netlify:
 
 - `GOOGLE_CLIENT_ID`: ID de cliente OAuth de Google
 - `GOOGLE_CLIENT_SECRET`: Secreto de cliente OAuth de Google
-- `URL`: URL base de tu aplicación desplegada (ej. `https://kalma-lab.netlify.app`)
+- `URL_GOOGLE`: URL base de tu aplicación desplegada (ej. `https://kalma-lab.netlify.app`)
 - `FIREBASE_SERVICE_ACCOUNT_KEY`: Credenciales de Firebase Admin codificadas en base64
 
 ## Flujo de Autenticación

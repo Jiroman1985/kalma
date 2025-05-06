@@ -1,5 +1,5 @@
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
-const REDIRECT_URI = process.env.URL + '/auth/gmail/callback';
+const REDIRECT_URI = process.env.URL_GOOGLE + '/auth/gmail/callback';
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.send',
