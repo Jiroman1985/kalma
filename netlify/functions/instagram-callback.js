@@ -231,49 +231,6 @@ exports.handler = async (event) => {
       fbLongToken.substring(0, 6) + '...' + 
       fbLongToken.substring(fbLongToken.length - 6));
     
-    // 3) Intercambiar token FB por token específico de Instagram (crucial)
-    console.log('Intercambiando token de Facebook por token específico de Instagram...');
-    
-    // Crear URL para intercambio de token de IG
-    const igTokenUrl = `https://graph.instagram.com/access_token?` + 
-      new URLSearchParams({
-        grant_type: 'ig_exchange_token',
-        client_secret: process.env.FACEBOOK_APP_SECRET,
-        access_token: fbShortToken
-      });
-    
-    console.log('>> URL para obtener token de Instagram:', 
-      igTokenUrl.substring(0, igTokenUrl.indexOf('access_token=') + 13) + '...TOKEN_OCULTO...');
-    
-    let igLongToken = null;
-    let igExpiresIn = null;
-    
-    // Intentar obtener token específico de Instagram
-    try {
-      const igTokenRes = await fetch(igTokenUrl);
-      
-      if (igTokenRes.ok) {
-        const igTokenData = await igTokenRes.json();
-        console.log('Token específico de Instagram obtenido. Datos:', Object.keys(igTokenData).join(', '));
-        
-        if (!igTokenData.error && igTokenData.access_token) {
-          igLongToken = igTokenData.access_token;
-          igExpiresIn = igTokenData.expires_in || 5184000; // 60 días por defecto
-          
-          console.log('>> Token específico de Instagram (parcial):', 
-            igLongToken.substring(0, 6) + '...' + 
-            igLongToken.substring(igLongToken.length - 6));
-        } else {
-          console.error('Error en respuesta de Instagram:', igTokenData.error || 'Sin token');
-        }
-      } else {
-        const errorText = await igTokenRes.text();
-        console.error('Error al obtener token específico de Instagram:', errorText);
-      }
-    } catch (error) {
-      console.error('Excepción al obtener token de Instagram:', error);
-    }
-    
     // 4) Obtener páginas de FB e ID de Instagram Business
     console.log('Obteniendo páginas de Facebook e ID de Instagram Business...');
     
@@ -286,7 +243,7 @@ exports.handler = async (event) => {
       const pagesUrl = `https://graph.facebook.com/v17.0/me/accounts?` + 
         new URLSearchParams({
           access_token: fbLongToken,
-          fields: 'name,instagram_business_account'
+          fields: 'name,instagram_business_account,access_token'
         });
       
       const pagesRes = await fetch(pagesUrl);
@@ -306,6 +263,12 @@ exports.handler = async (event) => {
             instagramBusinessId = paginaConInstagram.instagram_business_account.id;
             pageId = paginaConInstagram.id;
             pageToken = paginaConInstagram.access_token;
+            
+            console.log('>> Instagram Business ID:', instagramBusinessId);
+            console.log('>> Page ID:', pageId);
+            console.log('>> Page token (parcial):', 
+              pageToken.substring(0, 6) + '...' + 
+              pageToken.substring(pageToken.length - 6));
           } else {
             console.log('No se encontró ninguna página con cuenta de Instagram Business asociada');
           }
@@ -330,25 +293,26 @@ exports.handler = async (event) => {
     }
     
     try {
-      // NUEVA ESTRUCTURA: Guardamos en socialTokens/instagram según las instrucciones
-      // siguiendo el formato recomendado
-      
       console.log('Guardando datos en Firestore para usuario:', stateUserId);
       
-      // 1. Guardar token de Instagram y su fecha de expiración
-      if (igLongToken) {
+      // MODIFICACIÓN: Ya no intentamos obtener un token específico de Instagram
+      // En su lugar, usamos el token de página de Facebook como token principal
+      // para la API de Instagram Business
+      
+      // 1. Guardar token de página si está disponible (este es el token importante)
+      if (pageToken) {
         await db
           .collection('users').doc(stateUserId)
           .collection('socialTokens').doc('instagram')
           .set({
-            accessToken: igLongToken,
-            tokenExpiry: Date.now() + igExpiresIn * 1000,
+            accessToken: pageToken,              // Usamos el token de página de FB
+            tokenExpiry: Date.now() + fbExpiresIn * 1000,
             lastSynced: new Date().toISOString()
           }, { merge: true });
         
-        console.log('Token de Instagram guardado en socialTokens/instagram');
+        console.log('Token de página de Facebook guardado como token de Instagram en socialTokens/instagram');
       } else {
-        console.warn('No se pudo obtener token de Instagram para guardar');
+        console.warn('No se pudo obtener token de página para guardar');
       }
       
       // 2. Guardar ID de Instagram Business si está disponible
@@ -375,15 +339,6 @@ exports.handler = async (event) => {
         isValid: true
       };
       
-      // Añadir datos del token específico de Instagram si lo obtuvimos
-      if (igLongToken) {
-        instagramData = {
-          ...instagramData,
-          igAccessToken: igLongToken,
-          igTokenExpiresAt: Date.now() + igExpiresIn * 1000
-        };
-      }
-      
       // Añadir datos de Instagram Business si los obtuvimos
       if (instagramBusinessId && pageId && pageToken) {
         instagramData = {
@@ -391,7 +346,7 @@ exports.handler = async (event) => {
           instagramBusinessId,
           pageId,
           pageName: paginaConInstagram.name,
-          pageAccessToken: pageToken,
+          pageAccessToken: pageToken,     // El mismo token que guardamos como principal
           connectionType: 'business'
         };
       } else {

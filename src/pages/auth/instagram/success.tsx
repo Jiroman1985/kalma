@@ -15,6 +15,7 @@ interface InstagramData {
   needsSetup?: boolean;
   pageId?: string;
   pageName?: string;
+  pageAccessToken?: string;
 }
 
 const InstagramAuthSuccess = () => {
@@ -58,7 +59,7 @@ const InstagramAuthSuccess = () => {
         const userData = userSnap.data();
         const instagramData: InstagramData = userData.socialNetworks?.instagram || {};
         
-        // NUEVA VERIFICACIÓN: También checar en socialTokens/instagram
+        // Verificar también en socialTokens/instagram
         let socialTokenRef;
         let socialTokenSnap;
         let tokenData = null;
@@ -86,11 +87,11 @@ const InstagramAuthSuccess = () => {
             details.push('❌ No se encontró token de Facebook');
           }
           
-          // Verificar si tiene token específico de Instagram
-          if (instagramData.igAccessToken || tokenData?.accessToken) {
-            details.push('✅ Token específico de Instagram obtenido');
+          // Verificar si tiene token de página (ahora usado como accessToken)
+          if (tokenData?.accessToken || instagramData.pageAccessToken) {
+            details.push('✅ Token de página de Facebook obtenido (usado para Instagram Business API)');
           } else {
-            details.push('❌ No se obtuvo token específico de Instagram');
+            details.push('❌ No se obtuvo token de página de Facebook');
           }
           
           // Verificar si tiene ID de Instagram Business
@@ -107,6 +108,27 @@ const InstagramAuthSuccess = () => {
               (tokenData?.accessToken && tokenData?.instagramUserId)) {
             setConnectionStatus('success');
             setMessage('Conexión completa con Instagram Business');
+            
+            // Realizar una prueba de conexión real
+            if (tokenData?.accessToken && tokenData?.instagramUserId) {
+              try {
+                const testResponse = await fetch(
+                  `https://graph.instagram.com/${tokenData.instagramUserId}?fields=name,username&access_token=${tokenData.accessToken}`
+                );
+                
+                if (testResponse.ok) {
+                  const accountData = await testResponse.json();
+                  details.push(`✅ Verificación API exitosa: ${accountData.username || 'Cuenta verificada'}`);
+                } else {
+                  const errorText = await testResponse.text();
+                  details.push(`⚠️ API responde con error: ${errorText.substring(0, 50)}...`);
+                }
+                
+                setConnectionDetails([...details]);
+              } catch (apiError) {
+                console.error('Error al verificar API:', apiError);
+              }
+            }
             
             toast.success('¡Instagram conectado!', {
               description: 'Tu cuenta de Instagram Business está conectada correctamente'
@@ -138,7 +160,7 @@ const InstagramAuthSuccess = () => {
     // Redireccionar al dashboard después de un tiempo
     const timer = setTimeout(() => {
       navigate('/dashboard/channels');
-    }, 8000); // Tiempo aumentado para dar más tiempo para leer los detalles
+    }, 10000); // Aumentado para dar tiempo a la verificación adicional
     
     return () => clearTimeout(timer);
   }, [navigate, userId, instagramId, currentUser]);

@@ -4,12 +4,12 @@ Este documento explica en detalle el flujo completo de autenticación y uso de l
 
 ## Arquitectura del flujo OAuth
 
-La autenticación con Instagram Business requiere varios pasos debido a que necesitamos:
+La autenticación con Instagram Business requiere varios pasos:
 
 1. Un token de usuario de Facebook (corto)
-2. Un token específico de Instagram (largo)
+2. Un token de usuario de Facebook (largo)
 3. Identificar las páginas de Facebook administradas por el usuario
-4. Obtener la cuenta de Instagram Business asociada a una página
+4. Obtener el token de página y la cuenta de Instagram Business asociada
 
 ## Flujo de autenticación paso a paso
 
@@ -32,7 +32,7 @@ Tras la autorización, Facebook redirige a `/.netlify/functions/instagram-callba
 
 La función serverless realiza estos pasos:
 
-1. **Obtener token de corta duración de Facebook**
+1. **Obtener token de corta duración de Facebook (FB short-lived token)**
    ```
    GET https://graph.facebook.com/v17.0/oauth/access_token
      ?client_id={FACEBOOK_APP_ID}
@@ -40,11 +40,8 @@ La función serverless realiza estos pasos:
      &client_secret={FACEBOOK_APP_SECRET}
      &code={CODE}
    ```
-   
-   ⚠️ **IMPORTANTE**: El token obtenido en este paso (FB short-lived token) es el que debe
-   usarse para intercambiar por el token de Instagram en el paso 3.
 
-2. **Intercambiar por token de larga duración de Facebook** (opcional, para uso de Facebook)
+2. **Intercambiar por token de larga duración de Facebook (FB long-lived token)**
    ```
    GET https://graph.facebook.com/v17.0/oauth/access_token
      ?grant_type=fb_exchange_token
@@ -53,25 +50,27 @@ La función serverless realiza estos pasos:
      &fb_exchange_token={FB_SHORT_TOKEN}
    ```
 
-3. **Obtener token específico de Instagram** (usando el token corto de Facebook)
-   ```
-   GET https://graph.instagram.com/access_token
-     ?grant_type=ig_exchange_token
-     &client_secret={FACEBOOK_APP_SECRET}
-     &access_token={FB_SHORT_TOKEN}
-   ```
-
-4. **Obtener páginas de Facebook e identificar Instagram Business**
+3. **Obtener páginas de Facebook con sus tokens de acceso e identificar Instagram Business**
    ```
    GET https://graph.facebook.com/v17.0/me/accounts
-     ?access_token={FB_TOKEN}
-     &fields=name,instagram_business_account
+     ?access_token={FB_LONG_TOKEN}
+     &fields=name,instagram_business_account,access_token
    ```
-   Nota: Aquí puede usarse tanto el token corto como el largo de Facebook.
+   
+   ⚠️ **IMPORTANTE**: A diferencia de la Instagram Basic Display API, para Instagram Business API 
+   NO se necesita obtener un token específico de Instagram. 
+   En su lugar, usamos el token de página de Facebook (PAGE_TOKEN) para todas las 
+   llamadas a la Instagram Graph API.
 
-5. **Guardar toda la información en Firestore**
+4. **Guardar datos importantes en Firestore**
    ```
-   /users/{userId}/socialNetworks/instagram
+   /users/{userId}/socialTokens/instagram
+   {
+     accessToken: "{PAGE_TOKEN}",         // Token de PÁGINA de Facebook 
+     instagramUserId: "{IG_BUSINESS_ID}", // ID de la cuenta de Instagram Business
+     tokenExpiry: 5184000000,             // ~60 días en milisegundos
+     lastSynced: "2023-06-01T12:00:00Z"   // Fecha ISO
+   }
    ```
 
 ### 3. Confirmación al usuario y redirección
@@ -83,24 +82,80 @@ Finalmente, se redirige al usuario a la página de éxito:
 
 ## Estructura de datos en Firestore
 
-Los datos se guardan en `/users/{userId}/socialNetworks/instagram` con esta estructura:
+La información de la conexión con Instagram se guarda en dos ubicaciones:
 
-```json
-{
-  "fbAccessToken": "EAAxxxx...",        // Token de Facebook
-  "fbTokenExpiresAt": 1234567890000,    // Timestamp expiración FB
-  "igAccessToken": "IGQxxxx...",        // Token específico Instagram
-  "igTokenExpiresAt": 1234567890000,    // Timestamp expiración IG
-  "instagramBusinessId": "1784140xxxx", // ID cuenta Instagram Business
-  "pageId": "1234567890",               // ID página Facebook asociada
-  "pageName": "Mi Página",              // Nombre de la página
-  "pageAccessToken": "EAAxxxx...",      // Token de acceso a la página
-  "connected": true,                    // Indica conexión activa
-  "connectionType": "business",         // Tipo de conexión
-  "obtainedAt": 1234567890000,          // Timestamp creación 
-  "lastUpdated": 1234567890000,         // Última actualización
-  "isValid": true                       // Validez del token
-}
+1. **Estructura principal (actual):**
+   ```
+   /users/{userId}/socialTokens/instagram
+   {
+     accessToken: "{PAGE_TOKEN}",
+     instagramUserId: "{IG_BUSINESS_ID}",
+     tokenExpiry: 5184000000,
+     lastSynced: "2023-06-01T12:00:00Z"
+   }
+   ```
+
+2. **Estructura legacy (para compatibilidad):**
+   ```
+   /users/{userId}/socialNetworks/instagram
+   {
+     fbAccessToken: "{FB_LONG_TOKEN}",
+     fbTokenExpiresAt: 1678900000000,
+     instagramBusinessId: "{IG_BUSINESS_ID}",
+     pageId: "{PAGE_ID}",
+     pageName: "Nombre de la Página",
+     pageAccessToken: "{PAGE_TOKEN}", 
+     connectionType: "business",
+     connected: true,
+     isValid: true,
+     obtainedAt: 1676300000000,
+     lastUpdated: 1676300000000
+   }
+   ```
+
+## Consumo de la API desde el frontend
+
+### Ejemplos de uso
+
+Para obtener los posts de Instagram:
+
+```javascript
+// Obtener datos de Firestore
+const instagramDoc = await getDoc(doc(db, 'users', userId, 'socialTokens', 'instagram'));
+const instagramData = instagramDoc.data();
+
+// Usar el token de página para llamar a la API de Instagram
+const igPosts = await fetch(
+  `https://graph.instagram.com/${instagramData.instagramUserId}/media?` +
+  `fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&` +
+  `access_token=${instagramData.accessToken}`
+).then(res => res.json());
+
+console.log('Posts de Instagram:', igPosts.data);
+```
+
+## Problemas comunes
+
+1. **Error "Cannot parse access token"** - Este error puede ocurrir si estás tratando de usar un token incorrecto. Para Instagram Business API, usa siempre el token de página de Facebook, NO intentes intercambiarlo por un token de Instagram.
+
+2. **Error 404 en rutas anidadas** - Si el dashboard muestra 404 tras la autenticación, verifica que:
+   - La ruta de redirección existe en tu aplicación (debe ser `/dashboard/channels`, no `/dashboard/canales`)
+   - El archivo `_redirects` está correctamente configurado en Netlify
+
+3. **No se muestran datos de Instagram** - Verifica que:
+   - El token de página está guardado como `accessToken`
+   - El ID de Instagram Business está guardado como `instagramUserId`
+   - La cuenta de Instagram está vinculada a una página de Facebook
+   - La cuenta de Instagram es de tipo Business
+
+## Variables de entorno
+
+Las siguientes variables son necesarias en Netlify:
+
+```
+FACEBOOK_APP_ID=XXXXXX
+FACEBOOK_APP_SECRET=XXXXXX
+INSTAGRAM_REDIRECT_URI=https://kalma-lab.netlify.app/.netlify/functions/instagram-callback
 ```
 
 ## Tipos de conexión
@@ -155,16 +210,6 @@ curl -i "https://graph.facebook.com/v17.0/me/accounts?access_token={FB_TOKEN}"
 Verificar Instagram Business:
 ```bash
 curl -i "https://graph.facebook.com/v17.0/{PAGE_ID}?fields=instagram_business_account&access_token={PAGE_TOKEN}"
-```
-
-## Variables de entorno necesarias
-
-En Netlify deben configurarse estas variables:
-
-```
-FACEBOOK_APP_ID=925270751978648
-FACEBOOK_APP_SECRET=[valor secreto]
-INSTAGRAM_REDIRECT_URI=https://kalma-lab.netlify.app/.netlify/functions/instagram-callback
 ```
 
 ## Renovación de tokens
