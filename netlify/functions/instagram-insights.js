@@ -270,54 +270,120 @@ exports.handler = async (event, context) => {
       `&access_token=${accessToken}`;
     
     try {
+      console.log(`📊 [Instagram Insights] URL de business discovery (sin token): https://graph.facebook.com/v17.0/${instagramUserId}?fields=business_discovery.username(${targetUsername}){...}`);
+      
       const metricsResponse = await fetch(businessDiscoveryUrl);
       
       if (!metricsResponse.ok) {
         const errorText = await metricsResponse.text();
-        console.error('Error en respuesta de Instagram (business discovery):', errorText);
+        console.error('❌ Error en respuesta de Instagram (business discovery):', errorText);
+        console.error('❌ Código de estado:', metricsResponse.status);
         
-        // Verificar tipo de error
+        // Guardar error en registro para depuración
+        try {
+          const errorLogRef = db.collection('errorLogs').doc();
+          await errorLogRef.set({
+            userId: userId,
+            timestamp: admin.firestore.Timestamp.now(),
+            endpoint: 'instagram-insights',
+            statusCode: metricsResponse.status,
+            errorMessage: errorText,
+            instagramUserId: instagramUserId,
+            username: targetUsername
+          });
+          console.log('📝 Error registrado en Firestore para depuración');
+        } catch (logError) {
+          console.error('❌ No se pudo registrar el error en logs:', logError);
+        }
+        
+        // Verificar errores comunes con mensajes más descriptivos
         if (errorText.includes('invalid') || errorText.includes('expired')) {
+          console.error('❌ Error de token inválido o expirado');
           return {
             statusCode: 401,
             body: JSON.stringify({ 
               error: 'TOKEN_EXPIRED',
-              message: 'El token de Instagram es inválido o ha expirado' 
+              message: 'El token de Instagram es inválido o ha expirado',
+              details: errorText
             })
           };
         }
         
         if (errorText.includes('not a valid business account') || errorText.includes('permission')) {
+          console.error('❌ Error de permisos o cuenta no válida');
           return {
             statusCode: 403,
             body: JSON.stringify({ 
               error: 'PERMISSION_ERROR',
-              message: 'La cuenta no es de tipo Business o faltan permisos' 
+              message: 'La cuenta no es de tipo Business o faltan permisos',
+              details: errorText
             })
           };
         }
         
+        if (errorText.includes('Object does not exist') || errorText.includes('does not exist')) {
+          console.error('❌ Error: El usuario o recurso no existe');
+          return {
+            statusCode: 404,
+            body: JSON.stringify({
+              error: 'RESOURCE_NOT_FOUND',
+              message: 'El usuario o recurso de Instagram no existe',
+              details: errorText
+            })
+          };
+        }
+        
+        if (errorText.includes('rate limit')) {
+          console.error('❌ Error: Límite de tasa excedido');
+          return {
+            statusCode: 429,
+            body: JSON.stringify({
+              error: 'RATE_LIMIT',
+              message: 'Se ha excedido el límite de solicitudes a la API de Instagram',
+              details: errorText
+            })
+          };
+        }
+        
+        // Error genérico si ninguno de los anteriores
         return {
           statusCode: 500,
           body: JSON.stringify({ 
             error: 'API_ERROR',
-            message: 'Error al obtener métricas de Instagram Business API' 
+            message: 'Error al obtener métricas de Instagram Business API',
+            details: errorText,
+            statusCode: metricsResponse.status
           })
         };
       }
       
       const metricsData = await metricsResponse.json();
       
+      // Validar la respuesta de la API
+      if (!metricsData) {
+        console.error('❌ La respuesta de la API está vacía o es inválida');
+        return {
+          statusCode: 500,
+          body: JSON.stringify({
+            error: 'INVALID_RESPONSE',
+            message: 'La respuesta de Instagram es inválida o está vacía'
+          })
+        };
+      }
+      
       // Extraer datos relevantes
       const businessDiscovery = metricsData.business_discovery;
       
       if (!businessDiscovery) {
-        console.error('No se encontraron datos de business discovery');
+        console.error('❌ No se encontraron datos de business discovery en la respuesta');
+        console.error('❌ Respuesta recibida:', JSON.stringify(metricsData));
+        
         return {
           statusCode: 404,
           body: JSON.stringify({ 
             error: 'NO_DATA',
-            message: 'No se encontraron datos de la cuenta' 
+            message: 'No se encontraron datos de la cuenta en Instagram',
+            apiResponse: metricsData
           })
         };
       }

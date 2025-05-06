@@ -106,6 +106,14 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
     'loading' | 'connected' | 'disconnected' | 'error' | 'expired'
   >('loading');
 
+  // Estado para almacenar información del error
+  const [errorInfo, setErrorInfo] = useState<{
+    code: string;
+    message: string;
+    details: string;
+    statusCode: number;
+  } | null>(null);
+
   useEffect(() => {
     const fetchData = async () => {
       if (!currentUser) return;
@@ -226,18 +234,43 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
         if (!response.ok) {
           const errorData = await response.json();
           console.error("❌ [InstagramMetrics] Error en la API:", errorData);
+          console.error("❌ [InstagramMetrics] Código de estado:", response.status);
           
+          // Registrar el error en detalle con información de depuración
+          if (errorData.details) {
+            console.error("❌ [InstagramMetrics] Detalles del error:", errorData.details);
+          }
+          
+          // Mostrar el mensaje específico según el tipo de error
           if (errorData.error === 'TOKEN_EXPIRED') {
             console.log("⚠️ [InstagramMetrics] Token expirado o inválido");
             setConnectionStatus('expired');
           } else if (errorData.error === 'TOKEN_NOT_FOUND') {
             console.log("⚠️ [InstagramMetrics] No se encontró conexión");
             setConnectionStatus('disconnected');
+          } else if (errorData.error === 'PERMISSION_ERROR') {
+            console.log("⚠️ [InstagramMetrics] Error de permisos: cuenta no válida o permisos faltantes");
+            setConnectionStatus('error');
+          } else if (errorData.error === 'RESOURCE_NOT_FOUND') {
+            console.log("⚠️ [InstagramMetrics] El usuario o recurso no existe");
+            setConnectionStatus('error');
+          } else if (errorData.error === 'RATE_LIMIT') {
+            console.log("⚠️ [InstagramMetrics] Se ha excedido el límite de solicitudes a la API");
+            setConnectionStatus('error');
           } else {
-            console.log("⚠️ [InstagramMetrics] Error general en la API");
+            console.log("⚠️ [InstagramMetrics] Error general en la API:", errorData.message || 'Error desconocido');
             setConnectionStatus('error');
           }
           
+          // Almacenar información del error para mostrarlo en la UI
+          setErrorInfo({
+            code: errorData.error || 'UNKNOWN_ERROR',
+            message: errorData.message || 'Error desconocido',
+            details: errorData.details || '',
+            statusCode: response.status
+          });
+          
+          // Si se trata de un error que no indica desconexión completa, mostrar datos simulados
           generateSimulatedData();
           setLoading(false);
           return;
@@ -433,16 +466,24 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
         
         // Calcular comparativa (diferencia con hace 7 días)
         if (datos.length > 7) {
-          const seguidoresActuales = datos[datos.length - 1].seguidores;
-          const seguidoresAnteriores = datos[datos.length - 8].seguidores;
+          // Typescript: asegurarnos de que las propiedades existen y son de tipo correcto
+          const datosConTipos = datos as Array<{
+            id: string;
+            seguidores: number;
+            engagement: number;
+            fecha: any;
+          }>;
+          
+          const seguidoresActuales = datosConTipos[datosConTipos.length - 1].seguidores;
+          const seguidoresAnteriores = datosConTipos[datosConTipos.length - 8].seguidores;
           
           if (seguidoresAnteriores > 0) {
             const diferencia = ((seguidoresActuales - seguidoresAnteriores) / seguidoresAnteriores) * 100;
             setComparativaSeguidores(parseFloat(diferencia.toFixed(1)));
           }
           
-          const engagementActual = datos[datos.length - 1].engagement;
-          const engagementAnterior = datos[datos.length - 8].engagement;
+          const engagementActual = datosConTipos[datosConTipos.length - 1].engagement;
+          const engagementAnterior = datosConTipos[datosConTipos.length - 8].engagement;
           
           if (engagementAnterior > 0) {
             const diferenciaEng = ((engagementActual - engagementAnterior) / engagementAnterior) * 100;
@@ -865,14 +906,57 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
             <AlertCircle className="h-12 w-12 text-red-500" />
             <div>
               <h3 className="text-lg font-semibold">Error de conexión</h3>
-              <p className="text-slate-500 mb-4">Ocurrió un error al obtener las métricas de Instagram. Por favor, intenta reconectar tu cuenta.</p>
-              <Button 
-                variant="default" 
-                className="bg-gradient-to-r from-red-500 to-rose-500"
-                onClick={() => window.location.href = '/dashboard/channels'}
-              >
-                Revisar conexión
-              </Button>
+              <p className="text-slate-500 mb-4">
+                Ocurrió un error al obtener las métricas de Instagram. Por favor, intenta reconectar tu cuenta.
+              </p>
+              
+              {/* Mostrar detalles del error si están disponibles */}
+              {errorInfo && (
+                <div className="text-left mt-2 mb-4 p-3 bg-red-50 rounded-md border border-red-200">
+                  <p className="text-sm font-medium text-red-800">Detalles del error:</p>
+                  <p className="text-xs text-red-700 mt-1">Código: {errorInfo.code}</p>
+                  <p className="text-xs text-red-700">Mensaje: {errorInfo.message}</p>
+                  {errorInfo.code === 'PERMISSION_ERROR' && (
+                    <p className="text-xs text-red-700 mt-2">
+                      Este error generalmente ocurre cuando la cuenta no es de tipo Business o faltan permisos.
+                      Asegúrate de usar una cuenta de Instagram Business y de autorizar todos los permisos solicitados.
+                    </p>
+                  )}
+                  {errorInfo.code === 'RESOURCE_NOT_FOUND' && (
+                    <p className="text-xs text-red-700 mt-2">
+                      No se pudo encontrar la cuenta de Instagram. Verifica que la cuenta siga existiendo
+                      y que estés usando las credenciales correctas.
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              <div className="flex flex-col gap-2">
+                <Button 
+                  variant="default" 
+                  className="bg-gradient-to-r from-red-500 to-rose-500"
+                  onClick={() => window.location.href = '/dashboard/channels'}
+                >
+                  Revisar conexión
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() => {
+                    // Copiar información del error al portapapeles
+                    const errorText = errorInfo 
+                      ? `Error en Instagram Metrics:\nCódigo: ${errorInfo.code}\nMensaje: ${errorInfo.message}\nDetalles: ${errorInfo.details}\nEstado HTTP: ${errorInfo.statusCode}`
+                      : "Error desconocido";
+                    
+                    navigator.clipboard.writeText(errorText)
+                      .then(() => alert('Información del error copiada al portapapeles'))
+                      .catch(err => console.error('Error al copiar:', err));
+                  }}
+                >
+                  Copiar detalles del error
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
