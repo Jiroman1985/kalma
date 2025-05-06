@@ -19,6 +19,9 @@
   NETLIFY_USE_YARN = "false"
   NETLIFY_FORCE_CLEAR_CACHE = "true"
   NODE_VERSION = "18"
+  # Variables para OAuth de Facebook/Instagram
+  FACEBOOK_APP_ID = "925270751978648"
+  INSTAGRAM_REDIRECT_URI = "https://kalma-lab.netlify.app/.netlify/functions/instagram-callback"
 
 # Configuración de redirecciones
 [[redirects]]
