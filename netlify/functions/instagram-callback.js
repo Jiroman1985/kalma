@@ -111,7 +111,7 @@ exports.handler = async (event) => {
     console.log('Intercambiando por Instagram long-lived token...');
     const igRes = await fetch(`https://graph.instagram.com/access_token?` + new URLSearchParams({
       grant_type: 'ig_exchange_token',
-      client_secret: process.env.INSTAGRAM_APP_SECRET,
+      client_secret: process.env.FACEBOOK_APP_SECRET,
       access_token: fbShortToken
     }));
     

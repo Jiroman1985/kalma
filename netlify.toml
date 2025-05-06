@@ -22,6 +22,9 @@
   # Variables para OAuth de Facebook/Instagram
   FACEBOOK_APP_ID = "925270751978648"
   INSTAGRAM_REDIRECT_URI = "https://kalma-lab.netlify.app/.netlify/functions/instagram-callback"
+  # IMPORTANTE: Debes configurar estos valores en el panel de Netlify
+  # FACEBOOK_APP_SECRET debe configurarse como variable de entorno en Netlify
+  # Son secretos y no deben estar en el archivo de configuración
 
 # Configuración de redirecciones
 [[redirects]]
