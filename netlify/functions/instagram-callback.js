@@ -163,70 +163,75 @@ exports.handler = async (event) => {
       // Continuamos de todos modos, porque podría ser un token atípico pero válido
     }
     
-    // 2) Intercambiar FB token por IG long-lived token
-    console.log('Intercambiando por Instagram long-lived token...');
+    // 2) Intercambiar FB short-lived token por FB long-lived token
+    console.log('Intercambiando por Facebook long-lived token...');
     
     // Generar comando curl para el segundo paso (ocultando información sensible)
-    const igCurlTest = `curl -i "https://graph.instagram.com/access_token\\
-?grant_type=ig_exchange_token\\
+    const fbLongTokenCurl = `curl -i "https://graph.facebook.com/v17.0/oauth/access_token\\
+?grant_type=fb_exchange_token\\
+&client_id=${process.env.FACEBOOK_APP_ID}\\
 &client_secret=APP_SECRET\\
-&access_token=TOKEN_FB_CORTO"`;
-    console.log('>> Comando curl para probar segundo paso:', igCurlTest);
+&fb_exchange_token=TOKEN_FB_CORTO"`;
+    console.log('>> Comando curl para probar segundo paso:', fbLongTokenCurl);
     
     // Construir la URL completa para mejor depuración
-    const igExchangeUrl = `https://graph.instagram.com/access_token?` + 
+    const fbLongTokenUrl = `https://graph.facebook.com/v17.0/oauth/access_token?` + 
       new URLSearchParams({
-        grant_type: 'ig_exchange_token',
+        grant_type: 'fb_exchange_token',
+        client_id: process.env.FACEBOOK_APP_ID,
         client_secret: process.env.FACEBOOK_APP_SECRET,
-        access_token: fbShortToken
+        fb_exchange_token: fbShortToken
       });
     
     console.log('>> URL de intercambio:', 
-      igExchangeUrl.substring(0, igExchangeUrl.indexOf('access_token=') + 13) + 
+      fbLongTokenUrl.substring(0, fbLongTokenUrl.indexOf('fb_exchange_token=') + 17) + 
       '...TOKEN_OCULTO...');
     
-    const igRes = await fetch(igExchangeUrl);
+    const fbLongRes = await fetch(fbLongTokenUrl);
     
-    if (!igRes.ok) {
-      const errorText = await igRes.text();
-      console.error('Error al obtener Instagram token:', errorText);
+    if (!fbLongRes.ok) {
+      const errorText = await fbLongRes.text();
+      console.error('Error al obtener Facebook token de larga duración:', errorText);
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Error al obtener Instagram token', details: errorText })
+        body: JSON.stringify({ error: 'Error al obtener Facebook token de larga duración', details: errorText })
       };
     }
     
-    const igData = await igRes.json();
-    console.log('Instagram token obtenido. Datos recibidos:', Object.keys(igData).join(', '));
+    const fbLongData = await fbLongRes.json();
+    console.log('Facebook token de larga duración obtenido. Datos recibidos:', Object.keys(fbLongData).join(', '));
     
-    // Verificar si hay un error en la respuesta JSON (a veces Facebook devuelve 200 OK pero con error en el cuerpo)
-    if (igData.error) {
-      console.error('Error en respuesta de Instagram:', igData.error);
-      const errorDetails = JSON.stringify(igData.error);
+    // Verificar si hay un error en la respuesta JSON
+    if (fbLongData.error) {
+      console.error('Error en respuesta de Facebook:', fbLongData.error);
+      const errorDetails = JSON.stringify(fbLongData.error);
       console.error('Detalles del error:', errorDetails);
       return {
         statusCode: 400,
         body: JSON.stringify({ 
-          error: 'Error en respuesta de Instagram', 
-          details: igData.error,
-          fbTokenLength: fbShortToken.length,
-          fbTokenPreview: fbShortToken.substring(0, 4) + '...' + fbShortToken.substring(fbShortToken.length - 4)
+          error: 'Error en respuesta de Facebook', 
+          details: fbLongData.error
         })
       };
     }
     
-    if (!igData.access_token) {
-      console.error('No se recibió Instagram token:', igData);
+    if (!fbLongData.access_token) {
+      console.error('No se recibió Facebook token de larga duración:', fbLongData);
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'No se recibió Instagram token' })
+        body: JSON.stringify({ error: 'No se recibió Facebook token de larga duración' })
       };
     }
     
-    const igLongToken = igData.access_token;
-    const expiresIn = igData.expires_in;
+    const fbLongToken = fbLongData.access_token;
+    const expiresIn = fbLongData.expires_in || 5184000; // 60 días por defecto si no viene
+    
+    // Loggear token parcial
+    console.log('>> FB long-lived token (parcial):', 
+      fbLongToken.substring(0, 6) + '...' + 
+      fbLongToken.substring(fbLongToken.length - 6));
 
-    // 3) Guardar en Firestore
+    // 3) Guardar en Firestore el token de larga duración de Facebook
     if (!firebaseInitialized || !db) {
       console.error('Firebase no está inicializado correctamente');
       return {
@@ -238,7 +243,8 @@ exports.handler = async (event) => {
     console.log('Guardando tokens en Firestore para usuario:', stateUserId);
     await db.collection('users').doc(stateUserId).update({
       'socialNetworks.instagram': {
-        accessToken: igLongToken,
+        accessToken: fbLongToken,
+        tokenType: 'facebook_long_lived',
         tokenExpiresAt: Date.now() + expiresIn * 1000,
         obtainedAt: Date.now()
       }
@@ -250,7 +256,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 302,
       headers: {
-        Location: `https://kalma-lab.netlify.app/auth/instagram/success?userId=${stateUserId}&instagramId=${igData.user_id}`
+        Location: `https://kalma-lab.netlify.app/auth/instagram/success?userId=${stateUserId}`
       },
       body: ''
     };
