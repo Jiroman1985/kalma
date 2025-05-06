@@ -112,24 +112,44 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
         
         // 1. Verificar si el usuario tiene una cuenta de Instagram conectada
         const userRef = doc(db, "users", currentUser.uid);
+        
+        // Comprobar en channelConnections
+        const channelRef = doc(db, "users", currentUser.uid, "channelConnections", "instagram");
+        const channelDoc = await getDoc(channelRef);
+        const channelConnected = channelDoc.exists();
+        
+        // Comprobar en socialTokens
         const socialTokensRef = doc(db, "users", currentUser.uid, "socialTokens", "instagram");
         const socialTokensDoc = await getDoc(socialTokensRef);
         
         if (!socialTokensDoc.exists()) {
           console.log("⚠️ [InstagramMetrics] El usuario no tiene una cuenta de Instagram conectada");
           setConnectionStatus('disconnected');
-          generateSimulatedData();
           setLoading(false);
           return;
         }
         
         const instagramData = socialTokensDoc.data();
         
+        // Log detallado para debugging
+        console.log("📋 [InstagramMetrics] Datos de conexión encontrados:", 
+          Object.keys(instagramData).map(key => `${key}: ${typeof instagramData[key]}`).join(', ')
+        );
+        
+        // Verificar si tenemos channelConnections pero falta en socialTokens
+        if (channelConnected && (!instagramData.accessToken || !instagramData.instagramUserId)) {
+          console.log("⚠️ [InstagramMetrics] Datos de conexión inconsistentes: entrada en channelConnections pero token incompleto");
+          setConnectionStatus('error');
+          setLoading(false);
+          return;
+        }
+        
         // Verificar que tengamos accessToken e instagramUserId
         if (!instagramData.accessToken || !instagramData.instagramUserId) {
           console.log("⚠️ [InstagramMetrics] Datos de conexión incompletos");
+          console.log("Token presente:", !!instagramData.accessToken);
+          console.log("Instagram ID presente:", !!instagramData.instagramUserId);
           setConnectionStatus('disconnected');
-          generateSimulatedData();
           setLoading(false);
           return;
         }
@@ -137,10 +157,16 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
         // Verificar si el token está caducado
         if (instagramData.tokenExpiry && Date.now() > instagramData.tokenExpiry) {
           console.log("⚠️ [InstagramMetrics] Token caducado:", new Date(instagramData.tokenExpiry));
+          console.log("Fecha actual:", new Date(Date.now()));
+          console.log("Diferencia (días):", (Date.now() - instagramData.tokenExpiry) / (1000 * 60 * 60 * 24));
           setConnectionStatus('expired');
-          generateSimulatedData();
           setLoading(false);
           return;
+        }
+        
+        // Guardar información de Instagram para uso en el componente
+        if (instagramData.username) {
+          setInstagramUsername(instagramData.username);
         }
         
         // 2. Llamar al endpoint para obtener métricas reales
@@ -181,7 +207,6 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
         // Actualizar estados con datos reales
         setConnectionStatus('connected');
         setHasInstagramData(true);
-        setInstagramUsername(insights.username || '');
         
         // Actualizar métricas principales
         setFollowerCount(insights.followers_count || 0);

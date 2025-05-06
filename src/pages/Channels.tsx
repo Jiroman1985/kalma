@@ -139,6 +139,11 @@ const Channels = () => {
     scheduleEmails: false
   });
 
+  // Estados para Instagram
+  const [instagramConnected, setInstagramConnected] = useState(false);
+  const [instagramTokenExpired, setInstagramTokenExpired] = useState(false);
+  const [instagramUsername, setInstagramUsername] = useState("");
+
   // URL de autenticación de Instagram obtenida de tus requisitos
   const instagramAuthUrl = "https://www.instagram.com/oauth/authorize?enable_fb_login=0&force_authentication=1&client_id=3029546990541926&redirect_uri=https://kalma-lab.netlify.app/auth/instagram/callback&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_messages%2Cinstagram_business_manage_comments%2Cinstagram_business_content_publish%2Cinstagram_business_manage_insights";
 
@@ -288,6 +293,7 @@ const Channels = () => {
   useEffect(() => {
     if (currentUser) {
       loadConnections();
+      checkInstagramConnection(); // Verificar si Instagram ya está conectado
     } else {
       setIsLoading(false);
     }
@@ -330,11 +336,90 @@ const Channels = () => {
     }
   };
 
+  // Función para verificar el estado de la conexión con Instagram
+  const checkInstagramConnection = async () => {
+    if (!currentUser) return;
+    
+    try {
+      console.log('Verificando conexión de Instagram para:', currentUser.uid);
+      
+      // Verificar si existe el documento de Instagram en socialTokens
+      const socialTokenRef = doc(db, 'users', currentUser.uid, 'socialTokens', 'instagram');
+      const socialTokenDoc = await getDoc(socialTokenRef);
+      
+      if (socialTokenDoc.exists()) {
+        const instagramData = socialTokenDoc.data();
+        console.log('Datos de conexión Instagram encontrados:', Object.keys(instagramData));
+        
+        // Verificar si tenemos los datos necesarios
+        if (instagramData.accessToken && instagramData.instagramUserId) {
+          console.log('Instagram conectado con ID:', instagramData.instagramUserId);
+          setInstagramUsername(instagramData.username || '');
+          
+          // Verificar si el token está expirado
+          if (instagramData.tokenExpiry && Date.now() > instagramData.tokenExpiry) {
+            console.log('Token de Instagram expirado:', new Date(instagramData.tokenExpiry));
+            setInstagramTokenExpired(true);
+          } else {
+            setInstagramTokenExpired(false);
+          }
+          
+          setInstagramConnected(true);
+          
+          // Verificar si hay una conexión en channelConnections
+          const channelRef = doc(db, 'users', currentUser.uid, 'channelConnections', 'instagram');
+          const channelDoc = await getDoc(channelRef);
+          
+          // Si no existe en channelConnections, pero sí en socialTokens, crear la entrada
+          if (!channelDoc.exists()) {
+            console.log('Creando entrada en channelConnections para Instagram');
+            await setDoc(channelRef, {
+              channelId: 'instagram',
+              username: instagramData.username || '',
+              profileUrl: instagramData.profileUrl || '',
+              connectedAt: new Date(),
+              status: 'active',
+              lastSync: new Date()
+            });
+            
+            // Forzar recarga de conexiones para actualizar UI
+            await loadConnections();
+          }
+          
+          return;
+        }
+      }
+      
+      console.log('Instagram no conectado o datos incompletos');
+      setInstagramConnected(false);
+      setInstagramTokenExpired(false);
+      
+    } catch (error) {
+      console.error('Error al verificar conexión de Instagram:', error);
+      setInstagramConnected(false);
+      setInstagramTokenExpired(false);
+    }
+  };
+
   // Función para conectar un canal
   const connectChannel = (channel: Channel) => {
-    // Si es Instagram, redirigir a la página de inicio de autenticación
+    // Si es Instagram, verificar si ya está conectado
     if (channel.id === "instagram") {
-      navigate('/auth/instagram/start');
+      if (instagramConnected) {
+        // Si ya está conectado, mostrar mensaje y opciones
+        toast({
+          title: "Instagram ya conectado",
+          description: `Tu cuenta @${instagramUsername || 'Instagram'} ya está conectada. ¿Deseas cambiar de cuenta?`,
+          action: (
+            <Button variant="outline" onClick={() => navigate('/auth/instagram/start')}>
+              Cambiar cuenta
+            </Button>
+          )
+        });
+      } else {
+        // Si no está conectado, redirigir a autenticación
+        navigate('/auth/instagram/start');
+      }
       return;
     }
     
@@ -355,7 +440,9 @@ const Channels = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {channels.map((channel) => {
-          const isConnected = connections.some(conn => conn.channelId === channel.id);
+          // Verificar si es Instagram y usar estado específico
+          const isInstagram = channel.id === 'instagram';
+          const isConnected = isInstagram ? instagramConnected : connections.some(conn => conn.channelId === channel.id);
           
           return (
             <motion.div
@@ -377,6 +464,12 @@ const Channels = () => {
                         Conectado
                       </Badge>
                     ) : null}
+                    {isInstagram && instagramTokenExpired && (
+                      <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200 hover:text-amber-900">
+                        <Clock className="h-3 w-3 mr-1" />
+                        Expirado
+                      </Badge>
+                    )}
                   </div>
                   <CardTitle className="text-xl">{channel.name}</CardTitle>
                   <CardDescription className="text-sm line-clamp-2">
@@ -426,7 +519,21 @@ const Channels = () => {
                     className={`${isConnected ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : `bg-gradient-to-r ${channel.gradient || channel.color}`} rounded-full`}
                     size="sm"
                   >
-                    {isConnected ? (
+                    {isInstagram && instagramConnected ? (
+                      <>
+                        {instagramTokenExpired ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            Reconectar
+                          </>
+                        ) : (
+                          <>
+                            <Settings className="h-4 w-4 mr-1" />
+                            Cambiar cuenta
+                          </>
+                        )}
+                      </>
+                    ) : isConnected ? (
                       <>
                         <Settings className="h-4 w-4 mr-1" />
                         Configurar

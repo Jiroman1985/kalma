@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, where, Timestamp, doc, getDoc } from "firebase/firestore";
 import {
   Instagram,
   MessageSquareDashed,
@@ -141,11 +141,28 @@ const AnalyticsNew = () => {
           }
         });
 
+        // Verificar específicamente Instagram en socialTokens/instagram
+        console.log('Verificando conexión de Instagram en socialTokens...');
+        const instagramTokenRef = doc(db, 'users', currentUser.uid, 'socialTokens', 'instagram');
+        const instagramTokenDoc = await getDoc(instagramTokenRef);
+        
+        if (instagramTokenDoc.exists()) {
+          const instagramData = instagramTokenDoc.data();
+          // Verificar que tenemos los datos necesarios para considerar que Instagram está conectado
+          if (instagramData.accessToken && instagramData.instagramUserId) {
+            if (!connected.includes('instagram')) {
+              console.log('Instagram conectado en socialTokens, agregando a canales conectados');
+              connected.push('instagram');
+            }
+          }
+        }
+
         // Asegurarse de que WhatsApp siempre esté conectado (ya que es el canal principal)
         if (!connected.includes("whatsapp")) {
           connected.push("whatsapp");
         }
 
+        console.log('Canales conectados:', connected);
         setConnectedChannels(connected);
       } catch (error) {
         console.error("Error al cargar canales conectados:", error);
