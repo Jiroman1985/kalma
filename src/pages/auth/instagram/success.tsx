@@ -109,26 +109,18 @@ const InstagramAuthSuccess = () => {
             setConnectionStatus('success');
             setMessage('Conexión completa con Instagram Business');
             
-            // Realizar una prueba de conexión real
-            if (tokenData?.accessToken && tokenData?.instagramUserId) {
-              try {
-                const testResponse = await fetch(
-                  `https://graph.instagram.com/${tokenData.instagramUserId}?fields=name,username&access_token=${tokenData.accessToken}`
-                );
-                
-                if (testResponse.ok) {
-                  const accountData = await testResponse.json();
-                  details.push(`✅ Verificación API exitosa: ${accountData.username || 'Cuenta verificada'}`);
-                } else {
-                  const errorText = await testResponse.text();
-                  details.push(`⚠️ API responde con error: ${errorText.substring(0, 50)}...`);
-                }
-                
-                setConnectionDetails([...details]);
-              } catch (apiError) {
-                console.error('Error al verificar API:', apiError);
-              }
-            }
+            // Nota: Removida la prueba de conexión real que causaba el error
+            // La verificación de la API se realizará en la sección de Analytics
+            // 
+            // IMPORTANTE: La verificación anterior producía un error "Invalid OAuth access token"
+            // porque estaba intentando usar el token de página directamente en la API de Instagram
+            // (https://graph.instagram.com/), cuando lo correcto es usar dicho token contra 
+            // la API de Facebook (https://graph.facebook.com/v17.0/) con los campos business_discovery.
+            // Este tipo de verificaciones deben hacerse en el endpoint de Analytics usando:
+            // 
+            // GET https://graph.facebook.com/v17.0/{igUserId}
+            //   ?fields=business_discovery.username({username}){followers_count,media_count}
+            //   &access_token={pageAccessToken}
             
             toast.success('¡Instagram conectado!', {
               description: 'Tu cuenta de Instagram Business está conectada correctamente'
@@ -160,7 +152,7 @@ const InstagramAuthSuccess = () => {
     // Redireccionar al dashboard después de un tiempo
     const timer = setTimeout(() => {
       navigate('/dashboard/channels');
-    }, 10000); // Aumentado para dar tiempo a la verificación adicional
+    }, 6000); // Reducido ya que no realizamos verificación de API
     
     return () => clearTimeout(timer);
   }, [navigate, userId, instagramId, currentUser]);

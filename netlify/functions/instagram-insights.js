@@ -111,8 +111,8 @@ exports.handler = async (event, context) => {
     console.log(`📊 [Instagram Insights] Datos encontrados - ID: ${instagramUserId}`);
     
     // 2. Obtener información básica de cuenta para verificar conexión
-    const accountInfoUrl = `https://graph.instagram.com/${instagramUserId}?fields=name,username&access_token=${accessToken}`;
-    console.log(`📊 [Instagram Insights] Verificando conexión básica...`);
+    const accountInfoUrl = `https://graph.facebook.com/v17.0/${instagramUserId}?fields=name,username,profile_picture_url&access_token=${accessToken}`;
+    console.log(`📊 [Instagram Insights] Verificando conexión básica (usando API de Facebook)...`);
     
     let accountInfo;
     try {
@@ -144,6 +144,10 @@ exports.handler = async (event, context) => {
       
       accountInfo = await accountResponse.json();
       console.log(`📊 [Instagram Insights] Cuenta verificada: @${accountInfo.username}`);
+      
+      // NOTA: La estructura de la respuesta de la API de Facebook puede ser diferente
+      // a la que esperábamos de Instagram. Si hay problemas al acceder a los campos,
+      // puede ser necesario ajustar cómo se procesan los datos aquí.
       
       // Guardar el username en Firestore si no existe y tenemos uno
       if (accountInfo.username && !instagramData.username) {
