@@ -474,19 +474,19 @@ exports.handler = async (event, context) => {
             insights.metrics.content_types.carousel++;
           }
           
-          // Devolver objeto de post enriquecido
+          // Devolver objeto de post enriquecido asegurando que no hay valores undefined
           return {
-            id: post.id,
-            caption: post.caption,
-            media_type: post.media_type,
-            media_url: post.media_url,
-            permalink: post.permalink,
-            thumbnail_url: post.thumbnail_url,
+            id: post.id || '',
+            caption: post.caption || '',
+            media_type: post.media_type || 'UNKNOWN',
+            media_url: post.media_url || '',
+            permalink: post.permalink || '',
+            thumbnail_url: post.thumbnail_url || null,
             like_count: likes,
             comments_count: comments,
             engagement: engagement,
             engagement_rate: insights.followers_count > 0 ? (engagement / insights.followers_count) * 100 : 0,
-            timestamp: post.timestamp,
+            timestamp: post.timestamp || '',
             hashtags: hashtags,
             has_children: post.children ? true : false,
             children_count: post.children ? post.children.data.length : 0
@@ -558,12 +558,21 @@ exports.handler = async (event, context) => {
       // Guardar métricas históricas
       await guardarMetricasHistoricas(userId, insights);
       
+      // Limpiar cualquier objeto para asegurar que no haya valores undefined antes de guardar en Firestore
+      const insightsForCache = JSON.parse(JSON.stringify(insights));
+      
       // Actualizar caché
       const configRef = db.collection('users').doc(userId).collection('config').doc('instagram');
-      await configRef.set({
-        ultimaActualizacion: admin.firestore.Timestamp.now(),
-        cacheData: insights
-      }, { merge: true });
+      try {
+        await configRef.set({
+          ultimaActualizacion: admin.firestore.Timestamp.now(),
+          cacheData: insightsForCache
+        }, { merge: true });
+        console.log('✅ [Instagram Insights] Datos guardados correctamente en caché');
+      } catch (cacheError) {
+        console.error('❌ [Instagram Insights] Error al guardar en caché:', cacheError);
+        // Si hay error al guardar la caché, no interrumpir el flujo principal
+      }
       
       return {
         statusCode: 200,
