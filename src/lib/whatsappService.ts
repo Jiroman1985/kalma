@@ -226,109 +226,159 @@ export const getWhatsAppMessages = async (
   try {
     console.log(`Buscando mensajes de WhatsApp para el usuario: ${userId}`);
     
-    // Primero intentamos buscar en la colección específica de WhatsApp
+    // Colección principal "messages"
+    const messagesRef = collection(db, "messages");
+    
+    // Intentamos buscar con una consulta más simple, sin tantos filtros
+    // que puedan estar limitando los resultados
     const whatsappQuery = query(
-      collection(db, "messages"),
+      messagesRef,
       where("userId", "==", userId),
-      where("platform", "==", "whatsapp"),
-      orderBy("timestamp", "desc"),
-      limit(messageLimit * 2) // Aumentamos el límite para incluir respuestas
+      limit(messageLimit * 2)
     );
     
     const querySnapshot = await getDocs(whatsappQuery);
+    console.log(`Consulta principal encontró ${querySnapshot.size} documentos`);
     
-    if (!querySnapshot.empty) {
-      console.log(`Encontrados ${querySnapshot.size} mensajes de WhatsApp`);
+    // Si no hay resultados, probar una consulta sin filtros
+    if (querySnapshot.empty) {
+      console.log("No se encontraron mensajes con el filtro principal, intentando sin filtro de userId");
+      const allMessagesQuery = query(messagesRef, limit(100));
+      const allMessagesSnapshot = await getDocs(allMessagesQuery);
+      console.log(`Consulta sin filtro encontró ${allMessagesSnapshot.size} documentos`);
       
-      // Convertir documentos a objetos de mensaje
-      const messages: WhatsAppMessage[] = [];
+      if (!allMessagesSnapshot.empty) {
+        allMessagesSnapshot.forEach(doc => {
+          console.log(`Documento encontrado: ID=${doc.id}, Datos:`, doc.data());
+        });
+      }
+    }
+    
+    const messages: WhatsAppMessage[] = [];
+    
+    // Procesar resultados de la consulta principal
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
+      console.log(`Procesando documento ID=${doc.id}, Datos:`, data);
       
-      querySnapshot.forEach(doc => {
+      // Verificar si agentResponse es una cadena de texto para extraer correctamente
+      const agentResponseText = typeof data.agentResponse === 'string' 
+        ? data.agentResponse 
+        : data.agentResponseText || "";
+      
+      // Convertir formato de la base de datos al formato de WhatsAppMessage
+      messages.push({
+        id: doc.id,
+        messageId: data.messageId || doc.id,
+        body: data.content || data.body || "",
+        from: data.senderId || data.from || "",
+        to: data.recipientId || data.to || "",
+        timestamp: data.timestamp || data.createdAt,
+        isFromMe: data.isFromUser || data.isFromMe || false,
+        senderName: data.senderName || "",
+        messageType: data.type || "text",
+        storedAt: data.createdAt ? Timestamp.fromDate(data.createdAt.toDate()) : undefined,
+        category: data.category,
+        responded: data.responded || false,
+        responseId: data.responseId || null,
+        responseTimestamp: data.responseTimestamp ? Timestamp.fromDate(data.responseTimestamp.toDate()) : undefined,
+        agentResponse: typeof data.agentResponse === 'boolean' ? data.agentResponse : !!agentResponseText,
+        agentResponseText: agentResponseText,
+        responseTime: data.responseTime,
+        hourOfDay: data.hourOfDay || 0,
+        day: data.day || 1,
+        month: data.month || 1,
+        minutesOfDay: data.minutesOfDay || 0,
+        sentiment: data.sentiment || "neutral",
+        status: data.status || "sent",
+        type: data.type || "text",
+        aiAssisted: data.aiAssisted || false,
+        originalMessageId: data.originalMessageId || null
+      });
+    });
+    
+    // Si no encontramos mensajes en la colección principal, intentar con otras ubicaciones
+    if (messages.length === 0) {
+      console.log("Probando consulta en colección 'whatsapp/messages'");
+      // Probar en colección whatsapp/messages/userId
+      const whatsappMessagesRef = collection(db, "whatsapp", "messages", userId);
+      const whatsappSnapshot = await getDocs(whatsappMessagesRef);
+      console.log(`Encontrados ${whatsappSnapshot.size} mensajes en colección whatsapp/messages/${userId}`);
+      
+      whatsappSnapshot.forEach(doc => {
         const data = doc.data();
-        console.log("Documento de mensaje:", doc.id, data); // Añadir log para ver estructura
-        
-        // Verificar si agentResponse es una cadena de texto para extraer correctamente
-        const agentResponseText = typeof data.agentResponse === 'string' 
-          ? data.agentResponse 
-          : data.agentResponseText || "";
-        
-        // Convertir formato de la base de datos al formato de WhatsAppMessage
+        console.log(`Mensaje en whatsapp/messages/${userId}: ${doc.id}`, data);
         messages.push({
           id: doc.id,
           messageId: data.messageId || doc.id,
-          body: data.content || data.body || "",
-          from: data.senderId || data.from || "",
-          to: data.recipientId || data.to || "",
-          timestamp: data.timestamp || data.createdAt,
-          isFromMe: data.isFromUser || data.isFromMe || false,
+          body: data.body || "",
+          from: data.from || "",
+          to: data.to || "",
+          timestamp: data.timestamp || Timestamp.now(),
+          isFromMe: data.isFromMe || false,
           senderName: data.senderName || "",
-          messageType: data.type || "text",
-          storedAt: data.createdAt ? Timestamp.fromDate(data.createdAt.toDate()) : undefined,
-          category: data.category,
-          responded: data.responded || false,
-          responseId: data.responseId || null,
-          responseTimestamp: data.responseTimestamp ? Timestamp.fromDate(data.responseTimestamp.toDate()) : undefined,
-          agentResponse: typeof data.agentResponse === 'boolean' ? data.agentResponse : !!agentResponseText,
-          agentResponseText: agentResponseText,
-          responseTime: data.responseTime,
-          hourOfDay: data.hourOfDay || 0,
-          day: data.day || 1,
-          month: data.month || 1,
-          minutesOfDay: data.minutesOfDay || 0,
-          sentiment: data.sentiment || "neutral",
+          messageType: data.messageType || "text",
           status: data.status || "sent",
-          type: data.type || "text",
-          aiAssisted: data.aiAssisted || false,
-          originalMessageId: data.originalMessageId || null // Asegurarnos de capturar este campo
+          type: data.type || "text"
         });
       });
-      
-      // Log de diagnóstico
-      const messagesWithOriginal = messages.filter(msg => msg.originalMessageId);
-      console.log(`Mensajes con originalMessageId: ${messagesWithOriginal.length}`);
-      if (messagesWithOriginal.length > 0) {
-        console.log('Ejemplo de mensaje con originalMessageId:', messagesWithOriginal[0]);
-      }
-      
-      const messagesWithAgentResponse = messages.filter(msg => msg.agentResponseText);
-      console.log(`Mensajes con agentResponseText: ${messagesWithAgentResponse.length}`);
-      if (messagesWithAgentResponse.length > 0) {
-        console.log('Ejemplo de mensaje con agentResponseText:', messagesWithAgentResponse[0].agentResponseText);
-      }
-      
-      return messages;
     }
     
-    // Si no hay mensajes en la colección principal, buscar en la colección secundaria
-    const fallbackQuery = query(
-      collection(db, "whatsapp", "messages", userId),
-      orderBy("timestamp", "desc"),
-      limit(messageLimit)
-    );
-    
-    const fallbackSnapshot = await getDocs(fallbackQuery);
-    
-    if (!fallbackSnapshot.empty) {
-      console.log(`Encontrados ${fallbackSnapshot.size} mensajes en la colección secundaria`);
+    // Si aún no hay mensajes, probar una última ubicación
+    if (messages.length === 0) {
+      console.log("Probando consulta en colección 'users/${userId}/whatsapp'");
+      // Probar en colección users/userId/whatsapp
+      const userWhatsappRef = collection(db, "users", userId, "whatsapp");
+      const userWhatsappSnapshot = await getDocs(userWhatsappRef);
+      console.log(`Encontrados ${userWhatsappSnapshot.size} documentos en users/${userId}/whatsapp`);
       
-      const messages: WhatsAppMessage[] = [];
-      
-      fallbackSnapshot.forEach(doc => {
-        const data = doc.data();
-        // Asegurarse de que todos los documentos tienen la propiedad 'type' requerida
-        if (!data.type) {
-          data.type = "text"; // Valor por defecto
-        }
-        messages.push({ id: doc.id, ...data } as WhatsAppMessage);
+      if (!userWhatsappSnapshot.empty) {
+        // Buscar en subcollección messages
+        const messagesSubcolRef = collection(db, "users", userId, "whatsapp", "messages", "inbox");
+        const messagesSubcolSnapshot = await getDocs(messagesSubcolRef);
+        console.log(`Encontrados ${messagesSubcolSnapshot.size} mensajes en subcollección messages/inbox`);
+        
+        messagesSubcolSnapshot.forEach(doc => {
+          const data = doc.data();
+          messages.push({
+            id: doc.id,
+            messageId: data.messageId || doc.id,
+            body: data.body || "",
+            from: data.from || "",
+            to: data.to || "",
+            timestamp: data.timestamp || Timestamp.now(),
+            isFromMe: data.isFromMe || false,
+            senderName: data.senderName || "",
+            messageType: data.messageType || "text",
+            status: data.status || "sent",
+            type: data.type || "text"
+          });
+        });
+      }
+    }
+    
+    console.log(`Total mensajes encontrados: ${messages.length}`);
+    
+    // Si aún no hay mensajes, devolver un mensaje de diagnóstico
+    if (messages.length === 0) {
+      console.log("No se encontraron mensajes en ninguna colección");
+      // Añadir mensaje de diagnóstico para facilitar depuración
+      messages.push({
+        id: 'diagnostic_msg',
+        messageId: 'diagnostic_msg',
+        body: 'Este es un mensaje de diagnóstico. No se encontraron mensajes reales en la base de datos.',
+        from: '+1234567890',
+        to: '+0987654321',
+        timestamp: Timestamp.now(),
+        isFromMe: false,
+        senderName: 'Sistema',
+        messageType: 'text',
+        status: 'sent',
+        type: 'text'
       });
-      
-      return messages;
     }
     
-    // Si tampoco hay mensajes en la colección secundaria, retornar un array vacío
-    console.log("No se encontraron mensajes de WhatsApp");
-    return [];
-    
+    return messages;
   } catch (error) {
     console.error("Error al obtener mensajes de WhatsApp:", error);
     return [];

@@ -106,11 +106,14 @@ const Conversations = () => {
 
       setLoading(true);
       try {
+        console.log("Iniciando carga de conversaciones...");
         // 1. Obtener mensajes de WhatsApp
         const whatsappConversations = await fetchWhatsAppConversations();
+        console.log(`Conversaciones de WhatsApp obtenidas: ${whatsappConversations.length}`);
         
         // 2. Obtener mensajes de redes sociales
         const socialConversations = await fetchSocialMediaConversations();
+        console.log(`Conversaciones de redes sociales obtenidas: ${socialConversations.length}`);
         
         // 3. Combinar y ordenar por fecha
         const allConversations = [...whatsappConversations, ...socialConversations]
@@ -119,6 +122,8 @@ const Conversations = () => {
             const dateB = getTimestampValue(b.timestamp);
             return dateB - dateA;
           });
+        
+        console.log(`Total de conversaciones combinadas: ${allConversations.length}`);
         
         // 4. Contar mensajes no leídos
         const unread = {
@@ -159,6 +164,7 @@ const Conversations = () => {
   const fetchWhatsAppConversations = async (): Promise<Conversation[]> => {
     if (!currentUser) return [];
     
+    console.log("Obteniendo mensajes de WhatsApp...");
     // Obtener mensajes de WhatsApp utilizando la función de servicio
     const whatsappMessages = await getWhatsAppMessages(currentUser.uid, 100);
     
@@ -177,19 +183,35 @@ const Conversations = () => {
     const responseMessages: WhatsAppMessage[] = [];
     
     whatsappMessages.forEach(message => {
+      console.log(`Procesando mensaje: ID=${message.id}, from=${message.from}, to=${message.to}, isFromMe=${message.isFromMe}, originalMessageId=${message.originalMessageId}`);
+      console.log(`Contenido: "${message.body?.substring(0, 50)}..."`);
+      console.log(`¿Tiene respuesta de agente? ${!!message.agentResponseText}`);
+      
       // Ignorar mensajes sin remitente o cuerpo
-      if (!message.from || !message.body) return;
+      if (!message.from || !message.body) {
+        console.log("Ignorando mensaje sin remitente o cuerpo");
+        return;
+      }
       
       if (message.originalMessageId) {
         // Es una respuesta
+        console.log(`Mensaje ${message.id} es una respuesta al mensaje ${message.originalMessageId}`);
         responseMessages.push(message);
       } else {
         // Es un mensaje original
+        console.log(`Mensaje ${message.id} es un mensaje original`);
         originalMessages.push(message);
       }
     });
     
     console.log(`Mensajes originales: ${originalMessages.length}, Respuestas: ${responseMessages.length}`);
+    
+    // Si no hay mensajes originales pero hay respuestas, usamos las respuestas como originales
+    if (originalMessages.length === 0 && responseMessages.length > 0) {
+      console.log("No hay mensajes originales, usando respuestas como originales");
+      originalMessages.push(...responseMessages);
+      responseMessages.length = 0;
+    }
     
     // Agrupar mensajes originales por contacto (from)
     const messagesByContact = new Map<string, WhatsAppMessage[]>();
@@ -203,14 +225,18 @@ const Conversations = () => {
       messagesByContact.get(contactId)?.push(message);
     });
     
+    console.log(`Contactos agrupados: ${messagesByContact.size}`);
+    
     // Para cada contacto, crear una conversación con el mensaje más reciente
     for (const [contactId, messages] of messagesByContact.entries()) {
+      console.log(`Procesando contacto: ${contactId} con ${messages.length} mensajes`);
+      
       // Ordenar mensajes por timestamp (el más reciente primero)
       messages.sort((a, b) => {
         const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : 
-                     typeof a.timestamp === 'number' ? a.timestamp : 0;
+                    typeof a.timestamp === 'number' ? a.timestamp : 0;
         const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : 
-                     typeof b.timestamp === 'number' ? b.timestamp : 0;
+                    typeof b.timestamp === 'number' ? b.timestamp : 0;
         return timeB - timeA;
       });
       
@@ -224,17 +250,41 @@ const Conversations = () => {
       
       // Si no encontramos respuesta directa, buscar por respondido flag
       let hasResponse = !!responseMessage;
-      let hasAgentResponse = !!latestMessage.agentResponseText && latestMessage.agentResponseText.length > 0;
+      let hasAgentResponse = false;
       
-      console.log(`Mensaje ${latestMessage.id} - Respondido: ${latestMessage.responded}, AgentResponse: ${hasAgentResponse}`);
+      // Verificar si tiene respuesta de agente (puede ser booleano o string)
+      const agentResponseIsString = typeof latestMessage.agentResponse === 'string';
+      const agentResponseText = agentResponseIsString ? latestMessage.agentResponse : '';
+      const hasAgentResponseText = agentResponseIsString && agentResponseText.trim().length > 0;
+      
+      if (hasAgentResponseText) {
+        hasAgentResponse = true;
+        console.log(`Mensaje ${latestMessage.id} tiene respuesta de agente en campo agentResponse (string)`);
+      } else if (latestMessage.agentResponseText && typeof latestMessage.agentResponseText === 'string' && latestMessage.agentResponseText.trim().length > 0) {
+        hasAgentResponse = true;
+        console.log(`Mensaje ${latestMessage.id} tiene respuesta de agente en campo agentResponseText`);
+      } else if (latestMessage.agentResponse === true) {
+        hasAgentResponse = true;
+        console.log(`Mensaje ${latestMessage.id} tiene agentResponse=true pero sin texto`);
+      }
+      
+      console.log(`Mensaje ${latestMessage.id} - Respondido: ${latestMessage.responded}, HasAgentResponse: ${hasAgentResponse}`);
       
       // Crear un objeto de respuesta a partir del agentResponseText si existe
       let agentResponseMessage: WhatsAppMessage | null = null;
+      
       if (hasAgentResponse && !responseMessage) {
+        // Obtener el texto de respuesta del campo correcto
+        const responseText = typeof latestMessage.agentResponse === 'string' 
+          ? latestMessage.agentResponse 
+          : latestMessage.agentResponseText || "";
+        
+        console.log(`Creando objeto de respuesta para agente con texto: "${responseText.substring(0, 50)}..."`);
+        
         agentResponseMessage = {
           id: `agent_${latestMessage.id}`,
           messageId: `agent_${latestMessage.id}`,
-          body: latestMessage.agentResponseText || "",
+          body: responseText,
           from: latestMessage.to, // Invertir emisor/receptor
           to: latestMessage.from,
           timestamp: latestMessage.timestamp, // Usamos el mismo timestamp por simplicidad
@@ -251,12 +301,14 @@ const Conversations = () => {
       }
       
       if (!hasResponse && latestMessage.responded) {
+        console.log(`Mensaje marcado como respondido pero sin respuesta encontrada. Buscando respuestas posibles...`);
         // Buscar la respuesta más cercana por tiempo
         const possibleResponses = responseMessages.filter(msg => 
           msg.from === latestMessage.to && msg.to === latestMessage.from
         );
         
         if (possibleResponses.length > 0) {
+          console.log(`Se encontraron ${possibleResponses.length} posibles respuestas por inversión de from/to`);
           // Ordenar por cercanía de tiempo al mensaje original
           possibleResponses.sort((a, b) => {
             const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : 
@@ -274,6 +326,8 @@ const Conversations = () => {
           // Usar la respuesta más cercana en tiempo
           const nearestResponse = possibleResponses[0];
           hasResponse = true;
+          
+          console.log(`Usando respuesta más cercana con ID ${nearestResponse.id}`);
           
           conversationsData.push({
             id: latestMessage.id,
@@ -304,6 +358,7 @@ const Conversations = () => {
       });
     }
     
+    console.log(`Conversaciones generadas: ${conversationsData.length}`);
     return conversationsData;
   };
 
