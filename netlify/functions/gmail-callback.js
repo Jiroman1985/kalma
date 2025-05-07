@@ -245,12 +245,20 @@ async function saveGmailTokens(userId, tokenData) {
   const db = initializeFirebaseAdmin();
   
   try {
-    // Guardar en la colección socialTokens
+    // Guardar en la colección socialTokens global
     await db.collection('socialTokens').doc(userId).set({
       gmail: tokenData
     }, { merge: true });
     
-    console.log('Tokens de Gmail guardados correctamente para el usuario:', userId);
+    console.log('Tokens de Gmail guardados en socialTokens global');
+    
+    // También guardar en la estructura users/{userId}/socialTokens/gmail para consistencia
+    await db.collection('users').doc(userId)
+      .collection('socialTokens').doc('gmail')
+      .set(tokenData);
+    
+    console.log('Tokens de Gmail también guardados en users/{userId}/socialTokens/gmail');
+    
     return true;
   } catch (error) {
     console.error('Error al guardar tokens de Gmail:', error);

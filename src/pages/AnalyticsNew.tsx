@@ -130,84 +130,123 @@ const AnalyticsNew = () => {
   useEffect(() => {
     const fetchConnectedChannels = async () => {
       setLoading(true);
+      let connected: string[] = ["whatsapp"]; // Siempre incluir WhatsApp por defecto
+      
       try {
         if (!currentUser) {
           setLoading(false);
           return;
         }
 
-        // Obtener los canales conectados desde Firestore
-        const connectionsRef = collection(db, "users", currentUser.uid, "channelConnections");
-        const connectionsSnapshot = await getDocs(connectionsRef);
+        console.log('Verificando canales conectados para usuario:', currentUser.uid);
         
-        const connected: string[] = [];
-        connectionsSnapshot.forEach((doc) => {
-          const data = doc.data();
-          if (data.channelId) {
-            console.log(`Canal encontrado en channelConnections: ${data.channelId}`);
-            connected.push(data.channelId);
-          }
-        });
+        try {
+          // 1. Obtener los canales conectados desde channelConnections
+          console.log('1. Verificando canales en channelConnections...');
+          const connectionsRef = collection(db, "users", currentUser.uid, "channelConnections");
+          const connectionsSnapshot = await getDocs(connectionsRef);
+          
+          connectionsSnapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.channelId) {
+              console.log(`Canal encontrado en channelConnections: ${data.channelId}`);
+              if (!connected.includes(data.channelId)) {
+                connected.push(data.channelId);
+              }
+            }
+          });
+        } catch (error) {
+          console.error("Error al verificar channelConnections:", error);
+        }
 
-        // Verificar específicamente Instagram en socialTokens/instagram
-        console.log('Verificando conexión de Instagram en socialTokens...');
-        const instagramTokenRef = doc(db, 'users', currentUser.uid, 'socialTokens', 'instagram');
-        const instagramTokenDoc = await getDoc(instagramTokenRef);
-        
-        if (instagramTokenDoc.exists()) {
-          const instagramData = instagramTokenDoc.data();
-          // Verificar que tenemos los datos necesarios para considerar que Instagram está conectado
-          if (instagramData.accessToken && instagramData.instagramUserId) {
-            if (!connected.includes('instagram')) {
-              console.log('Instagram conectado en socialTokens, agregando a canales conectados');
-              connected.push('instagram');
+        try {
+          // 2. Verificar específicamente Instagram en la estructura legacy
+          console.log('2. Verificando Instagram en documento de usuario...');
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            
+            // Verificar Instagram
+            if (userData.socialNetworks?.instagram?.connected) {
+              console.log('Instagram conectado en estructura legacy');
+              if (!connected.includes('instagram')) {
+                connected.push('instagram');
+              }
+            }
+            
+            // Verificar Gmail
+            if (userData.socialNetworks?.gmail?.connected) {
+              console.log('Gmail conectado en estructura legacy');
+              if (!connected.includes('gmail')) {
+                connected.push('gmail');
+              }
+            }
+          } else {
+            console.log('No se encontró documento de usuario');
+          }
+        } catch (error) {
+          console.error("Error al verificar documento de usuario:", error);
+        }
+
+        try {
+          // 3. Verificar Instagram en socialTokens/instagram
+          console.log('3. Verificando Instagram en socialTokens...');
+          // Probar ambas rutas posibles para Instagram
+          const instagramPath1 = doc(db, 'users', currentUser.uid, 'socialTokens', 'instagram');
+          const instagramDoc1 = await getDoc(instagramPath1);
+          
+          if (instagramDoc1.exists()) {
+            const instagramData = instagramDoc1.data();
+            if (instagramData.accessToken && instagramData.instagramUserId) {
+              console.log('Instagram conectado en users/{userId}/socialTokens/instagram');
+              if (!connected.includes('instagram')) {
+                connected.push('instagram');
+              }
             }
           }
-        }
-
-        // También verificar Instagram en la estructura legacy
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (userDoc.exists() && userDoc.data().socialNetworks?.instagram?.connected) {
-          if (!connected.includes('instagram')) {
-            console.log('Instagram conectado en estructura legacy, agregando a canales conectados');
-            connected.push('instagram');
+          
+          // Alternativa: Verificar en socialTokens/{userId}
+          const socialTokensPath = doc(db, 'socialTokens', currentUser.uid);
+          const socialTokensDoc = await getDoc(socialTokensPath);
+          
+          if (socialTokensDoc.exists()) {
+            const socialTokensData = socialTokensDoc.data();
+            
+            // Verificar Instagram
+            if (socialTokensData.instagram) {
+              console.log('Instagram encontrado en socialTokens/{userId}/instagram');
+              if (!connected.includes('instagram')) {
+                connected.push('instagram');
+              }
+            }
+            
+            // Verificar Gmail
+            if (socialTokensData.gmail) {
+              console.log('Gmail encontrado en socialTokens/{userId}/gmail');
+              if (!connected.includes('gmail')) {
+                connected.push('gmail');
+              }
+            }
           }
-        }
-
-        // Verificar específicamente Gmail en socialTokens
-        console.log('Verificando conexión de Gmail en socialTokens...');
-        const socialTokensRef = doc(db, 'socialTokens', currentUser.uid);
-        const socialTokensDoc = await getDoc(socialTokensRef);
-        
-        if (socialTokensDoc.exists() && socialTokensDoc.data().gmail) {
-          // Gmail está conectado
-          if (!connected.includes('gmail')) {
-            console.log('Gmail conectado en socialTokens, agregando a canales conectados');
-            connected.push('gmail');
-          }
-        }
-
-        // También verificar Gmail en el documento de usuario (estructura legacy)
-        if (userDoc.exists() && userDoc.data().socialNetworks?.gmail?.connected) {
-          if (!connected.includes('gmail')) {
-            console.log('Gmail conectado en estructura legacy, agregando a canales conectados');
-            connected.push('gmail');
-          }
+        } catch (error) {
+          console.error("Error al verificar socialTokens:", error);
         }
 
         // Asegurarse de que WhatsApp siempre esté conectado (ya que es el canal principal)
         if (!connected.includes("whatsapp")) {
-          console.log('WhatsApp siempre conectado (canal principal)');
+          console.log('Añadiendo WhatsApp como canal por defecto');
           connected.push("whatsapp");
         }
 
         console.log('Canales conectados finales:', connected);
         setConnectedChannels(connected);
       } catch (error) {
-        console.error("Error al cargar canales conectados:", error);
+        console.error("Error general al cargar canales conectados:", error);
+        // En caso de error, al menos mostrar WhatsApp
+        setConnectedChannels(["whatsapp"]);
         toast({
           title: "Error",
-          description: "No se pudieron cargar los canales conectados",
+          description: "No se pudieron cargar todos los canales conectados",
           variant: "destructive",
         });
       } finally {
