@@ -245,6 +245,12 @@ export const getWhatsAppMessages = async (
       
       querySnapshot.forEach(doc => {
         const data = doc.data();
+        console.log("Documento de mensaje:", doc.id, data); // Añadir log para ver estructura
+        
+        // Verificar si agentResponse es una cadena de texto para extraer correctamente
+        const agentResponseText = typeof data.agentResponse === 'string' 
+          ? data.agentResponse 
+          : data.agentResponseText || "";
         
         // Convertir formato de la base de datos al formato de WhatsAppMessage
         messages.push({
@@ -262,8 +268,8 @@ export const getWhatsAppMessages = async (
           responded: data.responded || false,
           responseId: data.responseId || null,
           responseTimestamp: data.responseTimestamp ? Timestamp.fromDate(data.responseTimestamp.toDate()) : undefined,
-          agentResponse: data.agentResponse || false,
-          agentResponseText: data.agentResponseText || "",
+          agentResponse: typeof data.agentResponse === 'boolean' ? data.agentResponse : !!agentResponseText,
+          agentResponseText: agentResponseText,
           responseTime: data.responseTime,
           hourOfDay: data.hourOfDay || 0,
           day: data.day || 1,
@@ -282,6 +288,12 @@ export const getWhatsAppMessages = async (
       console.log(`Mensajes con originalMessageId: ${messagesWithOriginal.length}`);
       if (messagesWithOriginal.length > 0) {
         console.log('Ejemplo de mensaje con originalMessageId:', messagesWithOriginal[0]);
+      }
+      
+      const messagesWithAgentResponse = messages.filter(msg => msg.agentResponseText);
+      console.log(`Mensajes con agentResponseText: ${messagesWithAgentResponse.length}`);
+      if (messagesWithAgentResponse.length > 0) {
+        console.log('Ejemplo de mensaje con agentResponseText:', messagesWithAgentResponse[0].agentResponseText);
       }
       
       return messages;

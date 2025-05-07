@@ -224,6 +224,32 @@ const Conversations = () => {
       
       // Si no encontramos respuesta directa, buscar por respondido flag
       let hasResponse = !!responseMessage;
+      let hasAgentResponse = !!latestMessage.agentResponseText && latestMessage.agentResponseText.length > 0;
+      
+      console.log(`Mensaje ${latestMessage.id} - Respondido: ${latestMessage.responded}, AgentResponse: ${hasAgentResponse}`);
+      
+      // Crear un objeto de respuesta a partir del agentResponseText si existe
+      let agentResponseMessage: WhatsAppMessage | null = null;
+      if (hasAgentResponse && !responseMessage) {
+        agentResponseMessage = {
+          id: `agent_${latestMessage.id}`,
+          messageId: `agent_${latestMessage.id}`,
+          body: latestMessage.agentResponseText || "",
+          from: latestMessage.to, // Invertir emisor/receptor
+          to: latestMessage.from,
+          timestamp: latestMessage.timestamp, // Usamos el mismo timestamp por simplicidad
+          isFromMe: true,
+          senderName: "Asistente IA",
+          messageType: "text",
+          status: "sent",
+          type: "text",
+          aiAssisted: true,
+          originalMessageId: latestMessage.id
+        };
+        
+        hasResponse = true;
+      }
+      
       if (!hasResponse && latestMessage.responded) {
         // Buscar la respuesta más cercana por tiempo
         const possibleResponses = responseMessages.filter(msg => 
@@ -270,11 +296,11 @@ const Conversations = () => {
         user: latestMessage.senderName || contactId,
         contactId: contactId,
         originalMessage: latestMessage,
-        responseMessage: responseMessage,
+        responseMessage: responseMessage || agentResponseMessage || undefined,
         platform: 'whatsapp',
         timestamp: latestMessage.timestamp || new Date(),
         isRead: latestMessage.status === 'read',
-        isReplied: !!responseMessage || latestMessage.responded || false
+        isReplied: !!responseMessage || latestMessage.responded || hasAgentResponse || false
       });
     }
     
