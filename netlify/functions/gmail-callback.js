@@ -167,16 +167,45 @@ async function exchangeCodeForTokens(code) {
 // Función para obtener información del perfil de Gmail
 async function fetchEmailProfile(accessToken) {
   try {
-    const response = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+    console.log('Obteniendo información del perfil con accessToken:', accessToken.substring(0, 10) + '...');
+    
+    // Usar la API correcta de Google para obtener el perfil
+    const response = await axios.get('https://www.googleapis.com/userinfo/v2/me', {
       headers: {
         Authorization: `Bearer ${accessToken}`
       }
     });
     
+    console.log('Respuesta del perfil recibida:', JSON.stringify(response.data).substring(0, 100) + '...');
     return response.data;
   } catch (error) {
-    console.error('Error al obtener información del perfil:', error.response?.data || error.message);
-    throw new Error('No se pudo obtener la información del perfil de Gmail');
+    console.error('Error al obtener información del perfil:');
+    
+    if (error.response) {
+      console.error('Estado de error:', error.response.status);
+      console.error('Datos de error:', JSON.stringify(error.response.data));
+      console.error('Cabeceras de respuesta:', JSON.stringify(error.response.headers));
+    } else if (error.request) {
+      console.error('No se recibió respuesta a la solicitud:', error.request);
+    } else {
+      console.error('Error al configurar la solicitud:', error.message);
+    }
+    
+    // Intento alternativo con otra URL si falla la primera
+    try {
+      console.log('Intentando con URL alternativa...');
+      const alternativeResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      console.log('Respuesta alternativa recibida:', JSON.stringify(alternativeResponse.data).substring(0, 100) + '...');
+      return alternativeResponse.data;
+    } catch (secondError) {
+      console.error('Error también con URL alternativa:', secondError.message);
+      throw new Error('No se pudo obtener la información del perfil de Gmail');
+    }
   }
 }
 
