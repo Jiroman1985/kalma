@@ -123,7 +123,7 @@ exports.handler = async function(event, context) {
 async function exchangeCodeForTokens(code) {
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-  const REDIRECT_URI = process.env.URL_GOOGLE + '/auth/gmail/callback';
+  const REDIRECT_URI = process.env.URL_GOOGLE + '/.netlify/functions/gmail-callback';
   
   console.log('Intercambiando código por tokens con los siguientes parámetros:');
   console.log('REDIRECT_URI:', REDIRECT_URI);
