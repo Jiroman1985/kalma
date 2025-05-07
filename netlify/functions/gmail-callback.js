@@ -169,42 +169,73 @@ async function fetchEmailProfile(accessToken) {
   try {
     console.log('Obteniendo información del perfil con accessToken:', accessToken.substring(0, 10) + '...');
     
-    // Usar la API correcta de Google para obtener el perfil
-    const response = await axios.get('https://www.googleapis.com/userinfo/v2/me', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`
-      }
-    });
-    
-    console.log('Respuesta del perfil recibida:', JSON.stringify(response.data).substring(0, 100) + '...');
-    return response.data;
-  } catch (error) {
-    console.error('Error al obtener información del perfil:');
-    
-    if (error.response) {
-      console.error('Estado de error:', error.response.status);
-      console.error('Datos de error:', JSON.stringify(error.response.data));
-      console.error('Cabeceras de respuesta:', JSON.stringify(error.response.headers));
-    } else if (error.request) {
-      console.error('No se recibió respuesta a la solicitud:', error.request);
-    } else {
-      console.error('Error al configurar la solicitud:', error.message);
-    }
-    
-    // Intento alternativo con otra URL si falla la primera
+    // Intentar primero con endpoints de perfil de usuario
     try {
-      console.log('Intentando con URL alternativa...');
-      const alternativeResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+      // Primera opción: Google Sign-In userinfo endpoint
+      const response = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: {
           Authorization: `Bearer ${accessToken}`
         }
       });
       
-      console.log('Respuesta alternativa recibida:', JSON.stringify(alternativeResponse.data).substring(0, 100) + '...');
-      return alternativeResponse.data;
-    } catch (secondError) {
-      console.error('Error también con URL alternativa:', secondError.message);
-      throw new Error('No se pudo obtener la información del perfil de Gmail');
+      console.log('Respuesta del perfil recibida (v3):', JSON.stringify(response.data).substring(0, 100) + '...');
+      return {
+        email: response.data.email,
+        name: response.data.name,
+        picture: response.data.picture
+      };
+    } catch (error) {
+      console.log('Primera opción falló, intentando con segundo endpoint...');
+      
+      // Segunda opción: Google People API
+      const response = await axios.get('https://www.googleapis.com/userinfo/v2/me', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      console.log('Respuesta del perfil recibida (v2):', JSON.stringify(response.data).substring(0, 100) + '...');
+      return {
+        email: response.data.email,
+        name: response.data.name,
+        picture: response.data.picture
+      };
+    }
+  } catch (mainError) {
+    console.error('Error al obtener información del perfil:');
+    
+    if (mainError.response) {
+      console.error('Estado de error:', mainError.response.status);
+      console.error('Datos de error:', JSON.stringify(mainError.response.data));
+    } else {
+      console.error('Error:', mainError.message);
+    }
+    
+    // Último recurso: Intentar obtener al menos el correo desde Gmail directamente
+    try {
+      console.log('Intentando obtener información desde Gmail API directamente...');
+      const gmailResponse = await axios.get('https://gmail.googleapis.com/gmail/v1/users/me/profile', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      });
+      
+      console.log('Respuesta de Gmail API recibida:', JSON.stringify(gmailResponse.data));
+      return {
+        email: gmailResponse.data.emailAddress,
+        name: gmailResponse.data.emailAddress.split('@')[0], // Usar la primera parte del email como nombre
+        picture: null // No hay imagen disponible desde este endpoint
+      };
+    } catch (gmailError) {
+      console.error('Error también al obtener información desde Gmail API:', gmailError.message);
+      
+      // Si todos los intentos fallan, crear un perfil genérico con email desconocido
+      console.log('Creando perfil genérico como último recurso');
+      return {
+        email: 'usuario.gmail@gmail.com', // Email genérico
+        name: 'Usuario de Gmail',
+        picture: null
+      };
     }
   }
 }

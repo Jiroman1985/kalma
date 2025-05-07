@@ -144,6 +144,7 @@ const AnalyticsNew = () => {
         connectionsSnapshot.forEach((doc) => {
           const data = doc.data();
           if (data.channelId) {
+            console.log(`Canal encontrado en channelConnections: ${data.channelId}`);
             connected.push(data.channelId);
           }
         });
@@ -164,7 +165,16 @@ const AnalyticsNew = () => {
           }
         }
 
-        // Verificar específicamente Gmail en socialTokens/gmail
+        // También verificar Instagram en la estructura legacy
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists() && userDoc.data().socialNetworks?.instagram?.connected) {
+          if (!connected.includes('instagram')) {
+            console.log('Instagram conectado en estructura legacy, agregando a canales conectados');
+            connected.push('instagram');
+          }
+        }
+
+        // Verificar específicamente Gmail en socialTokens
         console.log('Verificando conexión de Gmail en socialTokens...');
         const socialTokensRef = doc(db, 'socialTokens', currentUser.uid);
         const socialTokensDoc = await getDoc(socialTokensRef);
@@ -177,12 +187,21 @@ const AnalyticsNew = () => {
           }
         }
 
+        // También verificar Gmail en el documento de usuario (estructura legacy)
+        if (userDoc.exists() && userDoc.data().socialNetworks?.gmail?.connected) {
+          if (!connected.includes('gmail')) {
+            console.log('Gmail conectado en estructura legacy, agregando a canales conectados');
+            connected.push('gmail');
+          }
+        }
+
         // Asegurarse de que WhatsApp siempre esté conectado (ya que es el canal principal)
         if (!connected.includes("whatsapp")) {
+          console.log('WhatsApp siempre conectado (canal principal)');
           connected.push("whatsapp");
         }
 
-        console.log('Canales conectados:', connected);
+        console.log('Canales conectados finales:', connected);
         setConnectedChannels(connected);
       } catch (error) {
         console.error("Error al cargar canales conectados:", error);

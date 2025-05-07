@@ -3,7 +3,9 @@ const REDIRECT_URI = process.env.URL_GOOGLE + '/.netlify/functions/gmail-callbac
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.send',
-  'https://www.googleapis.com/auth/gmail.modify'
+  'https://www.googleapis.com/auth/gmail.modify',
+  'profile',
+  'email'
 ];
 
 exports.handler = async function(event, context) {
