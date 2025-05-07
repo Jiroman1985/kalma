@@ -97,6 +97,13 @@ const AnalyticsNew = () => {
       isConnected: connectedChannels.includes("messenger"),
     },
     {
+      id: "gmail",
+      name: "Gmail",
+      icon: <Mail className="h-4 w-4" />,
+      color: "bg-gradient-to-r from-red-400 to-red-600",
+      isConnected: connectedChannels.includes("gmail"),
+    },
+    {
       id: "email",
       name: "Email",
       icon: <Mail className="h-4 w-4" />,
@@ -154,6 +161,19 @@ const AnalyticsNew = () => {
               console.log('Instagram conectado en socialTokens, agregando a canales conectados');
               connected.push('instagram');
             }
+          }
+        }
+
+        // Verificar específicamente Gmail en socialTokens/gmail
+        console.log('Verificando conexión de Gmail en socialTokens...');
+        const socialTokensRef = doc(db, 'socialTokens', currentUser.uid);
+        const socialTokensDoc = await getDoc(socialTokensRef);
+        
+        if (socialTokensDoc.exists() && socialTokensDoc.data().gmail) {
+          // Gmail está conectado
+          if (!connected.includes('gmail')) {
+            console.log('Gmail conectado en socialTokens, agregando a canales conectados');
+            connected.push('gmail');
           }
         }
 

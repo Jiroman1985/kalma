@@ -417,14 +417,18 @@ const Channels = () => {
         setGmailEmail(profileInfo.email);
         
         // Verificar si ya existe en las conexiones, si no, añadirlo
-        const existingConnection = connections.find(conn => 
-          conn.channelId === "gmail" && conn.username === profileInfo.email
-        );
+        // (este código puede ser redundante ahora que lo creamos en el callback,
+        // pero lo mantenemos por seguridad)
+        const connectionId = `gmail_${profileInfo.email.replace(/[@\.]/g, '_')}`;
+        const channelRef = doc(db, 'users', currentUser.uid, 'channelConnections', connectionId);
+        const channelDoc = await getDoc(channelRef);
         
-        if (!existingConnection) {
-          // Añadir a la lista de conexiones para mostrar en UI
-          const connectionData: ChannelConnection = {
-            id: `gmail_${new Date().getTime()}`,
+        if (!channelDoc.exists()) {
+          console.log('Creando entrada en channelConnections para Gmail');
+          
+          // Crear la conexión si no existe
+          await setDoc(channelRef, {
+            id: connectionId,
             channelId: "gmail",
             username: profileInfo.email,
             profileUrl: `https://mail.google.com/mail/u/${profileInfo.email}`,
@@ -432,9 +436,31 @@ const Channels = () => {
             connectedAt: Timestamp.now(),
             status: 'active',
             lastSync: Timestamp.now()
-          };
+          });
           
-          setConnections(prev => [...prev, connectionData]);
+          // Forzar recarga de conexiones para actualizar UI
+          await loadConnections();
+        } else {
+          // Verificar si la conexión existe en el estado actual
+          const existingConnection = connections.find(conn => 
+            conn.channelId === "gmail" && conn.username === profileInfo.email
+          );
+          
+          if (!existingConnection) {
+            // Si existe en Firebase pero no en el estado, añadirlo al estado
+            const connectionData: ChannelConnection = {
+              id: connectionId,
+              channelId: "gmail",
+              username: profileInfo.email,
+              profileUrl: `https://mail.google.com/mail/u/${profileInfo.email}`,
+              profileImage: profileInfo.picture,
+              connectedAt: channelDoc.data().connectedAt || Timestamp.now(),
+              status: 'active',
+              lastSync: channelDoc.data().lastSync || Timestamp.now()
+            };
+            
+            setConnections(prev => [...prev, connectionData]);
+          }
         }
       }
     } catch (error) {
@@ -466,8 +492,23 @@ const Channels = () => {
     
     // Si es Gmail, usar la autenticación de OAuth a través de nuestra función
     if (channel.id === "gmail") {
-      // Usar la función handleGmailConnection que redirige a la autenticación de OAuth
-      handleGmailConnection();
+      if (gmailConnected) {
+        // Si ya está conectado, mostrar mensaje y opciones
+        toast({
+          title: "Gmail ya conectado",
+          description: `Tu cuenta ${gmailEmail} ya está conectada. ¿Deseas configurarla o cambiar de cuenta?`,
+          action: (
+            <Button variant="outline" onClick={() => handleGmailConnection()}>
+              Cambiar cuenta
+            </Button>
+          )
+        });
+        // Mostrar opciones de configuración
+        setShowConfigModal(true);
+      } else {
+        // Si no está conectado, iniciar el flujo OAuth
+        handleGmailConnection();
+      }
       return;
     }
     
@@ -743,78 +784,22 @@ const Channels = () => {
     );
   };
 
-  // Función para autenticar con Gmail
-  const authenticateGmail = async () => {
-    if (!gmailEmail || !gmailPassword) {
+  // Añadir la función para conectar Gmail
+  const handleGmailConnection = async () => {
+    if (!currentUser) {
+      // Mensaje de error si no hay usuario autenticado
       toast({
         title: "Error",
-        description: "Por favor, completa todos los campos",
+        description: "Debes iniciar sesión para conectar tu cuenta de Gmail.",
         variant: "destructive"
       });
       return;
     }
     
-    setIsAuthenticating(true);
-    
-    try {
-      // Simulación de autenticación (en una implementación real usaríamos OAuth)
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // En una implementación real, aquí iría la lógica de OAuth 2.0 con las credenciales proporcionadas
-      const authData = {
-        clientId: process.env.REACT_APP_GMAIL_CLIENT_ID || "GMAIL_CLIENT_ID",
-        clientSecret: process.env.REACT_APP_GMAIL_CLIENT_SECRET || "GMAIL_CLIENT_SECRET",
-        redirectUri: window.location.origin + "/auth/callback",
-        email: gmailEmail
-      };
-      
-      console.log("Autenticando con Gmail:", authData);
-      
-      // Guardar la conexión en Firestore (simulado)
-      if (currentUser) {
-        const connectionData: Partial<ChannelConnection> = {
-          channelId: "gmail",
-          username: gmailEmail,
-          profileUrl: `https://mail.google.com/mail/u/${gmailEmail}`,
-          connectedAt: serverTimestamp(),
-          status: 'active',
-          lastSync: serverTimestamp()
-        };
-        
-        // En implementación real, guardar en Firestore
-        const connectionRef = await addDoc(
-          collection(db, "users", currentUser.uid, "channelConnections"), 
-          connectionData
-        );
-        
-        // Añadir localmente para actualizar UI
-        setConnections(prev => [...prev, {
-          id: connectionRef.id,
-          ...connectionData as ChannelConnection
-        }]);
-      }
-      
-      // Cerrar modal de conexión y abrir modal de configuración
-      setShowConnectionModal(false);
-      setShowConfigModal(true);
-      
-      toast({
-        title: "Conectado exitosamente",
-        description: `Tu cuenta de Gmail ${gmailEmail} ha sido conectada a Kalma.`,
-        variant: "default"
-      });
-    } catch (error) {
-      console.error("Error al autenticar con Gmail:", error);
-      toast({
-        title: "Error de autenticación",
-        description: "No se pudo conectar con Gmail. Intenta nuevamente.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsAuthenticating(false);
-    }
+    // Redireccionar a la función serverless que inicia el flujo de OAuth
+    window.location.href = `/.netlify/functions/gmail-auth?userId=${currentUser.uid}`;
   };
-  
+
   // Función para guardar la configuración de Gmail
   const saveGmailConfig = async () => {
     try {
@@ -843,22 +828,6 @@ const Channels = () => {
         variant: "destructive"
       });
     }
-  };
-
-  // Añadir la función para conectar Gmail
-  const handleGmailConnection = async () => {
-    if (!currentUser) {
-      // Mensaje de error si no hay usuario autenticado
-      toast({
-        title: "Error",
-        description: "Debes iniciar sesión para conectar tu cuenta de Gmail.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Redireccionar a la función serverless que inicia el flujo de OAuth
-    window.location.href = `/.netlify/functions/gmail-auth?userId=${currentUser.uid}`;
   };
 
   // Componente principal
@@ -912,82 +881,8 @@ const Channels = () => {
         </Tabs>
       )}
       
-      {/* Modal para conectar Gmail */}
-      <AlertDialog open={showConnectionModal && selectedChannel?.id === 'gmail'} onOpenChange={(open) => !open && setShowConnectionModal(false)}>
-        <AlertDialogContent className="sm:max-w-md">
-          <AlertDialogHeader>
-            <div className="flex items-center gap-3 mb-2">
-              <div className={`w-10 h-10 rounded-full ${selectedChannel?.gradient ? `bg-gradient-to-r ${selectedChannel?.gradient}` : selectedChannel?.color} flex items-center justify-center text-white`}>
-                {selectedChannel?.icon}
-              </div>
-              <AlertDialogTitle>Conectar cuenta de Gmail</AlertDialogTitle>
-            </div>
-            <AlertDialogDescription>
-              Introduce las credenciales de tu cuenta de Gmail para conectar y gestionar tus correos electrónicos desde Kalma.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          
-          <div className="space-y-4 py-3">
-            <div className="space-y-2">
-              <Label htmlFor="gmail-email">Correo electrónico</Label>
-              <Input 
-                id="gmail-email" 
-                type="email" 
-                placeholder="ejemplo@gmail.com" 
-                autoComplete="email"
-                value={gmailEmail}
-                onChange={(e) => setGmailEmail(e.target.value)}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="gmail-password">Contraseña</Label>
-              <Input 
-                id="gmail-password" 
-                type="password" 
-                placeholder="••••••••" 
-                autoComplete="current-password"
-                value={gmailPassword}
-                onChange={(e) => setGmailPassword(e.target.value)}
-              />
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Switch id="remember-credentials" checked={rememberCredentials} onCheckedChange={(checked) => setRememberCredentials(checked)} />
-              <Label htmlFor="remember-credentials">Recordar credenciales en este dispositivo</Label>
-            </div>
-            
-            <div className="bg-blue-50 p-3 rounded-md border border-blue-100 text-sm text-blue-700 flex items-start">
-              <Info className="h-5 w-5 mr-2 flex-shrink-0 text-blue-500" />
-              <p>
-                Kalma utiliza OAuth 2.0 para acceder a tu cuenta de Gmail de forma segura. 
-                No almacenamos tu contraseña y puedes revocar el acceso en cualquier momento.
-                <br />
-                <br />
-                ID de cliente: {process.env.REACT_APP_GMAIL_CLIENT_ID || "Configurado en sistema"}
-              </p>
-            </div>
-          </div>
-          
-          <AlertDialogFooter className="flex-col sm:flex-row sm:justify-end gap-2">
-            <AlertDialogCancel disabled={isAuthenticating}>Cancelar</AlertDialogCancel>
-            <Button 
-              className={`${selectedChannel?.gradient ? `bg-gradient-to-r ${selectedChannel?.gradient}` : selectedChannel?.color} text-white`} 
-              onClick={authenticateGmail}
-              disabled={isAuthenticating || !gmailEmail || !gmailPassword}
-            >
-              {isAuthenticating ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Conectando...
-                </>
-              ) : (
-                "Conectar Gmail"
-              )}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Modal para conectar Gmail - Ya no es necesario */}
+      {/* Eliminar todo este modal que solicita email/password - ahora usamos OAuth */}
       
       {/* Modal para configuración después de conectar */}
       <AlertDialog open={showConfigModal} onOpenChange={(open) => !open && setShowConfigModal(false)}>

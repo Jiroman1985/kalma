@@ -7,8 +7,11 @@ const SCOPES = [
 ];
 
 exports.handler = async function(event, context) {
+  console.log('Iniciando flujo de autenticación de Gmail');
+  
   // Verificar si existe el ID del cliente
   if (!GOOGLE_CLIENT_ID) {
+    console.error('No se ha configurado GOOGLE_CLIENT_ID en las variables de entorno');
     return {
       statusCode: 500,
       body: JSON.stringify({ error: 'No se ha configurado GOOGLE_CLIENT_ID en las variables de entorno' })
@@ -20,11 +23,15 @@ exports.handler = async function(event, context) {
     const { userId } = event.queryStringParameters || {};
     
     if (!userId) {
+      console.error('Se requiere userId para la autenticación');
       return {
         statusCode: 400,
         body: JSON.stringify({ error: 'Se requiere userId para la autenticación' })
       };
     }
+    
+    console.log('Iniciando autenticación para el usuario:', userId);
+    console.log('URL de redirección configurada:', REDIRECT_URI);
 
     // Crear estado para seguridad que incluye userId para mantener la referencia
     const state = Buffer.from(JSON.stringify({ userId })).toString('base64');
@@ -39,6 +46,8 @@ exports.handler = async function(event, context) {
     authUrl.searchParams.append('prompt', 'consent');
     authUrl.searchParams.append('state', state);
 
+    console.log('URL de autorización generada:', authUrl.toString().replace(GOOGLE_CLIENT_ID, 'CLIENT_ID_CENSURADO'));
+    
     // Redireccionar a la URL de autorización
     return {
       statusCode: 302,

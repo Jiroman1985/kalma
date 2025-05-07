@@ -74,11 +74,34 @@ exports.handler = async function(event, context) {
       createdAt: new Date()
     });
     
-    // Redireccionar a la página de éxito
+    // Guardar en la estructura legacy (socialNetworks.gmail)
+    await saveLegacyGmailData(userId, {
+      accessToken: tokenResponse.access_token,
+      refreshToken: tokenResponse.refresh_token,
+      tokenExpiresAt: Date.now() + (tokenResponse.expires_in * 1000),
+      profile: profileInfo,
+      obtainedAt: Date.now(),
+      lastUpdated: Date.now(),
+      connected: true,
+      isValid: true
+    });
+    
+    // Crear entrada en channelConnections para activar el canal en la plataforma
+    await createChannelConnection(userId, {
+      channelId: 'gmail',
+      username: profileInfo.email,
+      profileUrl: `https://mail.google.com/mail/u/${profileInfo.email}`,
+      profileImage: profileInfo.picture,
+      connectedAt: new Date(),
+      status: 'active',
+      lastSync: new Date()
+    });
+    
+    // Redireccionar a la página de éxito - cambiar a /dashboard/channels para mantener consistencia
     return {
       statusCode: 302,
       headers: {
-        Location: '/auth/gmail/success'
+        Location: '/dashboard/channels'
       },
       body: ''
     };
@@ -172,5 +195,62 @@ async function saveGmailTokens(userId, tokenData) {
   } catch (error) {
     console.error('Error al guardar tokens de Gmail:', error);
     throw new Error('No se pudieron guardar los tokens en la base de datos');
+  }
+}
+
+// Función para guardar datos de Gmail en la estructura legacy
+async function saveLegacyGmailData(userId, gmailData) {
+  const db = initializeFirebaseAdmin();
+  
+  try {
+    // Guardar en la estructura socialNetworks.gmail del documento del usuario
+    await db.collection('users').doc(userId).update({
+      'socialNetworks.gmail': gmailData
+    });
+    
+    console.log('Datos de Gmail guardados en estructura legacy para el usuario:', userId);
+    return true;
+  } catch (error) {
+    console.error('Error al guardar datos legacy de Gmail:', error);
+    console.log('Intentando crear el documento del usuario si no existe...');
+    
+    try {
+      // Si el update falla, puede ser porque el documento o el campo no existen
+      // Intentar con set + merge
+      await db.collection('users').doc(userId).set({
+        socialNetworks: {
+          gmail: gmailData
+        }
+      }, { merge: true });
+      
+      console.log('Datos de Gmail guardados con set+merge para el usuario:', userId);
+      return true;
+    } catch (secondError) {
+      console.error('Error al intentar set+merge para Gmail:', secondError);
+      throw new Error('No se pudieron guardar los datos legacy de Gmail');
+    }
+  }
+}
+
+// Función para crear entrada en channelConnections
+async function createChannelConnection(userId, connectionData) {
+  const db = initializeFirebaseAdmin();
+  
+  try {
+    // Crear un documento en la colección channelConnections
+    const connectionId = `gmail_${connectionData.username.replace(/[@\.]/g, '_')}`;
+    
+    await db.collection('users').doc(userId)
+      .collection('channelConnections').doc(connectionId)
+      .set({
+        id: connectionId,
+        ...connectionData
+      });
+    
+    console.log('Conexión de canal creada para Gmail:', connectionId);
+    return true;
+  } catch (error) {
+    console.error('Error al crear conexión de canal para Gmail:', error);
+    throw new Error('No se pudo activar el canal de Gmail en la plataforma');
   }
 } 
