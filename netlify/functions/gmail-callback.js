@@ -102,19 +102,42 @@ async function exchangeCodeForTokens(code) {
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
   const REDIRECT_URI = process.env.URL_GOOGLE + '/auth/gmail/callback';
   
+  console.log('Intercambiando código por tokens con los siguientes parámetros:');
+  console.log('REDIRECT_URI:', REDIRECT_URI);
+  console.log('GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID.substring(0, 10) + '...');
+  
   try {
-    const response = await axios.post('https://oauth2.googleapis.com/token', {
-      code,
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      redirect_uri: REDIRECT_URI,
-      grant_type: 'authorization_code'
-    });
+    // Usar URLSearchParams para enviar datos como application/x-www-form-urlencoded
+    // en lugar de JSON, que es lo que espera Google
+    const formData = new URLSearchParams();
+    formData.append('code', code);
+    formData.append('client_id', GOOGLE_CLIENT_ID);
+    formData.append('client_secret', GOOGLE_CLIENT_SECRET);
+    formData.append('redirect_uri', REDIRECT_URI);
+    formData.append('grant_type', 'authorization_code');
     
+    const response = await axios.post(
+      'https://oauth2.googleapis.com/token', 
+      formData.toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+    
+    console.log('Respuesta de tokens recibida:', JSON.stringify(response.data).substring(0, 100) + '...');
     return response.data;
   } catch (error) {
-    console.error('Error al intercambiar código por tokens:', error.response?.data || error.message);
-    throw new Error('No se pudieron obtener los tokens de acceso');
+    console.error('Error al intercambiar código por tokens:');
+    if (error.response) {
+      console.error('Datos de respuesta:', JSON.stringify(error.response.data));
+      console.error('Estado HTTP:', error.response.status);
+      console.error('Cabeceras:', JSON.stringify(error.response.headers));
+    } else {
+      console.error('Error:', error.message);
+    }
+    throw new Error('No se pudieron obtener los tokens de acceso: ' + (error.response?.data?.error_description || error.message));
   }
 }
 
