@@ -231,8 +231,8 @@ export const getWhatsAppMessages = async (
       collection(db, "messages"),
       where("userId", "==", userId),
       where("platform", "==", "whatsapp"),
-      orderBy("createdAt", "desc"),
-      limit(messageLimit)
+      orderBy("timestamp", "desc"),
+      limit(messageLimit * 2) // Aumentamos el límite para incluir respuestas
     );
     
     const querySnapshot = await getDocs(whatsappQuery);
@@ -253,7 +253,7 @@ export const getWhatsAppMessages = async (
           body: data.content || data.body || "",
           from: data.senderId || data.from || "",
           to: data.recipientId || data.to || "",
-          timestamp: data.createdAt || data.timestamp,
+          timestamp: data.timestamp || data.createdAt,
           isFromMe: data.isFromUser || data.isFromMe || false,
           senderName: data.senderName || "",
           messageType: data.type || "text",
@@ -272,9 +272,17 @@ export const getWhatsAppMessages = async (
           sentiment: data.sentiment || "neutral",
           status: data.status || "sent",
           type: data.type || "text",
-          aiAssisted: data.aiAssisted || false
+          aiAssisted: data.aiAssisted || false,
+          originalMessageId: data.originalMessageId || null // Asegurarnos de capturar este campo
         });
       });
+      
+      // Log de diagnóstico
+      const messagesWithOriginal = messages.filter(msg => msg.originalMessageId);
+      console.log(`Mensajes con originalMessageId: ${messagesWithOriginal.length}`);
+      if (messagesWithOriginal.length > 0) {
+        console.log('Ejemplo de mensaje con originalMessageId:', messagesWithOriginal[0]);
+      }
       
       return messages;
     }

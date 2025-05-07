@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, MessageSquare, User, Calendar, Clock, Filter, MessageCircle, Bot, Send, X } from "lucide-react";
+import { Search, MessageSquare, User, Calendar, Clock, Filter, MessageCircle, Bot, Send, X, Check } from "lucide-react";
 import { 
   Facebook, 
   Instagram, 
@@ -172,13 +172,29 @@ const Conversations = () => {
     // Crear conversaciones a partir de los mensajes
     const conversationsData: Conversation[] = [];
     
-    // Agrupar mensajes por contacto (from)
-    const messagesByContact = new Map<string, WhatsAppMessage[]>();
+    // Separar mensajes originales y respuestas
+    const originalMessages: WhatsAppMessage[] = [];
+    const responseMessages: WhatsAppMessage[] = [];
     
     whatsappMessages.forEach(message => {
       // Ignorar mensajes sin remitente o cuerpo
       if (!message.from || !message.body) return;
       
+      if (message.originalMessageId) {
+        // Es una respuesta
+        responseMessages.push(message);
+      } else {
+        // Es un mensaje original
+        originalMessages.push(message);
+      }
+    });
+    
+    console.log(`Mensajes originales: ${originalMessages.length}, Respuestas: ${responseMessages.length}`);
+    
+    // Agrupar mensajes originales por contacto (from)
+    const messagesByContact = new Map<string, WhatsAppMessage[]>();
+    
+    originalMessages.forEach(message => {
       const contactId = message.isFromMe ? message.to : message.from;
       if (!messagesByContact.has(contactId)) {
         messagesByContact.set(contactId, []);
@@ -202,9 +218,52 @@ const Conversations = () => {
       const latestMessage = messages[0];
       
       // Buscar respuesta al mensaje si existe
-      const responseMessage = messages.find(msg => 
-        msg.originalMessageId === latestMessage.messageId
+      const responseMessage = responseMessages.find(msg => 
+        msg.originalMessageId === latestMessage.messageId || msg.originalMessageId === latestMessage.id
       );
+      
+      // Si no encontramos respuesta directa, buscar por respondido flag
+      let hasResponse = !!responseMessage;
+      if (!hasResponse && latestMessage.responded) {
+        // Buscar la respuesta más cercana por tiempo
+        const possibleResponses = responseMessages.filter(msg => 
+          msg.from === latestMessage.to && msg.to === latestMessage.from
+        );
+        
+        if (possibleResponses.length > 0) {
+          // Ordenar por cercanía de tiempo al mensaje original
+          possibleResponses.sort((a, b) => {
+            const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : 
+                        typeof a.timestamp === 'number' ? a.timestamp : 0;
+            const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : 
+                        typeof b.timestamp === 'number' ? b.timestamp : 0;
+            const originalTime = latestMessage.timestamp instanceof Timestamp ? 
+                                latestMessage.timestamp.toMillis() : 
+                                typeof latestMessage.timestamp === 'number' ? 
+                                latestMessage.timestamp : 0;
+            
+            return Math.abs(timeA - originalTime) - Math.abs(timeB - originalTime);
+          });
+          
+          // Usar la respuesta más cercana en tiempo
+          const nearestResponse = possibleResponses[0];
+          hasResponse = true;
+          
+          conversationsData.push({
+            id: latestMessage.id,
+            user: latestMessage.senderName || contactId,
+            contactId: contactId,
+            originalMessage: latestMessage,
+            responseMessage: nearestResponse,
+            platform: 'whatsapp',
+            timestamp: latestMessage.timestamp || new Date(),
+            isRead: latestMessage.status === 'read',
+            isReplied: true
+          });
+          
+          continue; // Saltamos a la siguiente iteración
+        }
+      }
       
       conversationsData.push({
         id: latestMessage.id,
@@ -347,15 +406,17 @@ const Conversations = () => {
     return socialConversations;
   };
 
-  // Actualizar función sendReply para usar el servicio de email para respuestas
+  // Función para enviar una respuesta
   const sendReply = async () => {
-    if (!replyingTo || !replyText.trim()) return;
+    if (!replyingTo || !replyText.trim() || !currentUser) {
+      return;
+    }
     
     setSendingReply(true);
     
     try {
       if (replyingTo.platform === 'whatsapp') {
-        // Lógica para responder mensajes de WhatsApp (se mantiene igual)
+        // Lógica para responder mensajes de WhatsApp
         const whatsappMessage = replyingTo.originalMessage as WhatsAppMessage;
         
         // Crear un mensaje de respuesta en Firestore
@@ -367,17 +428,18 @@ const Conversations = () => {
           isFromMe: true,
           senderName: "Mi Empresa", // O usar un nombre más específico
           messageType: "text",
-          originalMessageId: whatsappMessage.messageId || whatsappMessage.id,
+          originalMessageId: whatsappMessage.messageId || whatsappMessage.id, // Importante: vincular con el original
           responded: false,
           platform: "whatsapp",
           userId: currentUser.uid,
           status: "sent",
-          type: "text"
+          type: "text",
+          aiAssisted: true // Marcar como respuesta asistida por IA
         };
         
         // Guardar respuesta en Firestore
         const messagesRef = collection(db, "messages");
-        await addDoc(messagesRef, responseData);
+        const newResponseDoc = await addDoc(messagesRef, responseData);
         
         // Actualizar el mensaje original para marcarlo como respondido
         const originalMessageRef = doc(db, "messages", whatsappMessage.id);
@@ -385,60 +447,46 @@ const Conversations = () => {
           responded: true,
           updatedAt: serverTimestamp()
         });
-      } 
-      else if (replyingTo.platform === 'gmail') {
-        // Usar el servicio de email para enviar respuestas
-        const emailId = replyingTo.id;
-        const response = await replyToEmail(currentUser.uid, emailId, replyText);
         
-        if (!response) {
-          throw new Error("No se pudo enviar la respuesta al correo electrónico");
-        }
-      }
-      else {
-        // Para redes sociales: En un escenario real, esto enviaría la respuesta a través de API
-        // En esta versión de demostración, simularemos la respuesta
-
-        // Simular un identificador único para la respuesta
-        const responseId = `resp_${Date.now()}`;
-        
-        // Construir una respuesta simulada
-        const socialResponse = {
-          id: responseId,
-          platform: replyingTo.platform,
-          sender: {
-            name: "Mi Empresa",
-            avatar: "https://ui-avatars.com/api/?name=Mi+Empresa"
-          },
-          content: replyText,
-          timestamp: new Date(),
-          read: true,
-          replied: false,
-          accountId: (replyingTo.originalMessage as SocialMediaMessage).accountId
-        };
-
-        // Actualizar la conversación localmente para mostrar la respuesta
+        // Actualizar la UI
         const updatedConversations = conversations.map(conv => {
           if (conv.id === replyingTo.id) {
+            // Crear objeto de respuesta con los campos necesarios
+            const responseMessage: WhatsAppMessage = {
+              id: newResponseDoc.id,
+              messageId: newResponseDoc.id,
+              body: replyText,
+              from: whatsappMessage.to,
+              to: whatsappMessage.from,
+              timestamp: Timestamp.now(),
+              isFromMe: true,
+              senderName: "Mi Empresa",
+              messageType: "text",
+              originalMessageId: whatsappMessage.messageId || whatsappMessage.id,
+              status: "sent",
+              type: "text",
+              aiAssisted: true
+            };
+            
             return {
               ...conv,
-              responseMessage: socialResponse,
-              isReplied: true
+              isReplied: true,
+              responseMessage: responseMessage
             };
           }
           return conv;
         });
-
-        // Actualizar estado
+        
+        // Actualizar estado de conversaciones
         setConversations(updatedConversations);
       }
-
+      
       // Mostrar confirmación
       toast({
         title: "Respuesta enviada",
         description: "Tu respuesta ha sido enviada correctamente.",
       });
-
+      
       // Limpiar estado de respuesta
       setReplyText("");
       setReplyingTo(null);
@@ -637,16 +685,78 @@ const Conversations = () => {
     }
   };
 
-  // Actualizar handleConversationClick para cargar hilos de email
-  const handleConversationClick = (conversation: Conversation) => {
-    setReplyingTo(conversation);
+  // Función para marcar mensaje como leído o no leído
+  const markAsRead = async (conversation: Conversation) => {
+    if (!currentUser) return;
     
-    // Si es un correo electrónico, intentar cargar el hilo completo
-    if (conversation.platform === 'gmail') {
-      loadEmailThread(conversation);
+    // Actualizar en la UI
+    const updatedConversations = conversations.map(conv => {
+      if (conv.id === conversation.id) {
+        return {
+          ...conv,
+          isRead: !conv.isRead
+        };
+      }
+      return conv;
+    });
+    
+    setConversations(updatedConversations);
+    
+    // Actualizar en Firestore
+    try {
+      if (conversation.platform === 'whatsapp') {
+        const msgRef = doc(db, "messages", conversation.id);
+        await updateDoc(msgRef, {
+          status: !conversation.isRead ? 'read' : 'delivered',
+          updatedAt: serverTimestamp()
+        });
+        
+        // Actualizar conteo
+        const newUnreadCount = {
+          ...unreadCount,
+          whatsapp: !conversation.isRead 
+            ? Math.max(0, unreadCount.whatsapp - 1) 
+            : unreadCount.whatsapp + 1
+        };
+        setUnreadCount(newUnreadCount);
+      }
+      // Para otras plataformas, implementar lógica similar
+    } catch (error) {
+      console.error("Error al actualizar estado de lectura:", error);
+      // Revertir cambio en UI
+      setConversations(conversations);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el estado del mensaje.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Función para iniciar respuesta a un mensaje
+  const startReply = (conversation: Conversation) => {
+    setReplyingTo(conversation);
+    setReplyText(''); // Limpiar texto de respuesta anterior
+    
+    // Si es WhatsApp y el mensaje no está leído, marcarlo como leído
+    if (conversation.platform === 'whatsapp' && !conversation.isRead) {
+      markAsRead(conversation);
+    }
+  };
+
+  // Función para manejar el clic en una conversación
+  const handleConversationClick = (conversation: Conversation) => {
+    // Si no está leído, marcarlo como leído
+    if (!conversation.isRead) {
+      markAsRead(conversation);
     } else {
-      // Para otras plataformas, resetear el hilo seleccionado
-      setSelectedThread(null);
+      // Si ya está leído, alternar estado
+      markAsRead(conversation);
+    }
+    
+    // Si no está respondido, iniciar la respuesta
+    if (!conversation.isReplied) {
+      startReply(conversation);
     }
   };
 
@@ -774,179 +884,147 @@ const Conversations = () => {
         </Button>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {filteredConversations.length > 0 ? (
-            filteredConversations.map((conversation) => {
-              const isWhatsApp = conversation.platform === 'whatsapp';
-              const messageContent = getMessageContent(conversation.originalMessage);
-              const originalTime = formatTimestamp(conversation.timestamp);
-              const responseTime = conversation.responseMessage 
-                ? formatTimestamp('timestamp' in conversation.responseMessage 
-                    ? conversation.responseMessage.timestamp 
-                    : ('timestamp' in conversation.originalMessage ? conversation.originalMessage.timestamp : new Date()))
-                : null;
-              
-              const isReplying = replyingTo?.id === conversation.id;
-              
-              return (
-                <Card 
-                  key={conversation.id} 
-                  className={`hover:bg-gray-50 transition-colors ${!conversation.isRead ? 'border-l-4 border-l-blue-500' : ''}`}
-                >
-                  <CardHeader className="pb-2">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-2">
-                        <div className="relative">
-                          {conversation.userAvatar ? (
-                            <Avatar>
-                              <AvatarImage src={conversation.userAvatar} alt={conversation.user} />
-                              <AvatarFallback>{conversation.user.substring(0, 2).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                          ) : (
-                            <div className="bg-gray-200 rounded-full p-2">
-                              <User className="h-5 w-5 text-gray-600" />
-                            </div>
-                          )}
-                          {!conversation.isRead && (
-                            <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-blue-500"></span>
-                          )}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <CardTitle className="text-base">{conversation.user}</CardTitle>
-                            {getPlatformBadge(conversation.platform)}
-                          </div>
-                          <CardDescription className="text-xs">{conversation.contactId}</CardDescription>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-1 text-xs text-gray-500">
-                          <Calendar className="h-3 w-3" />
-                          <span>{originalTime.date}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-gray-500">
-                          <Clock className="h-3 w-3" />
-                          <span>{originalTime.time}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
+      {/* Lista de conversaciones */}
+      <div className="grid gap-6 mt-4">
+        {loading ? (
+          // Mostrar estado de carga
+          <div className="flex justify-center my-12">
+            <div className="flex flex-col items-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 mb-4"></div>
+              <p className="text-gray-500">Cargando conversaciones...</p>
+            </div>
+          </div>
+        ) : filteredConversations.length === 0 ? (
+          // Mostrar estado vacío
+          <div className="text-center p-8 border rounded-lg bg-gray-50">
+            <MessageSquare className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+            <h3 className="text-lg font-medium text-gray-700">No hay conversaciones</h3>
+            <p className="text-gray-500 mt-1 mb-4">
+              {searchTerm ? 
+                "No se encontraron resultados para tu búsqueda." : 
+                "Cuando recibas mensajes, aparecerán aquí."}
+            </p>
+          </div>
+        ) : (
+          // Renderizar lista de conversaciones
+          filteredConversations.map((conversation) => {
+            const isWhatsApp = conversation.platform === 'whatsapp';
+            
+            // Obtener información del mensaje
+            const messageContent = getMessageContent(conversation.originalMessage);
+            const messageTime = formatTimestamp(conversation.timestamp);
+            
+            // Obtener información de la respuesta
+            const hasResponse = !!conversation.responseMessage;
+            const responseContent = hasResponse ? getMessageContent(conversation.responseMessage!) : '';
+            const responseTime = hasResponse ? formatTimestamp(conversation.responseMessage!.timestamp) : null;
+            
+            return (
+              <div 
+                key={conversation.id}
+                className={`relative border rounded-lg p-4 transition-all hover:border-gray-400 ${
+                  conversation.isRead ? 'bg-white' : 'bg-blue-50'
+                }`}
+              >
+                {/* Mostrar indicador de no leído */}
+                {!conversation.isRead && (
+                  <div className="absolute top-4 right-4 w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+                )}
+                
+                {/* Encabezado */}
+                <div className="flex items-center mb-3">
+                  {/* Avatar */}
+                  <div className="flex-shrink-0 mr-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback>
+                        {conversation.user.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
                   
-                  <CardContent className="space-y-4">
-                    {/* Mensaje original */}
-                    <div className={`flex gap-3 items-start ${getPlatformBgColor(conversation.platform)} p-3 rounded-lg`}>
-                      {getPlatformIcon(conversation.platform)}
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-700">{messageContent}</p>
-                        <p className="text-xs text-gray-500 mt-1">{originalTime.formatted}</p>
-                      </div>
-                    </div>
-                    
-                    {/* Respuesta si existe */}
-                    {conversation.responseMessage && (
-                      <div className="flex gap-3 items-start bg-green-50 p-3 rounded-lg ml-6">
-                        <Bot className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                        <div className="flex-1">
-                          <p className="text-sm text-gray-700">
-                            {isWhatsApp 
-                              ? (conversation.responseMessage as WhatsAppMessage).body 
-                              : (conversation.responseMessage as SocialMediaMessage).content
-                            }
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {responseTime?.formatted || 'Fecha desconocida'}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Formulario de respuesta */}
-                    {isReplying && (
-                      <div className="flex flex-col gap-2 p-3 border rounded-lg ml-6 bg-blue-50">
-                        <div className="flex justify-between items-center mb-1">
-                          <h4 className="text-sm font-medium">Responder a {conversation.user}</h4>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-6 w-6"
-                            onClick={() => setReplyingTo(null)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <Textarea
-                          ref={replyInputRef}
-                          placeholder={`Escribe tu respuesta para ${conversation.user}...`}
-                          value={replyText}
-                          onChange={(e) => setReplyText(e.target.value)}
-                          className="min-h-[80px]"
-                        />
-                        <div className="flex justify-end mt-2">
-                          <Button 
-                            onClick={sendReply} 
-                            disabled={sendingReply || !replyText.trim()}
-                            className="flex items-center gap-2"
-                          >
-                            {sendingReply ? (
-                              <>
-                                <div className="h-4 w-4 border-t-2 border-r-2 border-white rounded-full animate-spin"></div>
-                                Enviando...
-                              </>
-                            ) : (
-                              <>
-                                <Send className="h-4 w-4" />
-                                Enviar
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                  
-                  <CardFooter className="flex justify-between">
-                    <div className="flex">
-                      {!conversation.isReplied && !isReplying && (
-                        <Button 
+                  {/* Información del usuario */}
+                  <div className="flex-grow">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center">
+                        <h4 className="font-medium">{conversation.user}</h4>
+                        <Badge 
                           variant="outline" 
-                          size="sm"
-                          onClick={() => setReplyingTo(conversation)}
+                          className="ml-2 px-1.5 py-0 text-xs flex items-center"
                         >
-                          Responder
-                        </Button>
-                      )}
-                    </div>
-                    <div className="flex justify-end">
-                      <span 
-                        className={`text-xs px-2 py-1 rounded-full ${
-                          conversation.isReplied 
-                            ? "bg-green-100 text-green-800" 
-                            : "bg-yellow-100 text-yellow-800"
-                        }`}
-                      >
-                        {conversation.isReplied ? "Respondido" : "Pendiente"}
+                          {getPlatformIcon(conversation.platform)}
+                          <span className="ml-1">{conversation.platform}</span>
+                        </Badge>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {messageTime.formatted}
                       </span>
                     </div>
-                  </CardFooter>
-                </Card>
-              );
-            })
-          ) : (
-            <div className="text-center py-10">
-              <MessageSquare className="mx-auto h-8 w-8 text-gray-400" />
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No se encontraron conversaciones</h3>
-              <p className="mt-1 text-sm text-gray-500">
-                No hay conversaciones que coincidan con tu búsqueda.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+                  </div>
+                </div>
+                
+                {/* Contenido del mensaje */}
+                <div className="mb-2 relative">
+                  {/* Mensaje original */}
+                  <div className="text-sm text-gray-700">
+                    {isWhatsApp ? (
+                      <div className="flex gap-3 items-start">
+                        <User className="h-5 w-5 text-gray-500 mt-0.5 shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm">{messageContent}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p>{messageContent}</p>
+                    )}
+                  </div>
+                  
+                  {/* Respuesta de la IA si existe */}
+                  {hasResponse && (
+                    <div className="flex gap-3 items-start mt-3 bg-green-50 p-3 rounded-lg ml-6">
+                      <Bot className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-700">
+                          {isWhatsApp 
+                            ? (conversation.responseMessage as WhatsAppMessage).body 
+                            : (conversation.responseMessage as SocialMediaMessage).content
+                          }
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {responseTime?.formatted || 'Fecha desconocida'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Acciones */}
+                <div className="flex justify-end gap-2 mt-2">
+                  {!conversation.isReplied && (
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="text-xs"
+                      onClick={() => handleConversationClick(conversation)}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5 mr-1" />
+                      Responder
+                    </Button>
+                  )}
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="text-xs"
+                    onClick={() => handleConversationClick(conversation)}
+                  >
+                    <Check className="h-3.5 w-3.5 mr-1" />
+                    {conversation.isRead ? "Marcar como no leído" : "Marcar como leído"}
+                  </Button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
 
       {/* Conversación seleccionada */}
       {replyingTo && (
