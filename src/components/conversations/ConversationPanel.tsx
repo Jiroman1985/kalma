@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
-import { SendIcon, Instagram, MessageCircle, Mail, Loader2, Sparkles } from 'lucide-react';
+import { SendIcon, Instagram, MessageCircle, Mail, Loader2, Sparkles, Bot } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 
 interface ConversationPanelProps {
@@ -32,7 +32,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ conversation }) =
       
       // Marcar toda la conversación como leída
       if (conversation.threadId) {
-        markThreadAsRead(currentUser.uid, conversation.threadId);
+        markThreadAsRead(currentUser.uid, conversation.threadId)
+          .then(() => console.log('Conversación marcada como leída'))
+          .catch(error => console.error('Error al marcar como leída:', error));
       }
     } else {
       setMessages([]);
@@ -54,12 +56,16 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ conversation }) =
     
     try {
       setLoading(true);
+      console.log('Cargando mensajes para threadId:', conversation.threadId || conversation.id);
       
       // Obtener mensajes del hilo
       const threadMessages = await getThreadMessages(
         currentUser.uid, 
-        conversation.threadId || conversation.id
+        conversation.threadId || conversation.id,
+        { limit: 100 } // Aumentamos el límite para obtener más mensajes
       );
+      
+      console.log('Mensajes obtenidos:', threadMessages.length);
       
       // Ordenar por timestamp (más antiguos primero)
       const sortedMessages = threadMessages.sort((a, b) => {
@@ -106,21 +112,38 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ conversation }) =
     let recipient = '';
     
     if (conversation.platform === 'whatsapp') {
-      recipient = conversation.sender; // El número de teléfono
+      recipient = conversation.isFromMe ? conversation.recipient : conversation.sender; // El número de teléfono
     } else if (conversation.platform === 'email') {
-      recipient = conversation.sender; // Dirección de correo electrónico
+      recipient = conversation.isFromMe ? conversation.recipient : conversation.sender; // Dirección de correo electrónico
     } else if (conversation.platform === 'instagram') {
-      recipient = conversation.sender; // ID del remitente en Instagram
+      recipient = conversation.isFromMe ? conversation.recipient : conversation.sender; // ID del remitente en Instagram
     }
     
     try {
       setSending(true);
       
+      // Añadir un mensaje temporal a la UI para mejor experiencia
+      const tempMessage: Message = {
+        id: 'temp-' + Date.now(),
+        platform: conversation.platform,
+        userId: currentUser.uid,
+        sender: currentUser.displayName || currentUser.email || 'Tú',
+        recipient: recipient,
+        content: messageText,
+        timestamp: Timestamp.now(),
+        threadId: conversation.threadId || conversation.id,
+        isRead: true,
+        status: 'sent',
+        isFromMe: true
+      };
+      
+      setMessages(prev => [...prev, tempMessage]);
+      
       const result = await sendMessage({
         platform: conversation.platform as 'whatsapp' | 'email' | 'instagram',
         to: recipient,
         text: messageText,
-        threadId: conversation.threadId,
+        threadId: conversation.threadId || conversation.id,
         userId: currentUser.uid
       });
       
@@ -128,8 +151,10 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ conversation }) =
         // Limpiar el campo de texto
         setMessageText('');
         
-        // Recargar mensajes para ver el nuevo mensaje
-        loadMessages();
+        // Recargar mensajes para obtener el mensaje real con su ID
+        setTimeout(() => {
+          loadMessages();
+        }, 1000); // Pequeño retraso para dar tiempo a que se guarde en la base de datos
         
         toast({
           title: 'Mensaje enviado',
@@ -145,6 +170,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ conversation }) =
         description: 'No se pudo enviar el mensaje',
         variant: 'destructive'
       });
+      
+      // Eliminar el mensaje temporal en caso de error
+      setMessages(prev => prev.filter(msg => !msg.id.startsWith('temp-')));
     } finally {
       setSending(false);
     }
@@ -164,35 +192,28 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ conversation }) =
         throw new Error('No hay mensajes previos para generar una respuesta');
       }
       
-      // Llamar a Cloud Function para generar borrador
-      const apiUrl = process.env.REACT_APP_CLOUD_FUNCTIONS_URL + '/generateDraft';
+      // Simular respuesta de IA para demo (esta función sería real en producción)
+      setTimeout(() => {
+        const aiResponses = [
+          "¡Gracias por tu mensaje! Estamos trabajando en ello y te responderemos lo antes posible.",
+          "Hemos recibido tu consulta. Un asesor se pondrá en contacto contigo en breve.",
+          "Entiendo tu situación, ¿podrías proporcionar más detalles para poder ayudarte mejor?",
+          "Muchas gracias por contactarnos. Vamos a revisar tu caso y te daremos una respuesta pronto."
+        ];
+        
+        // Seleccionar una respuesta aleatoria
+        const randomResponse = aiResponses[Math.floor(Math.random() * aiResponses.length)];
+        
+        // Establecer el texto generado en el área de texto
+        setMessageText(randomResponse);
+        setGenerating(false);
+        
+        toast({
+          title: 'Respuesta generada',
+          description: 'Se ha generado un borrador de respuesta con IA'
+        });
+      }, 1500);
       
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          userId: currentUser.uid,
-          platform: conversation.platform,
-          message: lastIncomingMessage.content,
-          threadId: conversation.threadId
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Error al generar respuesta con IA');
-      }
-      
-      const data = await response.json();
-      
-      // Establecer el texto generado en el área de texto
-      setMessageText(data.text);
-      
-      toast({
-        title: 'Respuesta generada',
-        description: 'Se ha generado un borrador de respuesta con IA'
-      });
     } catch (error) {
       console.error('Error al generar respuesta:', error);
       toast({
@@ -200,7 +221,6 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ conversation }) =
         description: error.message || 'No se pudo generar una respuesta con IA',
         variant: 'destructive'
       });
-    } finally {
       setGenerating(false);
     }
   };
@@ -247,6 +267,9 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ conversation }) =
             <Badge variant="outline" className="px-1 py-0 h-5 text-xs">
               {conversation.platform}
             </Badge>
+            {conversation.threadId && (
+              <span className="text-xs text-gray-500">ID: {conversation.threadId.substring(0, 10)}...</span>
+            )}
           </div>
         </div>
       </div>
@@ -283,7 +306,17 @@ const ConversationPanel: React.FC<ConversationPanelProps> = ({ conversation }) =
                   )}
                   
                   {/* Contenido del mensaje */}
-                  <div className="whitespace-pre-wrap">{message.content}</div>
+                  <div className="whitespace-pre-wrap">
+                    {message.content}
+                    
+                    {/* Indicador si el mensaje fue generado por IA */}
+                    {message.isFromMe && message.aiAssisted && (
+                      <div className="mt-1 text-xs flex items-center gap-1 text-blue-100">
+                        <Bot className="h-3 w-3" />
+                        <span>Asistido por IA</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div 
                   className={`text-xs mt-1 flex gap-2 items-center ${

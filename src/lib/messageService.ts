@@ -432,7 +432,7 @@ export const getConversationThreads = async (
     
     // Obtener mensajes de WhatsApp (prioridad principal)
     console.log('[getConversationThreads] Cargando mensajes de WhatsApp...');
-    const whatsappMessages = await getWhatsAppMessages(userId, 200);
+    const whatsappMessages = await getWhatsAppMessages(userId, 300); // Aumentamos el límite para tener más mensajes
     console.log('[getConversationThreads] Mensajes de WhatsApp cargados:', whatsappMessages.length);
     
     // Si estamos filtrando por plataformas específicas y WhatsApp no está incluido, no lo agregamos
@@ -440,18 +440,21 @@ export const getConversationThreads = async (
       allMessages = [...allMessages, ...whatsappMessages];
     }
     
-    // Filtrar mensajes para obtener solo los de este mes
+    // Filtrar mensajes para obtener solo los del mes actual (mayo 2024)
     const now = new Date();
+    // Definir el inicio del mes actual
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startTimestamp = startOfMonth.getTime();
+    // Calcular el final del mes actual
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
     
-    console.log('[getConversationThreads] Filtrando mensajes desde:', startOfMonth.toISOString());
+    const startTimestamp = startOfMonth.getTime();
+    const endTimestamp = endOfMonth.getTime();
+    
+    console.log('[getConversationThreads] Filtrando mensajes desde:', startOfMonth.toISOString(), 'hasta:', endOfMonth.toISOString());
     
     const filteredMessages = allMessages.filter(message => {
       const messageTime = message.timestamp?.toMillis() || 0;
-      const isThisMonth = messageTime >= startTimestamp;
-      
-      return isThisMonth;
+      return messageTime >= startTimestamp && messageTime <= endTimestamp;
     });
     
     console.log('[getConversationThreads] Mensajes de este mes:', filteredMessages.length);
@@ -496,7 +499,15 @@ export const getConversationThreads = async (
       .slice(0, threadLimit);
     
     console.log('[getConversationThreads] Hilos únicos encontrados:', threads.length);
-    console.log('[getConversationThreads] Plataformas en hilos:', threads.map(t => t.platform).filter((v, i, a) => a.indexOf(v) === i));
+    if (threads.length > 0) {
+      // Mostrar información sobre la conversación más reciente
+      const mostRecent = threads[0];
+      console.log('[getConversationThreads] Conversación más reciente:', {
+        sender: mostRecent.sender,
+        timestamp: mostRecent.timestamp?.toDate()?.toISOString(),
+        platform: mostRecent.platform
+      });
+    }
     
     return threads;
   } catch (error) {

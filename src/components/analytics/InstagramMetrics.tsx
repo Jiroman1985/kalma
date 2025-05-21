@@ -1168,11 +1168,11 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
       );
     }
     
-    if (error) {
+    if (errorMessage) {
       return (
         <div className="text-center py-8 text-red-500">
           <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-          <p>{error}</p>
+          <p>{errorMessage}</p>
         </div>
       );
     }
@@ -1220,19 +1220,30 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
     <div className="space-y-6">
       <h2 className="text-2xl font-semibold text-gray-700">Métricas de Instagram</h2>
       
+      {instagramUsername && (
+        <div className="flex items-center gap-3 text-lg">
+          <div className="bg-gradient-to-tr from-pink-500 to-purple-500 rounded-full p-2">
+            <Instagram className="h-6 w-6 text-white" />
+          </div>
+          <span className="font-medium">@{instagramUsername}</span>
+          {followersData.length > 0 && (
+            <Badge variant="outline" className="ml-2 bg-gray-50">
+              <Users className="h-3.5 w-3.5 mr-1" />
+              {followersData[followersData.length - 1].followers.toLocaleString()} seguidores
+            </Badge>
+          )}
+        </div>
+      )}
+      
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="bg-gradient-to-tr from-pink-500 to-purple-700 p-2 rounded-md text-white">
-                <Instagram className="h-6 w-6" />
+                <Users className="h-6 w-6" />
               </div>
               <CardTitle>Evolución de Seguidores</CardTitle>
             </div>
-            <Badge variant="outline" className="gap-1 bg-gray-50">
-              <Users className="h-3.5 w-3.5" />
-              {followersData.length > 0 ? followersData[followersData.length - 1].followers.toLocaleString() : "—"}
-            </Badge>
           </div>
           <CardDescription>Seguimiento del crecimiento de seguidores en Instagram</CardDescription>
         </CardHeader>
