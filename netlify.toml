@@ -24,7 +24,11 @@
   FACEBOOK_APP_ID = "925270751978648"
   INSTAGRAM_REDIRECT_URI = "https://kalma-lab.netlify.app/.netlify/functions/instagram-callback"
   # IMPORTANTE: Debes configurar estos valores en el panel de Netlify
-  # FACEBOOK_APP_SECRET debe configurarse como variable de entorno en Netlify
+  # Las siguientes variables DEBEN configurarse en el panel de Netlify:
+  # - GOOGLE_CLIENT_ID: ID del cliente OAuth de Google
+  # - GOOGLE_CLIENT_SECRET: Secreto del cliente OAuth de Google 
+  # - URL_GOOGLE: URL base de Kalma (p.ej. https://kalma-lab.netlify.app)
+  # - FACEBOOK_APP_SECRET: Secreto de la aplicación de Facebook
   # Son secretos y no deben estar en el archivo de configuración
   NETLIFY_SKIP_TOML_VALIDATION = "1"
 

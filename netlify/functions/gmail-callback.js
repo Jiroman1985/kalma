@@ -34,7 +34,7 @@ exports.handler = async function(event, context) {
     return {
       statusCode: 302,
       headers: {
-        Location: '/auth/gmail/error?error=' + encodeURIComponent(error)
+        Location: '/auth/gmail/error?error=' + encodeURIComponent(error || 'Error desconocido en la autenticación')
       },
       body: ''
     };
@@ -109,10 +109,12 @@ exports.handler = async function(event, context) {
   } catch (error) {
     console.error('Error en el callback de Gmail:', error);
     
+    const errorMessage = error.message || 'Error desconocido durante la autenticación de Gmail';
+    
     return {
       statusCode: 302,
       headers: {
-        Location: '/auth/gmail/error?error=' + encodeURIComponent(error.message)
+        Location: '/auth/gmail/error?error=' + encodeURIComponent(errorMessage)
       },
       body: ''
     };
@@ -124,6 +126,11 @@ async function exchangeCodeForTokens(code) {
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
   const REDIRECT_URI = process.env.URL_GOOGLE + '/.netlify/functions/gmail-callback';
+  
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !REDIRECT_URI) {
+    console.error('Faltan variables de entorno necesarias para la autenticación');
+    throw new Error('Configuración incompleta. Contacte al administrador del sistema.');
+  }
   
   console.log('Intercambiando código por tokens con los siguientes parámetros:');
   console.log('REDIRECT_URI:', REDIRECT_URI);

@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { XCircle } from "lucide-react";
+import { XCircle, ArrowLeft } from "lucide-react";
 
 export default function GmailAuthError() {
   const navigate = useNavigate();
@@ -22,8 +22,17 @@ export default function GmailAuthError() {
     const error = params.get("error");
     
     if (error) {
-      setErrorMessage(decodeURIComponent(error));
+      try {
+        setErrorMessage(decodeURIComponent(error));
+      } catch (e) {
+        console.error("Error al decodificar mensaje:", e);
+        setErrorMessage("Ha ocurrido un error desconocido durante la autenticación con Gmail.");
+      }
     }
+    
+    // Log para depuración
+    console.log("URL completa:", location.pathname + location.search);
+    console.log("Mensaje de error extraído:", error);
   }, [location]);
 
   return (
@@ -51,14 +60,9 @@ export default function GmailAuthError() {
         <CardFooter className="flex justify-center gap-4">
           <Button
             variant="outline"
-            onClick={() => navigate("/dashboard/canales")}
+            onClick={() => navigate("/dashboard/channels")}
           >
-            Volver a Canales
-          </Button>
-          <Button
-            onClick={() => navigate("/dashboard/conversaciones")}
-          >
-            Ir a Conversaciones
+            <ArrowLeft className="h-4 w-4 mr-2" /> Volver a Canales
           </Button>
         </CardFooter>
       </Card>
