@@ -494,7 +494,7 @@ export const getConversationThreads = async (
       threadsMap.get(threadId)!.push(message);
       
       // Comprobamos si este mensaje es una respuesta de IA
-      if (message.aiAssisted && message.isFromMe) {
+      if (message.aiAssisted && message.isFromMe === false) {
         threadsWithAIResponses.set(threadId, true);
       }
     });
@@ -506,11 +506,11 @@ export const getConversationThreads = async (
     if (threadsWithAIResponses.size === 0) {
       console.log('[getConversationThreads] No se encontraron hilos con respuestas de IA. Verificando mensajes con aiAssisted:');
       
-      const aiMessages = filteredMessages.filter(message => message.aiAssisted === true);
-      console.log('[getConversationThreads] Mensajes con aiAssisted=true:', aiMessages.length);
+      const aiMessages = filteredMessages.filter(message => message.aiAssisted === true && message.isFromMe === false);
+      console.log('[getConversationThreads] Mensajes con aiAssisted=true y isFromMe=false:', aiMessages.length);
       
       if (aiMessages.length > 0) {
-        console.log('[getConversationThreads] Ejemplos de mensajes con aiAssisted=true:');
+        console.log('[getConversationThreads] Ejemplos de mensajes con aiAssisted=true y isFromMe=false:');
         aiMessages.slice(0, 3).forEach((msg, idx) => {
           console.log(`[getConversationThreads] Mensaje ${idx + 1}:`, {
             threadId: msg.threadId,
