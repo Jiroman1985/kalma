@@ -409,22 +409,42 @@ const Channels = () => {
     if (!currentUser) return;
     
     try {
+      console.log("[checkGmailConnectionStatus] Verificando conexión de Gmail para usuario:", currentUser.uid);
+      
+      // Verificar en socialTokens
+      const tokenRef = doc(db, "users", currentUser.uid, "socialTokens", "gmail");
+      const tokenDoc = await getDoc(tokenRef);
+      const tokenExists = tokenDoc.exists();
+      console.log("[checkGmailConnectionStatus] Token existe:", tokenExists);
+      
+      // Verificar en channelConnections
+      const connectionsRef = collection(db, "users", currentUser.uid, "channelConnections");
+      const gmailQuery = query(connectionsRef, where("channelId", "==", "gmail"));
+      const connectionsSnapshot = await getDocs(gmailQuery);
+      const connectionsExist = !connectionsSnapshot.empty;
+      console.log("[checkGmailConnectionStatus] Conexiones encontradas:", connectionsSnapshot.size);
+      
+      // Verificar la función original también
       const { connected, profileInfo } = await checkGmailConnection(currentUser.uid);
+      console.log("[checkGmailConnectionStatus] Respuesta de checkGmailConnection:", { connected, email: profileInfo?.email });
       
-      setGmailConnected(connected);
+      // Gmail está conectado si alguna de las verificaciones es positiva
+      const isConnected = tokenExists || connectionsExist || connected;
+      console.log("[checkGmailConnectionStatus] Estado final de conexión:", isConnected);
       
-      if (connected && profileInfo?.email) {
+      // Actualizar estado
+      setGmailConnected(isConnected);
+      
+      if (isConnected && profileInfo?.email) {
         setGmailEmail(profileInfo.email);
         
         // Verificar si ya existe en las conexiones, si no, añadirlo
-        // (este código puede ser redundante ahora que lo creamos en el callback,
-        // pero lo mantenemos por seguridad)
         const connectionId = `gmail_${profileInfo.email.replace(/[@\.]/g, '_')}`;
-        const channelRef = doc(db, 'users', currentUser.uid, 'channelConnections', connectionId);
+        const channelRef = doc(db, "users", currentUser.uid, "channelConnections", connectionId);
         const channelDoc = await getDoc(channelRef);
         
         if (!channelDoc.exists()) {
-          console.log('Creando entrada en channelConnections para Gmail');
+          console.log('[checkGmailConnectionStatus] Creando entrada en channelConnections para Gmail');
           
           // Crear la conexión si no existe
           await setDoc(channelRef, {
