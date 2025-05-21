@@ -440,6 +440,28 @@ export const getConversationThreads = async (
       allMessages = [...allMessages, ...whatsappMessages];
     }
     
+    // Obtener mensajes de la colección messages (para otras plataformas)
+    console.log('[getConversationThreads] Buscando mensajes en colección global messages...');
+    const messagesRef = collection(db, "messages");
+    const messagesQuery = query(
+      messagesRef,
+      where("userId", "==", userId),
+      limit(300)
+    );
+    
+    const messagesSnapshot = await getDocs(messagesQuery);
+    console.log('[getConversationThreads] Mensajes encontrados en colección global:', messagesSnapshot.size);
+    
+    // Agregar mensajes de la colección global
+    const globalMessages = messagesSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Message));
+    
+    allMessages = [...allMessages, ...globalMessages];
+    
+    console.log('[getConversationThreads] Total de mensajes encontrados:', allMessages.length);
+    
     // Filtrar mensajes para obtener solo los del mes actual (mayo 2024)
     const now = new Date();
     // Definir el inicio del mes actual
@@ -459,35 +481,59 @@ export const getConversationThreads = async (
     
     console.log('[getConversationThreads] Mensajes de este mes:', filteredMessages.length);
     
-    // Mapa para almacenar el mensaje más reciente de cada hilo
+    // Agrupar los mensajes por threadId para ver cuáles tienen respuestas de IA
+    const threadsWithAIResponses = new Map<string, boolean>();
+    const threadsMap = new Map<string, Message[]>();
+    
+    // Primero agrupamos todos los mensajes por hilo
+    filteredMessages.forEach(message => {
+      const threadId = message.threadId || message.id;
+      if (!threadsMap.has(threadId)) {
+        threadsMap.set(threadId, []);
+      }
+      threadsMap.get(threadId)!.push(message);
+      
+      // Comprobamos si este mensaje es una respuesta de IA
+      if (message.aiAssisted && message.isFromMe) {
+        threadsWithAIResponses.set(threadId, true);
+      }
+    });
+    
+    console.log('[getConversationThreads] Hilos totales:', threadsMap.size);
+    console.log('[getConversationThreads] Hilos con respuestas de IA:', threadsWithAIResponses.size);
+    
+    // Mapa para almacenar el mensaje más reciente de cada hilo que tenga respuestas de IA
     const threadMap = new Map<string, Message>();
     
     // Depurar campo platform
     const platformCounts: Record<string, number> = {};
     
-    // Procesar cada mensaje
+    // Procesar cada mensaje solo si su hilo tiene respuestas de IA
     filteredMessages.forEach(message => {
-      const threadId = message.threadId || 'default';
+      const threadId = message.threadId || message.id;
       
-      // Contar plataformas
-      const platform = message.platform || 'undefined';
-      platformCounts[platform] = (platformCounts[platform] || 0) + 1;
-      
-      // Si el hilo aún no está en el mapa o este mensaje es más reciente, guardarlo
-      if (!threadMap.has(threadId)) {
-        threadMap.set(threadId, message);
-      } else {
-        const existingMessage = threadMap.get(threadId)!;
-        // Comprobar cuál es más reciente
-        const existingTime = existingMessage.timestamp?.toMillis() || 0;
-        const newTime = message.timestamp?.toMillis() || 0;
-        if (newTime > existingTime) {
+      // Solo procesar si este hilo tiene al menos una respuesta de IA
+      if (threadsWithAIResponses.has(threadId)) {
+        // Contar plataformas
+        const platform = message.platform || 'undefined';
+        platformCounts[platform] = (platformCounts[platform] || 0) + 1;
+        
+        // Si el hilo aún no está en el mapa o este mensaje es más reciente, guardarlo
+        if (!threadMap.has(threadId)) {
           threadMap.set(threadId, message);
+        } else {
+          const existingMessage = threadMap.get(threadId)!;
+          // Comprobar cuál es más reciente
+          const existingTime = existingMessage.timestamp?.toMillis() || 0;
+          const newTime = message.timestamp?.toMillis() || 0;
+          if (newTime > existingTime) {
+            threadMap.set(threadId, message);
+          }
         }
       }
     });
     
-    console.log('[getConversationThreads] Conteo de plataformas en mensajes filtrados:', platformCounts);
+    console.log('[getConversationThreads] Conteo de plataformas en mensajes con IA:', platformCounts);
     
     // Convertir el mapa a un array y ordenar por timestamp descendente
     const threads = Array.from(threadMap.values())
@@ -498,14 +544,15 @@ export const getConversationThreads = async (
       })
       .slice(0, threadLimit);
     
-    console.log('[getConversationThreads] Hilos únicos encontrados:', threads.length);
+    console.log('[getConversationThreads] Hilos con IA encontrados:', threads.length);
     if (threads.length > 0) {
       // Mostrar información sobre la conversación más reciente
       const mostRecent = threads[0];
       console.log('[getConversationThreads] Conversación más reciente:', {
         sender: mostRecent.sender,
         timestamp: mostRecent.timestamp?.toDate()?.toISOString(),
-        platform: mostRecent.platform
+        platform: mostRecent.platform,
+        hasAI: true
       });
     }
     
