@@ -254,8 +254,10 @@ const Conversations = () => {
       
       // Verificar si tiene respuesta de agente (puede ser booleano o string)
       const agentResponseIsString = typeof latestMessage.agentResponse === 'string';
-      const agentResponseText = agentResponseIsString ? latestMessage.agentResponse : '';
-      const hasAgentResponseText = agentResponseIsString && agentResponseText.trim().length > 0;
+      // Si es string, usamos su valor, si no, cadena vacía
+      const agentResponseText = agentResponseIsString ? latestMessage.agentResponse as string : '';
+      // Verificamos si hay texto de respuesta
+      const hasAgentResponseText = agentResponseIsString && (agentResponseText as string).length > 0;
       
       if (hasAgentResponseText) {
         hasAgentResponse = true;
@@ -1120,7 +1122,8 @@ const Conversations = () => {
                 key={conversation.id}
                 className={`relative border rounded-lg p-4 transition-all hover:border-gray-400 ${
                   conversation.isRead ? 'bg-white' : 'bg-blue-50'
-                }`}
+                } cursor-pointer`}
+                onClick={() => handleConversationClick(conversation)}
               >
                 {/* Mostrar indicador de no leído */}
                 {!conversation.isRead && (
@@ -1200,7 +1203,10 @@ const Conversations = () => {
                       size="sm" 
                       variant="outline" 
                       className="text-xs"
-                      onClick={() => handleConversationClick(conversation)}
+                      onClick={(e) => {
+                        e.stopPropagation(); // Evitar que el clic se propague al contenedor
+                        handleConversationClick(conversation);
+                      }}
                     >
                       <MessageCircle className="h-3.5 w-3.5 mr-1" />
                       Responder
@@ -1210,7 +1216,10 @@ const Conversations = () => {
                     size="sm" 
                     variant="ghost" 
                     className="text-xs"
-                    onClick={() => handleConversationClick(conversation)}
+                    onClick={(e) => {
+                      e.stopPropagation(); // Evitar que el clic se propague al contenedor
+                      markAsRead(conversation);
+                    }}
                   >
                     <Check className="h-3.5 w-3.5 mr-1" />
                     {conversation.isRead ? "Marcar como no leído" : "Marcar como leído"}
