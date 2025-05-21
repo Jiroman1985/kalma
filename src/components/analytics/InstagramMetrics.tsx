@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import {
   Instagram, Users, Clock, ArrowUpRight, TrendingUp,
-  Heart, MessageCircle, Repeat, Bookmark, BarChart3, UserRound, ZoomIn, Info, AlertCircle, ExternalLink, MessageSquare
+  Heart, MessageCircle, Repeat, Bookmark, BarChart3, UserRound, ZoomIn, Info, AlertCircle, ExternalLink, MessageSquare, Loader2, PieChart
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
@@ -28,6 +28,30 @@ import {
 } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement,
+} from 'chart.js';
+
+// Registrar los componentes de ChartJS
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  BarElement
+);
 
 // Datos para cuando no hay conexión o datos disponibles
 const NO_DATA_MESSAGE = "N/A";
@@ -113,6 +137,9 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
     details: string;
     statusCode: number;
   } | null>(null);
+
+  // Nuevo estado para los datos de seguidores
+  const [followersData, setFollowersData] = useState<{ date: string; followers: number; change: number }[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1031,6 +1058,180 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
     );
   };
 
+  // Función para cargar datos de seguidores
+  const loadFollowerData = async () => {
+    if (!currentUser?.uid) return;
+    
+    setLoading(true);
+    
+    try {
+      console.log("[InstagramMetrics] Cargando datos de seguidores para:", currentUser.uid);
+      
+      // Cargar datos de la colección analytics/instagram/followers
+      const followersRef = collection(db, "users", currentUser.uid, "analytics", "instagram", "followers");
+      const q = query(
+        followersRef,
+        orderBy("date", "asc"),
+        limit(30)
+      );
+      
+      const snapshot = await getDocs(q);
+      console.log("[InstagramMetrics] Datos encontrados:", snapshot.size);
+      
+      if (snapshot.size > 0) {
+        // Convertir documentos a datos para el gráfico
+        const followerData = snapshot.docs.map(doc => {
+          const data = doc.data();
+          
+          // Convertir Timestamp a Date si es necesario
+          const date = data.date instanceof Timestamp 
+            ? data.date.toDate() 
+            : new Date(data.date);
+            
+          return {
+            date: formatDateForChart(date),
+            followers: data.count || 0,
+            raw: data
+          };
+        });
+        
+        console.log("[InstagramMetrics] Datos procesados:", followerData);
+        
+        // Ordenar por fecha
+        followerData.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        // Calcular cambios diarios
+        const followerChanges = followerData.map((current, index, arr) => {
+          let change = 0;
+          if (index > 0) {
+            change = current.followers - arr[index - 1].followers;
+          }
+          return {
+            ...current,
+            change
+          };
+        });
+        
+        console.log("[InstagramMetrics] Cambios diarios calculados:", followerChanges);
+        
+        // Actualizar datos del gráfico
+        setFollowersData(followerChanges);
+      } else {
+        console.log("[InstagramMetrics] No se encontraron datos de seguidores");
+        setFollowersData([]);
+      }
+    } catch (error) {
+      console.error("[InstagramMetrics] Error al cargar datos de seguidores:", error);
+      setFollowersData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Lógica para renderizar el gráfico de seguidores
+  const renderFollowersChart = () => {
+    if (loading) {
+      return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+    }
+    
+    if (followersData.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center p-6 text-center">
+          <PieChart className="h-10 w-10 text-muted-foreground mb-2" /> 
+          <p className="text-muted-foreground">No hay datos de seguidores disponibles para mostrar.</p>
+        </div>
+      );
+    }
+    
+    // Preparar datos para el gráfico
+    const chartData = {
+      labels: followersData.map(item => item.date),
+      datasets: [
+        {
+          label: 'Total de Seguidores',
+          data: followersData.map(item => item.followers),
+          borderColor: '#E1306C',
+          backgroundColor: 'rgba(225, 48, 108, 0.2)',
+          tension: 0.3,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Cambio Diario',
+          data: followersData.map(item => item.change),
+          borderColor: '#3897f0',
+          backgroundColor: 'rgba(56, 151, 240, 0.2)',
+          type: 'bar' as const,
+          yAxisID: 'y1',
+        }
+      ]
+    };
+    
+    // Opciones del gráfico
+    const chartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index' as const,
+        intersect: false,
+      },
+      scales: {
+        x: {
+          title: {
+            display: true,
+            text: 'Fecha'
+          }
+        },
+        y: {
+          type: 'linear' as const,
+          display: true,
+          position: 'left' as const,
+          title: {
+            display: true,
+            text: 'Total de Seguidores'
+          }
+        },
+        y1: {
+          type: 'linear' as const,
+          display: true,
+          position: 'right' as const,
+          title: {
+            display: true,
+            text: 'Cambio Diario'
+          },
+          grid: {
+            drawOnChartArea: false,
+          },
+        },
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            title: function(tooltipItems: any) {
+              return tooltipItems[0].label;
+            },
+            label: function(context: any) {
+              let label = context.dataset.label || '';
+              if (label) {
+                label += ': ';
+              }
+              if (context.parsed.y !== null) {
+                label += context.parsed.y;
+              }
+              return label;
+            }
+          }
+        }
+      }
+    };
+    
+    // Usar Line para mostrar el gráfico
+    return (
+      <div className="h-[350px] w-full p-4 bg-white rounded-lg shadow">
+        <Line data={chartData} options={chartOptions} />
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* Mostrar mensaje de estado de conexión si no está conectado o hay error */}
@@ -1103,39 +1304,7 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
               description="Histórico de los últimos 30 días"
               isLoading={loading}
             >
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={metricasHistoricas}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="id" 
-                    tickFormatter={(value) => {
-                      const fecha = value ? value.split('-')[2] : '';
-                      return fecha;
-                    }}
-                  />
-                  <YAxis />
-                  <Tooltip 
-                    formatter={(value) => [`${value} seguidores`, "Total"]}
-                    labelFormatter={(label) => {
-                      if (typeof label === 'string') {
-                        const partes = label.split('-');
-                        if (partes.length === 3) {
-                          return `${partes[2]}/${partes[1]}/${partes[0]}`;
-                        }
-                      }
-                      return label;
-                    }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="seguidores" 
-                    stroke="#E1306C" 
-                    strokeWidth={2}
-                    dot={{ r: 2 }}
-                    activeDot={{ r: 5 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {renderFollowersChart()}
             </ChartContainer>
           )}
 
