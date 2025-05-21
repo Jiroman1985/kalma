@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import ChartContainer from "./ChartContainer";
 import MetricCard from "./MetricCard";
 import {
@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import {
   MessageSquare, Send, Clock3, Users, ArrowRight, MessageSquareDashed,
-  LineChart as LineChartIcon, ArrowUp, ArrowDown, Clock, User, PieChart as PieChartIcon, Activity, Info
+  LineChartIcon, ArrowUp, ArrowDown, Clock, User, Activity, Info
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
