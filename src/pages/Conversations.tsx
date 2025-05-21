@@ -94,7 +94,7 @@ const Conversations = () => {
   const replyInputRef = useRef<HTMLTextAreaElement>(null);
   const { currentUser } = useAuth();
   const { toast } = useToast();
-  const [selectedThread, setSelectedThread] = useState<EmailMessage[] | null>(null);
+  const [selectedThread, setSelectedThread] = useState<EmailMessage[] | WhatsAppMessage[]>([]);
   const [loadingThread, setLoadingThread] = useState<boolean>(false);
 
   useEffect(() => {
@@ -830,14 +830,84 @@ const Conversations = () => {
     // Si no está leído, marcarlo como leído
     if (!conversation.isRead) {
       markAsRead(conversation);
-    } else {
-      // Si ya está leído, alternar estado
-      markAsRead(conversation);
     }
     
-    // Si no está respondido, iniciar la respuesta
-    if (!conversation.isReplied) {
-      startReply(conversation);
+    // Si es un correo electrónico, cargar el hilo completo
+    if (conversation.platform === 'gmail') {
+      loadEmailThread(conversation);
+    }
+    
+    // Si es WhatsApp, mostrar la conversación completa
+    if (conversation.platform === 'whatsapp') {
+      console.log("Mostrando conversación completa de WhatsApp:", conversation.id);
+      // Cargar la conversación completa si hay un mensaje original
+      loadWhatsAppThread(conversation);
+    }
+    
+    // Iniciar la respuesta (siempre)
+    startReply(conversation);
+  };
+
+  // Cargar el hilo completo de una conversación de WhatsApp
+  const loadWhatsAppThread = async (conversation: Conversation) => {
+    if (conversation.platform !== 'whatsapp') return;
+    
+    setLoadingThread(true);
+    try {
+      const whatsappMessage = conversation.originalMessage as WhatsAppMessage;
+      const contactId = whatsappMessage.isFromMe ? whatsappMessage.to : whatsappMessage.from;
+      
+      // Buscar todos los mensajes relacionados con este contacto
+      const messagesRef = collection(db, "messages");
+      const contactMessagesQuery = query(
+        messagesRef,
+        where("userId", "==", currentUser.uid),
+        where(whatsappMessage.isFromMe ? "to" : "from", "==", contactId)
+      );
+      
+      const messagesSnapshot = await getDocs(contactMessagesQuery);
+      console.log(`Encontrados ${messagesSnapshot.size} mensajes para la conversación con ${contactId}`);
+      
+      // Convertir documentos a mensajes
+      const threadMessages: WhatsAppMessage[] = [];
+      messagesSnapshot.forEach(doc => {
+        const data = doc.data();
+        threadMessages.push({
+          id: doc.id,
+          messageId: data.messageId || doc.id,
+          body: data.body || data.content || "",
+          from: data.from || "",
+          to: data.to || "",
+          timestamp: data.timestamp || data.createdAt || Timestamp.now(),
+          isFromMe: data.isFromMe || false,
+          senderName: data.senderName || "",
+          messageType: data.messageType || "text",
+          status: data.status || "sent",
+          type: data.type || "text",
+          aiAssisted: data.aiAssisted || false
+        });
+      });
+      
+      // Ordenar mensajes por fecha (más antiguos primero)
+      threadMessages.sort((a, b) => {
+        const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : 
+                    typeof a.timestamp === 'number' ? a.timestamp : 0;
+        const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : 
+                    typeof b.timestamp === 'number' ? b.timestamp : 0;
+        return timeA - timeB;
+      });
+      
+      // Guardar en el estado como array de WhatsAppMessage
+      setSelectedThread(threadMessages);
+    } catch (error) {
+      console.error("Error al cargar mensajes de WhatsApp:", error);
+      toast({
+        title: "Error",
+        description: "No se pudo cargar la conversación completa. Intenta nuevamente.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingThread(false);
     }
   };
 
@@ -845,11 +915,17 @@ const Conversations = () => {
   const renderEmailThread = () => {
     if (!selectedThread || !replyingTo || replyingTo.platform !== 'gmail') return null;
     
+    // Si el thread contiene mensajes de WhatsApp, retornar null
+    if (selectedThread.length > 0 && 'isFromMe' in selectedThread[0]) return null;
+    
+    // Asegurar que estamos trabajando con mensajes de email
+    const emailThread = selectedThread as EmailMessage[];
+    
     return (
       <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-4">
         <h3 className="text-sm font-medium text-gray-700">Conversación completa:</h3>
         
-        {selectedThread.map((email, index) => (
+        {emailThread.map((email, index) => (
           <div 
             key={email.id} 
             className={`p-3 rounded-lg ${email.from === 'yo' ? 'bg-blue-50 ml-8' : 'bg-white mr-8'}`}
@@ -868,6 +944,45 @@ const Conversations = () => {
             )}
             
             <div className="text-sm whitespace-pre-wrap">{email.body}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Render de un hilo de conversación de WhatsApp
+  const renderWhatsAppThread = () => {
+    if (!selectedThread || !replyingTo || replyingTo.platform !== 'whatsapp') return null;
+    
+    // Si el thread no contiene mensajes de WhatsApp, retornar null
+    if (selectedThread.length === 0 || !('isFromMe' in selectedThread[0])) return null;
+    
+    // Asegurar que estamos trabajando con mensajes de WhatsApp
+    const whatsappThread = selectedThread as WhatsAppMessage[];
+    
+    return (
+      <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-4">
+        <div className="flex justify-between items-center">
+          <h3 className="text-sm font-medium text-gray-700">Conversación con {replyingTo.user}:</h3>
+          <span className="text-xs text-gray-500">ID: {replyingTo.contactId}</span>
+        </div>
+        
+        {whatsappThread.map((message, index) => (
+          <div 
+            key={message.id} 
+            className={`p-3 rounded-lg ${message.isFromMe ? 'bg-blue-50 ml-8' : 'bg-green-50 mr-8'}`}
+          >
+            <div className="flex justify-between items-start mb-2">
+              <div className="text-sm font-semibold">
+                {message.isFromMe ? 'Tú' : message.senderName || 'Contacto'}
+                {message.aiAssisted && <span className="ml-2 text-xs text-green-600">AI</span>}
+              </div>
+              <div className="text-xs text-gray-500">
+                {formatTimestamp(message.timestamp).formatted}
+              </div>
+            </div>
+            
+            <div className="text-sm whitespace-pre-wrap">{message.body}</div>
           </div>
         ))}
       </div>
@@ -1129,6 +1244,9 @@ const Conversations = () => {
           <CardContent>
             {/* Mostrar el hilo completo para emails */}
             {replyingTo.platform === 'gmail' && renderEmailThread()}
+            
+            {/* Mostrar el hilo completo de WhatsApp */}
+            {replyingTo.platform === 'whatsapp' && renderWhatsAppThread()}
             
             {/* Mensaje Original */}
             <div className={`${getPlatformBgColor(replyingTo.platform)} p-3 rounded-lg mb-4`}>
