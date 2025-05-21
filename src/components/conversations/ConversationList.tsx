@@ -46,7 +46,15 @@ const ConversationList: React.FC<ConversationListProps> = ({
     
     try {
       setLoading(true);
+      console.log('Cargando conversaciones para el usuario:', currentUser.uid);
       const threads = await getConversationThreads(currentUser.uid);
+      console.log('Conversaciones cargadas:', threads);
+      console.log('Plataformas encontradas:', threads.map(t => t.platform));
+      
+      // Verificar si hay conversaciones de whatsapp
+      const whatsappThreads = threads.filter(t => t.platform === 'whatsapp');
+      console.log('Conversaciones de WhatsApp:', whatsappThreads.length);
+      
       setConversations(threads);
     } catch (error) {
       console.error('Error al cargar conversaciones:', error);
