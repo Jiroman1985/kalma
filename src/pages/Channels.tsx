@@ -606,42 +606,39 @@ const Channels = () => {
                     </Tooltip>
                   </TooltipProvider>
                   
-                  <Button 
-                    onClick={() => connectChannel(channel)}
-                    className={`${isConnected ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : `bg-gradient-to-r ${channel.gradient || channel.color}`} rounded-full`}
-                    size="sm"
-                  >
-                    {isInstagram && instagramConnected ? (
-                      <>
-                        {instagramTokenExpired ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-1" />
-                            Reconectar
-                          </>
-                        ) : (
-                          <>
-                            <Settings className="h-4 w-4 mr-1" />
-                            Cambiar cuenta
-                          </>
-                        )}
-                      </>
-                    ) : isGmail && gmailConnected ? (
-                      <>
-                        <Settings className="h-4 w-4 mr-1" />
+                  {isConnected ? (
+                    isGmail ? (
+                      <Button 
+                        variant="outline" 
+                        className="w-full flex items-center justify-center gap-1"
+                        onClick={() => handleGmailConnection()}
+                      >
+                        <RefreshCw className="h-4 w-4" />
                         Cambiar cuenta
-                      </>
-                    ) : isConnected ? (
-                      <>
-                        <Settings className="h-4 w-4 mr-1" />
-                        Configurar
-                      </>
+                      </Button>
                     ) : (
-                      <>
-                        <Plus className="h-4 w-4 mr-1" />
-                        Conectar
-                      </>
-                    )}
-                  </Button>
+                      <Button 
+                        variant="outline" 
+                        className="w-full flex items-center justify-center gap-1"
+                        onClick={() => setShowConfigModal(true)}
+                      >
+                        <Settings className="h-4 w-4" />
+                        Configurar
+                      </Button>
+                    )
+                  ) : (
+                    <Button 
+                      onClick={() => connectChannel(channel)}
+                      className={`w-full flex items-center justify-center gap-1 ${
+                        channel.gradient 
+                          ? `bg-gradient-to-r ${channel.gradient} hover:opacity-90 text-white` 
+                          : channel.color + " hover:opacity-90 text-white"
+                      }`}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Conectar
+                    </Button>
+                  )}
                 </CardFooter>
               </Card>
             </motion.div>

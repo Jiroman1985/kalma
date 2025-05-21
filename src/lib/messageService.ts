@@ -192,10 +192,46 @@ export const getWhatsAppMessages = async (
   userId: string,
   messageLimit: number = 100
 ): Promise<Message[]> => {
-  return getMessages(userId, {
-    platform: 'whatsapp',
-    limit: messageLimit
-  });
+  try {
+    console.log('[getWhatsAppMessages] Cargando mensajes de WhatsApp para:', userId);
+    
+    // Colección específica de WhatsApp en el documento del usuario
+    const whatsappRef = collection(db, "users", userId, "whatsapp");
+    let whatsappQuery = query(whatsappRef, orderBy("timestamp", "desc"), limit(messageLimit));
+    
+    const querySnapshot = await getDocs(whatsappQuery);
+    console.log('[getWhatsAppMessages] Mensajes encontrados:', querySnapshot.size);
+    
+    // Convertir a formato Message unificado
+    const messages: Message[] = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        platform: 'whatsapp',
+        userId: userId,
+        sender: data.from || '',
+        recipient: data.to || '',
+        content: data.body || '',
+        timestamp: data.timestamp || Timestamp.now(),
+        threadId: data.from || data.to || doc.id, // Usar remitente/destinatario como ID de hilo
+        isRead: data.isRead || false,
+        status: data.status || 'received',
+        isFromMe: data.isFromMe || false,
+        // Campos adicionales si existen
+        sentiment: data.sentiment,
+        category: data.category,
+        responded: data.responded,
+        responseId: data.responseId,
+        responseTime: data.responseTime,
+        aiAssisted: data.aiAssisted
+      } as Message;
+    });
+    
+    return messages;
+  } catch (error) {
+    console.error("Error al obtener mensajes de WhatsApp:", error);
+    return [];
+  }
 };
 
 /**
@@ -325,24 +361,51 @@ export const getConversationThreads = async (
     console.log('[messageService] Obteniendo hilos para usuario:', userId);
     console.log('[messageService] Plataformas solicitadas:', platforms);
     
-    // Consulta para obtener mensajes con un campo adicional que permita ordenarlos por hilo
+    // Almacenar todos los mensajes aquí
+    let allMessages: Message[] = [];
+    
+    // 1. Obtener mensajes de la colección unificada "messages"
     let messagesQuery = query(
       collection(db, "messages"),
       where("userId", "==", userId)
     );
     
-    // Filtrar por plataformas si se especifican
+    // Filtrar por plataformas si se especifican (excepto whatsapp que se obtiene por separado)
     if (platforms && platforms.length > 0) {
-      console.log('[messageService] Filtrando por plataformas específicas:', platforms);
-      messagesQuery = query(messagesQuery, where("platform", "in", platforms));
+      // Filtrar whatsapp ya que se obtiene de otra ubicación
+      const filteredPlatforms = platforms.filter(p => p !== 'whatsapp');
+      if (filteredPlatforms.length > 0) {
+        console.log('[messageService] Filtrando por plataformas específicas:', filteredPlatforms);
+        messagesQuery = query(messagesQuery, where("platform", "in", filteredPlatforms));
+      }
     }
     
     // Ordenar por timestamp descendente para obtener los más recientes primero
     messagesQuery = query(messagesQuery, orderBy("timestamp", "desc"));
     
-    console.log('[messageService] Ejecutando consulta...');
+    console.log('[messageService] Ejecutando consulta de mensajes unificados...');
     const querySnapshot = await getDocs(messagesQuery);
-    console.log('[messageService] Mensajes encontrados:', querySnapshot.size);
+    console.log('[messageService] Mensajes unificados encontrados:', querySnapshot.size);
+    
+    // Agregar mensajes unificados
+    querySnapshot.docs.forEach(doc => {
+      allMessages.push({ id: doc.id, ...doc.data() } as Message);
+    });
+
+    // 2. Obtener mensajes de WhatsApp si no se ha excluido en las plataformas
+    if (!platforms || platforms.length === 0 || platforms.includes('whatsapp')) {
+      console.log('[messageService] Obteniendo mensajes de WhatsApp...');
+      try {
+        // Utilizamos la función específica para WhatsApp
+        const whatsappMessages = await getWhatsAppMessages(userId, 100);
+        console.log('[messageService] Mensajes de WhatsApp encontrados:', whatsappMessages.length);
+        
+        // Agregar a la lista de todos los mensajes
+        allMessages = [...allMessages, ...whatsappMessages];
+      } catch (whatsappError) {
+        console.error("Error al obtener mensajes de WhatsApp:", whatsappError);
+      }
+    }
     
     // Mapa para almacenar el mensaje más reciente de cada hilo
     const threadMap = new Map<string, Message>();
@@ -351,8 +414,7 @@ export const getConversationThreads = async (
     const platformCounts: Record<string, number> = {};
     
     // Procesar cada mensaje
-    querySnapshot.docs.forEach(doc => {
-      const message = { id: doc.id, ...doc.data() } as Message;
+    allMessages.forEach(message => {
       const threadId = message.threadId || 'default';
       
       // Contar plataformas
@@ -362,6 +424,14 @@ export const getConversationThreads = async (
       // Si el hilo aún no está en el mapa o este mensaje es más reciente, guardarlo
       if (!threadMap.has(threadId)) {
         threadMap.set(threadId, message);
+      } else {
+        const existingMessage = threadMap.get(threadId)!;
+        // Comprobar cuál es más reciente
+        const existingTime = existingMessage.timestamp?.toMillis() || 0;
+        const newTime = message.timestamp?.toMillis() || 0;
+        if (newTime > existingTime) {
+          threadMap.set(threadId, message);
+        }
       }
     });
     

@@ -27,10 +27,31 @@ const ConversationList: React.FC<ConversationListProps> = ({
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
     'whatsapp', 'email', 'instagram'
   ]);
+  const [dateRange, setDateRange] = useState({
+    startDate: new Date(),
+    endDate: new Date()
+  });
 
-  // Cargar conversaciones al iniciar
+  // Filtrar por mes actual por defecto al cargar
   useEffect(() => {
     if (currentUser) {
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      
+      // Configurar fechas de inicio y fin del mes actual
+      const startOfMonth = new Date(currentYear, currentMonth, 1);
+      const endOfMonth = new Date(currentYear, currentMonth + 1, 0);
+      
+      console.log('Filtrando mensajes del mes actual:', 
+        startOfMonth.toLocaleDateString(), 'a', 
+        endOfMonth.toLocaleDateString());
+      
+      setDateRange({
+        startDate: startOfMonth,
+        endDate: endOfMonth
+      });
+      
       loadConversations();
     }
   }, [currentUser]);
@@ -47,6 +68,8 @@ const ConversationList: React.FC<ConversationListProps> = ({
     try {
       setLoading(true);
       console.log('Cargando conversaciones para el usuario:', currentUser.uid);
+      
+      // Por defecto cargar todas las plataformas
       const threads = await getConversationThreads(currentUser.uid);
       console.log('Conversaciones cargadas:', threads);
       console.log('Plataformas encontradas:', threads.map(t => t.platform));
@@ -55,7 +78,21 @@ const ConversationList: React.FC<ConversationListProps> = ({
       const whatsappThreads = threads.filter(t => t.platform === 'whatsapp');
       console.log('Conversaciones de WhatsApp:', whatsappThreads.length);
       
-      setConversations(threads);
+      // Filtrar por fechas si hay un rango seleccionado
+      let filteredThreads = threads;
+      if (dateRange.startDate && dateRange.endDate) {
+        const startTimestamp = dateRange.startDate.getTime();
+        const endTimestamp = dateRange.endDate.getTime();
+        
+        filteredThreads = threads.filter(thread => {
+          const messageTimestamp = thread.timestamp?.toMillis() || 0;
+          return messageTimestamp >= startTimestamp && messageTimestamp <= endTimestamp;
+        });
+        
+        console.log('Conversaciones filtradas por fecha:', filteredThreads.length);
+      }
+      
+      setConversations(filteredThreads);
     } catch (error) {
       console.error('Error al cargar conversaciones:', error);
     } finally {
