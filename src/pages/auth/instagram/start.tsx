@@ -45,7 +45,7 @@ const InstagramAuthStart = () => {
         `?client_id=${FACEBOOK_APP_ID}`,
         `&redirect_uri=${encodeURIComponent(INSTAGRAM_REDIRECT_URI)}`,
         '&response_type=code',
-        '&scope=pages_show_list,instagram_basic,instagram_manage_comments',
+        '&scope=pages_show_list,instagram_basic,instagram_manage_comments,instagram_manage_messages',
         `&state=${state}`
       ].join('');
       

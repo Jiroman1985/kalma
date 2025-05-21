@@ -1,0 +1,381 @@
+{
+  "name": "Instagram Webhook Inbound",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "instagram/:userId",
+        "options": {
+          "responseMode": "onReceived"
+        },
+        "authentication": "none"
+      },
+      "id": "ee97c1d0-ca23-41d9-8e43-f196eaa64dc8",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.hasOwnProperty('hub_challenge')}}",
+              "operation": "equal",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "id": "2d56f7a2-1ce3-4aca-95d7-87c2d1ded73f",
+      "name": "Es verificación de webhook?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "4a7f5f3f-757a-45d5-9e38-dbf2ff7da72f",
+      "name": "Responder con hub_challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        640,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Verificar firma X-Hub-Signature\nconst crypto = require('crypto');\n\n// Obtener la firma enviada por Meta\nconst signature = $node[\"Webhook\"].params.headers[\"x-hub-signature\"] || $node[\"Webhook\"].params.headers[\"x-hub-signature-256\"];\n\nif (!signature) {\n  console.log('No se encontró encabezado de firma X-Hub-Signature');\n  return { json: { error: 'Firma no encontrada' } };\n}\n\n// Obtener el cuerpo del webhook como cadena\nconst body = JSON.stringify($json);\n\n// Secreto compartido configurado en la suscripción del webhook\nconst webhookSecret = process.env.INSTAGRAM_WEBHOOK_SECRET || 'shared-webhook-secret';\n\n// Calcular la firma esperada\nconst algorithm = signature.includes('sha256=') ? 'sha256' : 'sha1';\nconst hmac = crypto.createHmac(algorithm, webhookSecret);\nhmac.update(body, 'utf-8');\nconst expectedSignature = `${algorithm}=${hmac.digest('hex')}`;\n\n// Verificar si coinciden\nconst isValid = crypto.timingSafeEqual(\n  Buffer.from(signature),\n  Buffer.from(expectedSignature)\n);\n\nif (!isValid) {\n  console.error('Firma inválida');\n  console.log('Firma recibida:', signature);\n  console.log('Firma esperada:', expectedSignature);\n  return { json: { error: 'Firma inválida' } };\n}\n\n// Si llegamos aquí, la firma es válida\nconsole.log('Firma X-Hub-Signature verificada correctamente');\nreturn { json: { ...$json, signatureValid: true } };"
+      },
+      "id": "54e9f1a2-83b7-4f6c-bd9c-ea16fd2fad01",
+      "name": "Verificar X-Hub-Signature",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.signatureValid}}",
+              "operation": "equal",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "id": "c58f34d5-8c61-4f93-9738-b298ec15dbd5",
+      "name": "Firma válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        840,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "06a5d3ac-65fb-4d12-a98b-eace8f5a7c2d",
+      "name": "Responder error firma",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Normalizar los datos del webhook de Instagram\nconst userId = $node[\"Webhook\"].params.path.userId;\n\n// Extraer entradas\nconst entries = $json.entry || [];\n\n// Array para almacenar los mensajes procesados\nconst processedMessages = [];\n\n// Procesar cada entrada\nfor (const entry of entries) {\n  const instagramUserId = entry.id;\n  \n  // Si hay mensajes directos en la entrada\n  if (entry.messaging) {\n    for (const message of entry.messaging) {\n      processedMessages.push({\n        platform: \"instagram\",\n        externalId: message.message?.mid || `ig-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,\n        userId: userId,\n        instagramUserId: instagramUserId,\n        senderId: message.sender?.id,\n        senderName: message.sender?.username || message.sender?.name,\n        recipientId: message.recipient?.id,\n        content: message.message?.text,\n        timestamp: new Date(message.timestamp || Date.now()).toISOString(),\n        threadId: message.sender?.id, // Usar ID del remitente como threadId\n        isRead: false,\n        status: \"received\",\n        platform_data: message\n      });\n    }\n  }\n  \n  // Si hay cambios (comments, mentions, etc.)\n  if (entry.changes) {\n    for (const change of entry.changes) {\n      const field = change.field;\n      const value = change.value;\n      \n      // Procesar diferentes tipos de cambios\n      if (field === 'comments') {\n        processedMessages.push({\n          platform: \"instagram\",\n          type: \"comment\",\n          externalId: value.comment_id || `ig-comment-${Date.now()}`,\n          userId: userId,\n          instagramUserId: instagramUserId,\n          senderId: value.from?.id,\n          senderName: value.from?.username,\n          content: value.text,\n          timestamp: new Date().toISOString(),\n          threadId: `ig-post-${value.media_id}`,\n          isRead: false,\n          status: \"received\",\n          mediaId: value.media_id,\n          platform_data: value\n        });\n      } else if (field === 'mentions') {\n        processedMessages.push({\n          platform: \"instagram\",\n          type: \"mention\",\n          externalId: value.mention_id || `ig-mention-${Date.now()}`,\n          userId: userId,\n          instagramUserId: instagramUserId,\n          senderId: value.from?.id,\n          senderName: value.from?.username,\n          content: value.text,\n          timestamp: new Date().toISOString(),\n          threadId: `ig-mention-${value.media_id}`,\n          isRead: false,\n          status: \"received\",\n          mediaId: value.media_id,\n          platform_data: value\n        });\n      }\n    }\n  }\n}\n\nreturn { json: { messages: processedMessages } };"
+      },
+      "id": "ccb764b6-f3aa-48c9-bbd7-baf2b2c7f4e1",
+      "name": "Normalizar datos",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "5a38e06c-7272-4f81-a5df-bdec733f8b15",
+      "name": "Separar mensajes",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 1,
+      "position": [
+        1260,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://us-central1-kalma-lab.cloudfunctions.net/ai-classify",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "name": "userId",
+              "value": "={{ $json.userId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f8d55a3c-7e0b-4e95-93f4-f5e4e217b3e6",
+      "name": "Clasificar con IA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1460,
+        540
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "documentId": {
+          "__rl": true,
+          "value": "messages/={{ $json.externalId }}",
+          "mode": "list",
+          "cachedResultName": "messages/{{ $json.externalId }}",
+          "cachedResultUrl": "messages/={{ $json.externalId }}"
+        },
+        "fields": {
+          "values": [
+            {
+              "field": "platform",
+              "value": "={{ $json.platform }}"
+            },
+            {
+              "field": "externalId",
+              "value": "={{ $json.externalId }}"
+            },
+            {
+              "field": "userId",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "field": "instagramUserId",
+              "value": "={{ $json.instagramUserId }}"
+            },
+            {
+              "field": "sender",
+              "value": "={{ $json.senderName || $json.senderId }}"
+            },
+            {
+              "field": "senderId",
+              "value": "={{ $json.senderId }}"
+            },
+            {
+              "field": "senderName",
+              "value": "={{ $json.senderName }}"
+            },
+            {
+              "field": "recipient",
+              "value": "={{ $json.recipientId }}"
+            },
+            {
+              "field": "content",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "field": "timestamp",
+              "value": "={{ $json.timestamp }}",
+              "parseValue": true
+            },
+            {
+              "field": "threadId",
+              "value": "={{ $json.threadId }}"
+            },
+            {
+              "field": "isRead",
+              "value": "={{ $json.isRead || false }}"
+            },
+            {
+              "field": "status",
+              "value": "={{ $json.status || 'received' }}"
+            },
+            {
+              "field": "type",
+              "value": "={{ $json.type || 'message' }}"
+            },
+            {
+              "field": "sentiment",
+              "value": "={{ $node[\"Clasificar con IA\"].json.sentiment || 'neutral' }}"
+            },
+            {
+              "field": "category",
+              "value": "={{ $node[\"Clasificar con IA\"].json.category || 'general' }}"
+            },
+            {
+              "field": "platform_data",
+              "value": "={{ $json.platform_data }}"
+            },
+            {
+              "field": "createdAt",
+              "value": "=firestore.FieldValue.serverTimestamp()"
+            }
+          ]
+        },
+        "options": {
+          "merge": true
+        }
+      },
+      "id": "bfdc81dc-1182-4a5a-9f99-68a1af87f0e8",
+      "name": "Guardar en Firestore",
+      "type": "n8n-nodes-base.firestore",
+      "typeVersion": 3,
+      "position": [
+        1660,
+        540
+      ],
+      "credentials": {
+        "firestoreCredentialsApi": {
+          "id": "1",
+          "name": "Firestore account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "04e3ee6d-f095-474c-bc95-52f5ce0e2a6e",
+      "name": "Responder OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1860,
+        540
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Es verificación de webhook?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Es verificación de webhook?": {
+      "main": [
+        [
+          {
+            "node": "Responder con hub_challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Verificar X-Hub-Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar X-Hub-Signature": {
+      "main": [
+        [
+          {
+            "node": "Firma válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Firma válida?": {
+      "main": [
+        [
+          {
+            "node": "Normalizar datos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder error firma",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar datos": {
+      "main": [
+        [
+          {
+            "node": "Separar mensajes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Separar mensajes": {
+      "main": [
+        [
+          {
+            "node": "Clasificar con IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificar con IA": {
+      "main": [
+        [
+          {
+            "node": "Guardar en Firestore",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar en Firestore": {
+      "main": [
+        [
+          {
+            "node": "Responder OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+} 

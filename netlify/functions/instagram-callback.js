@@ -295,39 +295,26 @@ exports.handler = async (event) => {
     try {
       console.log('Guardando datos en Firestore para usuario:', stateUserId);
       
-      // MODIFICACIÓN: Ya no intentamos obtener un token específico de Instagram
-      // En su lugar, usamos el token de página de Facebook como token principal
-      // para la API de Instagram Business
+      // 5. Guardar en Firestore en la colección socialTokens
+      console.log('Guardando datos en socialTokens/instagram...');
+      const now = new Date();
+      const expiryDate = new Date(now.getTime() + fbExpiresIn * 1000);
       
-      // 1. Guardar token de página si está disponible (este es el token importante)
-      if (pageToken) {
-        await db
-          .collection('users').doc(stateUserId)
-          .collection('socialTokens').doc('instagram')
-          .set({
-            accessToken: pageToken,              // Usamos el token de página de FB
-            tokenExpiry: Date.now() + fbExpiresIn * 1000,
-            lastSynced: new Date().toISOString()
-          }, { merge: true });
-        
-        console.log('Token de página de Facebook guardado como token de Instagram en socialTokens/instagram');
-      } else {
-        console.warn('No se pudo obtener token de página para guardar');
-      }
+      await db
+        .collection('users').doc(stateUserId)
+        .collection('socialTokens').doc('instagram')
+        .set({
+          accessToken: pageToken || fbLongToken,  // Preferir token de página si está disponible
+          refreshToken: fbLongToken,              // Usar token FB largo como refresh token
+          instagramUserId: instagramBusinessId,   // ID de la cuenta de Instagram Business
+          pageId: pageId,                        // ID de la página de Facebook
+          expires_at: expiryDate.toISOString(),  // Fecha de expiración
+          lastSynced: now.toISOString(),         // Última sincronización
+          tokenType: 'bearer',                   // Tipo de token
+          scope: 'instagram_basic,pages_show_list,instagram_manage_comments,instagram_manage_messages' // Scopes
+        }, { merge: true });
       
-      // 2. Guardar ID de Instagram Business si está disponible
-      if (instagramBusinessId) {
-        await db
-          .collection('users').doc(stateUserId)
-          .collection('socialTokens').doc('instagram')
-          .set({ 
-            instagramUserId: instagramBusinessId 
-          }, { merge: true });
-        
-        console.log('ID de Instagram Business guardado:', instagramBusinessId);
-      } else {
-        console.warn('No se encontró ID de Instagram Business para guardar');
-      }
+      console.log('Datos guardados en socialTokens/instagram');
       
       // 3. Mantener compatibilidad con la estructura anterior (opcional)
       let instagramData = {

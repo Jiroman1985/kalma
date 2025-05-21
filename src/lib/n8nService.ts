@@ -45,7 +45,8 @@ const OAUTH_CONFIG: OAuthConfigType = {
     scopes: [
       "instagram_basic",
       "pages_show_list",
-      "instagram_manage_messages"
+      "instagram_manage_messages",
+      "instagram_manage_comments"
     ],
     additionalParams: {}
   },
