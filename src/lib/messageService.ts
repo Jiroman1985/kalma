@@ -424,54 +424,37 @@ export const getConversationThreads = async (
   try {
     const { platforms, limit: threadLimit = 50 } = options;
     
-    console.log('[messageService] Obteniendo hilos para usuario:', userId);
-    console.log('[messageService] Plataformas solicitadas:', platforms);
+    console.log('[getConversationThreads] Obteniendo hilos para usuario:', userId);
+    console.log('[getConversationThreads] Plataformas solicitadas:', platforms);
     
     // Almacenar todos los mensajes aquí
     let allMessages: Message[] = [];
     
-    // 1. Obtener mensajes de la colección unificada "messages"
-    let messagesQuery = query(
-      collection(db, "messages"),
-      where("userId", "==", userId)
-    );
+    // Obtener mensajes de WhatsApp (prioridad principal)
+    console.log('[getConversationThreads] Cargando mensajes de WhatsApp...');
+    const whatsappMessages = await getWhatsAppMessages(userId, 200);
+    console.log('[getConversationThreads] Mensajes de WhatsApp cargados:', whatsappMessages.length);
     
-    // Filtrar por plataformas si se especifican (excepto whatsapp que se obtiene por separado)
-    if (platforms && platforms.length > 0) {
-      // Filtrar whatsapp ya que se obtiene de otra ubicación
-      const filteredPlatforms = platforms.filter(p => p !== 'whatsapp');
-      if (filteredPlatforms.length > 0) {
-        console.log('[messageService] Filtrando por plataformas específicas:', filteredPlatforms);
-        messagesQuery = query(messagesQuery, where("platform", "in", filteredPlatforms));
-      }
-    }
-    
-    // Ordenar por timestamp descendente para obtener los más recientes primero
-    messagesQuery = query(messagesQuery, orderBy("timestamp", "desc"));
-    
-    console.log('[messageService] Ejecutando consulta de mensajes unificados...');
-    const querySnapshot = await getDocs(messagesQuery);
-    console.log('[messageService] Mensajes unificados encontrados:', querySnapshot.size);
-    
-    // Agregar mensajes unificados
-    querySnapshot.docs.forEach(doc => {
-      allMessages.push({ id: doc.id, ...doc.data() } as Message);
-    });
-
-    // 2. Obtener mensajes de WhatsApp si no se ha excluido en las plataformas
+    // Si estamos filtrando por plataformas específicas y WhatsApp no está incluido, no lo agregamos
     if (!platforms || platforms.length === 0 || platforms.includes('whatsapp')) {
-      console.log('[messageService] Obteniendo mensajes de WhatsApp...');
-      try {
-        // Utilizamos la función específica para WhatsApp
-        const whatsappMessages = await getWhatsAppMessages(userId, 100);
-        console.log('[messageService] Mensajes de WhatsApp encontrados:', whatsappMessages.length);
-        
-        // Agregar a la lista de todos los mensajes
-        allMessages = [...allMessages, ...whatsappMessages];
-      } catch (whatsappError) {
-        console.error("Error al obtener mensajes de WhatsApp:", whatsappError);
-      }
+      allMessages = [...allMessages, ...whatsappMessages];
     }
+    
+    // Filtrar mensajes para obtener solo los de este mes
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startTimestamp = startOfMonth.getTime();
+    
+    console.log('[getConversationThreads] Filtrando mensajes desde:', startOfMonth.toISOString());
+    
+    const filteredMessages = allMessages.filter(message => {
+      const messageTime = message.timestamp?.toMillis() || 0;
+      const isThisMonth = messageTime >= startTimestamp;
+      
+      return isThisMonth;
+    });
+    
+    console.log('[getConversationThreads] Mensajes de este mes:', filteredMessages.length);
     
     // Mapa para almacenar el mensaje más reciente de cada hilo
     const threadMap = new Map<string, Message>();
@@ -480,7 +463,7 @@ export const getConversationThreads = async (
     const platformCounts: Record<string, number> = {};
     
     // Procesar cada mensaje
-    allMessages.forEach(message => {
+    filteredMessages.forEach(message => {
       const threadId = message.threadId || 'default';
       
       // Contar plataformas
@@ -501,7 +484,7 @@ export const getConversationThreads = async (
       }
     });
     
-    console.log('[messageService] Conteo de plataformas:', platformCounts);
+    console.log('[getConversationThreads] Conteo de plataformas en mensajes filtrados:', platformCounts);
     
     // Convertir el mapa a un array y ordenar por timestamp descendente
     const threads = Array.from(threadMap.values())
@@ -512,8 +495,8 @@ export const getConversationThreads = async (
       })
       .slice(0, threadLimit);
     
-    console.log('[messageService] Hilos únicos encontrados:', threads.length);
-    console.log('[messageService] Plataformas en hilos:', threads.map(t => t.platform));
+    console.log('[getConversationThreads] Hilos únicos encontrados:', threads.length);
+    console.log('[getConversationThreads] Plataformas en hilos:', threads.map(t => t.platform).filter((v, i, a) => a.indexOf(v) === i));
     
     return threads;
   } catch (error) {
