@@ -50,11 +50,23 @@ exports.handler = async function(event, context) {
   
   try {
     // Decodificar el estado para obtener userId
-    const decodedState = JSON.parse(Buffer.from(state, 'base64').toString());
-    const { userId } = decodedState;
+    let decodedState;
+    let userId;
     
-    if (!userId) {
-      throw new Error('No se encontró el userId en el estado');
+    try {
+      if (!state) {
+        throw new Error('Estado de autenticación faltante');
+      }
+      
+      decodedState = JSON.parse(Buffer.from(state, 'base64').toString());
+      userId = decodedState?.userId;
+      
+      if (!userId) {
+        throw new Error('No se encontró el userId en el estado');
+      }
+    } catch (stateError) {
+      console.error('Error al decodificar el estado:', stateError);
+      throw new Error('Error al procesar el estado de autenticación: ' + stateError.message);
     }
     
     // Intercambiar el código por tokens
@@ -173,6 +185,15 @@ async function exchangeCodeForTokens(code) {
 
 // Función para obtener información del perfil de Gmail
 async function fetchEmailProfile(accessToken) {
+  if (!accessToken) {
+    console.error('Token de acceso no proporcionado');
+    return {
+      email: 'desconocido@gmail.com',
+      name: 'Usuario Desconocido',
+      picture: null
+    };
+  }
+  
   try {
     console.log('Obteniendo información del perfil con accessToken:', accessToken.substring(0, 10) + '...');
     
