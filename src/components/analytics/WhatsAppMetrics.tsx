@@ -848,7 +848,7 @@ const WhatsAppMetrics = ({ isLoading = false }: WhatsAppMetricsProps) => {
           trend="+10.8%"
           trendDirection="up"
           loading={loading}
-          color="indigo"
+          color="slate"
         />
       </div>
 
