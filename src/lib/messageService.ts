@@ -199,8 +199,59 @@ export const getWhatsAppMessages = async (
     const whatsappRef = collection(db, "users", userId, "whatsapp");
     let whatsappQuery = query(whatsappRef, orderBy("timestamp", "desc"), limit(messageLimit));
     
+    console.log('[getWhatsAppMessages] Ejecutando consulta a:', `users/${userId}/whatsapp`);
     const querySnapshot = await getDocs(whatsappQuery);
     console.log('[getWhatsAppMessages] Mensajes encontrados:', querySnapshot.size);
+    
+    // Depurar documentos encontrados
+    if (querySnapshot.size > 0) {
+      // Revisar las claves de los primeros documentos para entender su estructura
+      const sampleDoc = querySnapshot.docs[0].data();
+      console.log('[getWhatsAppMessages] Estructura de documento encontrado:', Object.keys(sampleDoc));
+      console.log('[getWhatsAppMessages] Ejemplo de campos:', {
+        id: querySnapshot.docs[0].id,
+        from: sampleDoc.from,
+        to: sampleDoc.to,
+        body: sampleDoc.body?.substring(0, 50),
+        timestamp: sampleDoc.timestamp
+      });
+    } else {
+      // Probar una consulta sin el orderBy para ver si hay documentos
+      console.log('[getWhatsAppMessages] Probando consulta sin orderBy...');
+      const simpleQuery = query(whatsappRef, limit(messageLimit));
+      const simpleSnapshot = await getDocs(simpleQuery);
+      console.log('[getWhatsAppMessages] Documentos encontrados sin orderBy:', simpleSnapshot.size);
+      
+      if (simpleSnapshot.size > 0) {
+        console.log('[getWhatsAppMessages] Parece que hay documentos pero la consulta con orderBy falla. Posiblemente los documentos no tienen el campo timestamp.');
+        // Usar esta consulta como alternativa
+        const messages: Message[] = simpleSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            platform: 'whatsapp',
+            userId: userId,
+            sender: data.from || '',
+            recipient: data.to || '',
+            content: data.body || '',
+            // Si no hay timestamp, usar Date.now()
+            timestamp: data.timestamp || Timestamp.now(),
+            threadId: data.from || data.to || doc.id,
+            isRead: data.isRead || false,
+            status: data.status || 'received',
+            isFromMe: data.isFromMe || false,
+            sentiment: data.sentiment,
+            category: data.category,
+            responded: data.responded,
+            responseId: data.responseId,
+            responseTime: data.responseTime,
+            aiAssisted: data.aiAssisted
+          } as Message;
+        });
+        
+        return messages;
+      }
+    }
     
     // Convertir a formato Message unificado
     const messages: Message[] = querySnapshot.docs.map(doc => {
@@ -226,6 +277,15 @@ export const getWhatsAppMessages = async (
         aiAssisted: data.aiAssisted
       } as Message;
     });
+    
+    console.log('[getWhatsAppMessages] Mensajes convertidos:', messages.length);
+    if (messages.length > 0) {
+      console.log('[getWhatsAppMessages] Ejemplo después de conversión:', {
+        platform: messages[0].platform,
+        sender: messages[0].sender,
+        content: messages[0].content?.substring(0, 50)
+      });
+    }
     
     return messages;
   } catch (error) {

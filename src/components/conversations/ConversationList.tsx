@@ -35,6 +35,8 @@ const ConversationList: React.FC<ConversationListProps> = ({
   // Filtrar por mes actual por defecto al cargar
   useEffect(() => {
     if (currentUser) {
+      // Configurar fechas pero NO las usaremos para filtrar inicialmente
+      // para ver si hay mensajes en general
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
@@ -43,7 +45,7 @@ const ConversationList: React.FC<ConversationListProps> = ({
       const startOfMonth = new Date(currentYear, currentMonth, 1);
       const endOfMonth = new Date(currentYear, currentMonth + 1, 0);
       
-      console.log('Filtrando mensajes del mes actual:', 
+      console.log('Fechas del mes actual (NO aplicando filtro):', 
         startOfMonth.toLocaleDateString(), 'a', 
         endOfMonth.toLocaleDateString());
       
@@ -72,13 +74,30 @@ const ConversationList: React.FC<ConversationListProps> = ({
       // Por defecto cargar todas las plataformas
       const threads = await getConversationThreads(currentUser.uid);
       console.log('Conversaciones cargadas:', threads);
-      console.log('Plataformas encontradas:', threads.map(t => t.platform));
+      
+      if (threads.length === 0) {
+        console.log('No se encontraron conversaciones para ninguna plataforma');
+      } else {
+        console.log('Plataformas encontradas:', threads.map(t => t.platform));
+        
+        // Examinar un mensaje para depuración
+        const sampleMessage = threads[0];
+        console.log('Ejemplo de mensaje:', {
+          id: sampleMessage.id,
+          platform: sampleMessage.platform,
+          sender: sampleMessage.sender,
+          timestamp: sampleMessage.timestamp,
+          content: sampleMessage.content?.substring(0, 50),
+          threadId: sampleMessage.threadId
+        });
+      }
       
       // Verificar si hay conversaciones de whatsapp
       const whatsappThreads = threads.filter(t => t.platform === 'whatsapp');
       console.log('Conversaciones de WhatsApp:', whatsappThreads.length);
       
-      // Filtrar por fechas si hay un rango seleccionado
+      // TEMPORALMENTE: No filtraremos por fecha para ver todos los mensajes
+      /* 
       let filteredThreads = threads;
       if (dateRange.startDate && dateRange.endDate) {
         const startTimestamp = dateRange.startDate.getTime();
@@ -91,8 +110,9 @@ const ConversationList: React.FC<ConversationListProps> = ({
         
         console.log('Conversaciones filtradas por fecha:', filteredThreads.length);
       }
+      */
       
-      setConversations(filteredThreads);
+      setConversations(threads); // Usar todos los hilos sin filtrar
     } catch (error) {
       console.error('Error al cargar conversaciones:', error);
     } finally {
