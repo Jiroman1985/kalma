@@ -322,6 +322,9 @@ export const getConversationThreads = async (
   try {
     const { platforms, limit: threadLimit = 50 } = options;
     
+    console.log('[messageService] Obteniendo hilos para usuario:', userId);
+    console.log('[messageService] Plataformas solicitadas:', platforms);
+    
     // Consulta para obtener mensajes con un campo adicional que permita ordenarlos por hilo
     let messagesQuery = query(
       collection(db, "messages"),
@@ -330,27 +333,39 @@ export const getConversationThreads = async (
     
     // Filtrar por plataformas si se especifican
     if (platforms && platforms.length > 0) {
+      console.log('[messageService] Filtrando por plataformas específicas:', platforms);
       messagesQuery = query(messagesQuery, where("platform", "in", platforms));
     }
     
     // Ordenar por timestamp descendente para obtener los más recientes primero
     messagesQuery = query(messagesQuery, orderBy("timestamp", "desc"));
     
+    console.log('[messageService] Ejecutando consulta...');
     const querySnapshot = await getDocs(messagesQuery);
+    console.log('[messageService] Mensajes encontrados:', querySnapshot.size);
     
     // Mapa para almacenar el mensaje más reciente de cada hilo
     const threadMap = new Map<string, Message>();
+    
+    // Depurar campo platform
+    const platformCounts: Record<string, number> = {};
     
     // Procesar cada mensaje
     querySnapshot.docs.forEach(doc => {
       const message = { id: doc.id, ...doc.data() } as Message;
       const threadId = message.threadId || 'default';
       
+      // Contar plataformas
+      const platform = message.platform || 'undefined';
+      platformCounts[platform] = (platformCounts[platform] || 0) + 1;
+      
       // Si el hilo aún no está en el mapa o este mensaje es más reciente, guardarlo
       if (!threadMap.has(threadId)) {
         threadMap.set(threadId, message);
       }
     });
+    
+    console.log('[messageService] Conteo de plataformas:', platformCounts);
     
     // Convertir el mapa a un array y ordenar por timestamp descendente
     const threads = Array.from(threadMap.values())
@@ -360,6 +375,9 @@ export const getConversationThreads = async (
         return timestampB - timestampA;
       })
       .slice(0, threadLimit);
+    
+    console.log('[messageService] Hilos únicos encontrados:', threads.length);
+    console.log('[messageService] Plataformas en hilos:', threads.map(t => t.platform));
     
     return threads;
   } catch (error) {
