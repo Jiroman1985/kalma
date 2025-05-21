@@ -97,11 +97,11 @@ exports.handler = async function(event, context) {
       lastSync: new Date()
     });
     
-    // Redireccionar a la página de éxito - cambiar a /dashboard/channels para mantener consistencia
+    // Redireccionar al dashboard después de la autenticación exitosa
     return {
       statusCode: 302,
       headers: {
-        Location: '/dashboard/channels'
+        Location: '/dashboard/conversations'
       },
       body: ''
     };

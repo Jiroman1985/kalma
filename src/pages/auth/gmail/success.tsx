@@ -70,7 +70,7 @@ export default function GmailAuthSuccess() {
   useEffect(() => {
     if (!loading && !error) {
       const timer = setTimeout(() => {
-        navigate("/dashboard/conversaciones");
+        navigate("/dashboard/conversations");
       }, 3000);
 
       return () => clearTimeout(timer);
@@ -122,7 +122,7 @@ export default function GmailAuthSuccess() {
 
         <CardFooter className="flex justify-center">
           <Button
-            onClick={() => navigate("/dashboard/conversaciones")}
+            onClick={() => navigate("/dashboard/conversations")}
             disabled={loading}
           >
             {loading ? "Espera..." : "Ir a Conversaciones"}
