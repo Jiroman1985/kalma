@@ -193,164 +193,110 @@ export const getWhatsAppMessages = async (
   messageLimit: number = 100
 ): Promise<Message[]> => {
   try {
-    console.log('[getWhatsAppMessages] Cargando mensajes de WhatsApp para:', userId);
-    let messages: Message[] = [];
-    
-    // ESTRATEGIA 1: Intentar acceder directamente a los documentos en la colección whatsapp
-    try {
-      console.log('[getWhatsAppMessages] Estrategia 1: Accediendo a users/{userId}/whatsapp');
-      const whatsappRef = collection(db, "users", userId, "whatsapp");
-      const simpleQuery = query(whatsappRef, limit(messageLimit));
-      const snapshot = await getDocs(simpleQuery);
-      
-      console.log('[getWhatsAppMessages] Estrategia 1 - Documentos encontrados:', snapshot.size);
-      
-      if (snapshot.size > 0) {
-        // Listar los 5 primeros IDs para depuración
-        console.log('[getWhatsAppMessages] Primeros IDs:', snapshot.docs.slice(0, 5).map(doc => doc.id));
-        
-        // Analizar un documento para ver su estructura
-        const sampleDoc = snapshot.docs[0].data();
-        console.log('[getWhatsAppMessages] Estructura del documento:', Object.keys(sampleDoc));
-        
-        // Convertir documentos a formato de mensajes
-        const parsedMessages = snapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            platform: 'whatsapp',
-            userId: userId,
-            sender: data.from || '',
-            recipient: data.to || '',
-            content: data.body || '',
-            timestamp: data.timestamp || Timestamp.now(),
-            threadId: (data.from || data.to || '').toString(),
-            isRead: !!data.isRead,
-            status: data.status || 'received',
-            isFromMe: !!data.isFromMe,
-            sentiment: data.sentiment,
-            category: data.category
-          } as Message;
-        });
-        
-        messages = parsedMessages;
-        console.log('[getWhatsAppMessages] Mensajes convertidos (Estrategia 1):', messages.length);
-        return messages;
-      }
-    } catch (error) {
-      console.error('[getWhatsAppMessages] Error en Estrategia 1:', error);
+    console.log('[getWhatsAppMessages] Iniciando carga para usuario:', userId);
+    const messages: Message[] = [];
+
+    // ESTRATEGIA 1: Acceder directamente a los documentos en la colección users/{userId}/whatsapp
+    // Esta es la estructura confirmada por la captura de pantalla del usuario.
+    const whatsappCollectionRef = collection(db, "users", userId, "whatsapp");
+    // No aplicaremos orderBy("timestamp") inicialmente para asegurar que leemos los documentos
+    // ya que si el campo timestamp no existe o tiene un formato incorrecto, la consulta puede fallar.
+    const whatsappQuery = query(whatsappCollectionRef, limit(messageLimit)); 
+
+    console.log('[getWhatsAppMessages] Consultando:', `users/${userId}/whatsapp`);
+    const querySnapshot = await getDocs(whatsappQuery);
+    console.log('[getWhatsAppMessages] Documentos encontrados:', querySnapshot.size);
+
+    if (querySnapshot.empty) {
+      console.log('[getWhatsAppMessages] No se encontraron documentos en la colección de WhatsApp.');
+      return []; // Si no hay documentos, retornamos un array vacío.
     }
-    
-    // ESTRATEGIA 2: Buscar en el documento whatsapp directamente si existe
-    try {
-      console.log('[getWhatsAppMessages] Estrategia 2: Verificando documento whatsapp');
-      const whatsappDocRef = doc(db, "users", userId, "whatsapp");
-      const whatsappDoc = await getDoc(whatsappDocRef);
+
+    // Analizar el primer documento para verificar la estructura de campos
+    const firstDocData = querySnapshot.docs[0].data();
+    console.log('[getWhatsAppMessages] Estructura del primer documento:', Object.keys(firstDocData));
+    console.log('[getWhatsAppMessages] Datos del primer documento (muestra):', {
+      id: querySnapshot.docs[0].id,
+      body: firstDocData.body?.substring(0, 50),
+      from: firstDocData.from,
+      to: firstDocData.to,
+      timestamp: firstDocData.timestamp, // Mostrar el timestamp tal como viene
+      category: firstDocData.category,
+      isFromMe: firstDocData.isFromMe,
+      messageId: firstDocData.messageId
+    });
+
+    querySnapshot.forEach(doc => {
+      const data = doc.data();
       
-      if (whatsappDoc.exists()) {
-        console.log('[getWhatsAppMessages] El documento whatsapp existe, su estructura es:', 
-          Object.keys(whatsappDoc.data()));
-          
-        // Si el documento existe pero no tiene mensajes, es posible que solo contenga configuración
-        // Intentemos ver si hay alguna subcoleción
-        const messagesColRef = collection(whatsappDocRef, "messages");
-        const messagesSnapshot = await getDocs(query(messagesColRef, limit(messageLimit)));
-        
-        console.log('[getWhatsAppMessages] Subcoleción messages contiene:', messagesSnapshot.size, 'documentos');
-        
-        if (messagesSnapshot.size > 0) {
-          const parsedMessages = messagesSnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              platform: 'whatsapp',
-              userId: userId,
-              sender: data.from || '',
-              recipient: data.to || '',
-              content: data.body || '',
-              timestamp: data.timestamp || Timestamp.now(),
-              threadId: (data.from || data.to || '').toString(),
-              isRead: !!data.isRead,
-              status: data.status || 'received',
-              isFromMe: !!data.isFromMe,
-              sentiment: data.sentiment,
-              category: data.category
-            } as Message;
-          });
-          
-          messages = parsedMessages;
-          console.log('[getWhatsAppMessages] Mensajes convertidos (Estrategia 2):', messages.length);
-          return messages;
+      // Determinar el threadId. Para WhatsApp, usualmente es el número del interlocutor.
+      // Si el mensaje es 'isFromMe', el interlocutor es 'to'. Si no, es 'from'.
+      // Es importante normalizar el número de teléfono (ej. quitar '@c.us')
+      let contactNumber = data.isFromMe ? data.to : data.from;
+      if (contactNumber && typeof contactNumber === 'string') {
+        contactNumber = contactNumber.replace('@c.us', '');
+      }
+
+      // Asegurar que el timestamp es un objeto Timestamp de Firebase
+      // Si viene como string o número, intentar convertirlo.
+      let finalTimestamp: Timestamp;
+      if (data.timestamp instanceof Timestamp) {
+        finalTimestamp = data.timestamp;
+      } else if (data.timestamp && data.timestamp.seconds) {
+        // Es probable que sea un objeto Timestamp serializado
+        finalTimestamp = new Timestamp(data.timestamp.seconds, data.timestamp.nanoseconds);
+      } else if (typeof data.timestamp === 'string' || typeof data.timestamp === 'number') {
+        try {
+          finalTimestamp = Timestamp.fromDate(new Date(data.timestamp));
+        } catch (e) {
+          console.warn(`[getWhatsAppMessages] No se pudo convertir timestamp: ${data.timestamp}, usando fecha actual.`);
+          finalTimestamp = Timestamp.now(); // Fallback a la fecha actual
         }
       } else {
-        console.log('[getWhatsAppMessages] El documento whatsapp no existe');
+        console.warn(`[getWhatsAppMessages] Timestamp ausente o formato desconocido para doc ${doc.id}, usando fecha actual.`);
+        finalTimestamp = Timestamp.now(); // Fallback si no hay timestamp
       }
-    } catch (error) {
-      console.error('[getWhatsAppMessages] Error en Estrategia 2:', error);
-    }
-    
-    // ESTRATEGIA 3: Buscar los mensajes en la colección messages con platform=whatsapp
-    try {
-      console.log('[getWhatsAppMessages] Estrategia 3: Buscar en la colección messages global');
-      const messagesRef = collection(db, "messages");
-      const whatsappQuery = query(
-        messagesRef,
-        where("userId", "==", userId),
-        where("platform", "==", "whatsapp"),
-        limit(messageLimit)
-      );
-      
-      const messagesSnapshot = await getDocs(whatsappQuery);
-      console.log('[getWhatsAppMessages] Mensajes encontrados en colección global:', messagesSnapshot.size);
-      
-      if (messagesSnapshot.size > 0) {
-        messages = messagesSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Message));
-        
-        console.log('[getWhatsAppMessages] Mensajes convertidos (Estrategia 3):', messages.length);
-        return messages;
-      }
-    } catch (error) {
-      console.error('[getWhatsAppMessages] Error en Estrategia 3:', error);
-    }
-    
-    // ESTRATEGIA 4: Consultar todos los documentos en users/{userId} para explorar la estructura
-    try {
-      console.log('[getWhatsAppMessages] Estrategia 4: Explorando la estructura de datos del usuario');
-      const userRef = doc(db, "users", userId);
-      const collections = await getDocs(collection(userRef, ""));
-      
-      console.log('[getWhatsAppMessages] Colecciones encontradas:', 
-        collections.docs.map(doc => doc.id).join(', '));
-      
-      // Verificar si hay una colección que pueda contener mensajes de WhatsApp
-      const potentialCollections = ["whatsappMessages", "messages", "conversations", "chats"];
-      
-      for (const colName of potentialCollections) {
-        try {
-          const colRef = collection(userRef, colName);
-          const snapshot = await getDocs(query(colRef, limit(5)));
-          console.log(`[getWhatsAppMessages] Contenido de la colección "${colName}":`, snapshot.size);
-          
-          if (snapshot.size > 0) {
-            console.log(`[getWhatsAppMessages] Muestra de datos en "${colName}":`, 
-              Object.keys(snapshot.docs[0].data()));
-          }
-        } catch (error) {
-          console.log(`[getWhatsAppMessages] No se pudo acceder a la colección "${colName}"`);
+
+      messages.push({
+        id: doc.id, // ID del documento en Firestore
+        platform: 'whatsapp',
+        userId: userId,
+        sender: data.from ? data.from.replace('@c.us', '') : '', // Quien envía el mensaje (normalizado)
+        recipient: data.to ? data.to.replace('@c.us', '') : '', // Quien recibe el mensaje (normalizado)
+        content: data.body || '', // Contenido del mensaje
+        timestamp: finalTimestamp, // Timestamp del mensaje
+        threadId: contactNumber || doc.id, // ID del hilo de conversación (número del contacto o ID del doc como fallback)
+        isRead: !!data.isRead, // Booleano, si el mensaje fue leído
+        status: data.status || 'received', // Estado del mensaje: sent, delivered, read, failed, received
+        isFromMe: !!data.isFromMe, // Booleano, si el mensaje fue enviado por el usuario actual
+        sentiment: data.sentiment, // Sentimiento (opcional)
+        category: data.category, // Categoría (opcional)
+        // Campos específicos de WhatsApp (si los tienes y quieres pasarlos)
+        metadata: {
+          whatsappMessageId: data.messageId, // ID original del mensaje de WhatsApp
+          ...(data.messageType && { messageType: data.messageType }),
+          ...(data.agentResponse !== undefined && { agentResponse: data.agentResponse }),
+          ...(data.hourOfDay !== undefined && { hourOfDay: data.hourOfDay }),
+          ...(data.minutesOfDay !== undefined && { minutesOfDay: data.minutesOfDay }),
+          ...(data.day !== undefined && { day: data.day }),
+          ...(data.month !== undefined && { month: data.month }),
         }
-      }
-    } catch (error) {
-      console.error('[getWhatsAppMessages] Error en Estrategia 4:', error);
+      } as Message);
+    });
+
+    // Ordenar los mensajes por timestamp después de obtenerlos y convertirlos
+    messages.sort((a, b) => (b.timestamp?.toMillis() || 0) - (a.timestamp?.toMillis() || 0));
+
+    console.log('[getWhatsAppMessages] Mensajes procesados y ordenados:', messages.length);
+    if(messages.length > 0){
+      console.log('[getWhatsAppMessages] Ejemplo de mensaje convertido:', messages[0]);
     }
-    
-    console.log('[getWhatsAppMessages] No se encontraron mensajes de WhatsApp en ninguna estrategia');
-    return [];
+    return messages;
+
   } catch (error) {
-    console.error("Error general al obtener mensajes de WhatsApp:", error);
-    return [];
+    console.error("[getWhatsAppMessages] Error general al obtener mensajes de WhatsApp:", error);
+    // Devolver un array vacío en caso de error para no romper la UI
+    return []; 
   }
 };
 
