@@ -6,7 +6,7 @@ const { getFirestore } = require('firebase-admin/firestore');
 const initializeFirebaseAdmin = () => {
   if (getApps().length === 0) {
     const serviceAccount = JSON.parse(
-      Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY, 'base64').toString()
+      Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT, 'base64').toString()
     );
     
     initializeApp({
