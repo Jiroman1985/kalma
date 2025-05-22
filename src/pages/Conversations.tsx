@@ -1252,18 +1252,18 @@ const Conversations = () => {
                   {message.isFromMe 
                     ? isAIMessage 
                       ? <span className="flex items-center text-green-700">
-                          <Bot className="h-4 w-4 mr-1.5 inline" />
+                          <Bot className="h-4 w-4 mr-1.5 inline shrink-0" />
                           Asistente IA
                         </span>
                       : 'Tú' 
                     : replyingTo.user}
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-gray-500 shrink-0 ml-2">
                   {formatTimestamp(message.timestamp).formatted}
                 </div>
               </div>
               
-              <div className="text-sm whitespace-pre-wrap">
+              <div className="text-sm whitespace-pre-wrap break-words">
                 {message.body || ""}
               </div>
               
@@ -1271,10 +1271,10 @@ const Conversations = () => {
               {!isAIMessage && agentResponseContent && (
                 <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
                   <div className="flex items-center text-xs text-green-700 mb-1">
-                    <Bot className="h-3 w-3 mr-1 inline" />
+                    <Bot className="h-3 w-3 mr-1 inline shrink-0" />
                     <span>Respuesta IA:</span>
                   </div>
-                  <div className="text-sm whitespace-pre-wrap text-green-800 bg-green-50 p-2 rounded">
+                  <div className="text-sm whitespace-pre-wrap text-green-800 bg-green-50 p-2 rounded break-words overflow-hidden">
                     {agentResponseContent}
                   </div>
                 </div>
@@ -1474,11 +1474,11 @@ const Conversations = () => {
                           <div className="flex gap-2 items-start">
                             <User className="h-4 w-4 text-gray-500 mt-0.5 shrink-0" />
                             <div className="flex-1">
-                              <p className="text-xs truncate">{messageContent}</p>
+                              <p className="text-xs line-clamp-1">{messageContent}</p>
                             </div>
                           </div>
                         ) : (
-                          <p className="text-xs truncate">{messageContent}</p>
+                          <p className="text-xs line-clamp-1">{messageContent}</p>
                         )}
                       </div>
                       
@@ -1486,8 +1486,8 @@ const Conversations = () => {
                       {hasResponse && (
                         <div className="flex gap-2 items-start mt-2 bg-green-50 p-2 rounded-lg ml-4">
                           <Bot className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
-                          <div className="flex-1">
-                            <p className="text-xs text-gray-700 truncate">
+                          <div className="flex-1 overflow-hidden">
+                            <p className="text-xs text-gray-700 line-clamp-2 break-words">
                               {isWhatsApp 
                                 ? (conversation.responseMessage as WhatsAppMessage).body 
                                 : (conversation.responseMessage as SocialMediaMessage).content
