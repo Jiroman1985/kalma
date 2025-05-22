@@ -467,14 +467,14 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
                 outerRadius={80}
                 fill="#8884d8"
                 dataKey="value"
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(0)}%` : ''}
               >
                 {data.messagesByChannel.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
               <Tooltip 
-                formatter={(value) => [`${value} mensajes`, ``]}
+                formatter={(value, name) => [`${value} mensajes`, `${name}`]}
                 itemStyle={{ color: '#333' }}
                 contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
               />
@@ -482,7 +482,8 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
                 layout="vertical" 
                 verticalAlign="middle" 
                 align="right"
-                wrapperStyle={{ fontSize: '12px' }}
+                wrapperStyle={{ fontSize: '12px', paddingLeft: '10px' }}
+                formatter={(value, entry) => <span style={{ color: entry.color }}>{value}</span>}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -565,15 +566,23 @@ const GeneralMetrics: React.FC<GeneralMetricsProps> = ({ isLoading = false }) =>
                   innerRadius={40}
                   outerRadius={80}
                   dataKey="value"
+                  label={({ name, percent }) => percent > 0.08 ? `${(percent * 100).toFixed(0)}%` : ''}
+                  labelLine={false}
                 >
                   {data.sentimentAnalysis.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value) => [`${value}%`, ``]}
+                  formatter={(value, name) => [`${value}%`, `${name}`]}
                   itemStyle={{ color: '#333' }}
                   contentStyle={{ backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #f0f0f0' }}
+                />
+                <Legend
+                  layout="horizontal"
+                  verticalAlign="bottom" 
+                  align="center"
+                  wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }}
                 />
               </PieChart>
             </ResponsiveContainer>
