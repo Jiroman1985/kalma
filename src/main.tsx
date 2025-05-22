@@ -2,7 +2,8 @@ import { createRoot } from 'react-dom/client'
 import { StrictMode } from 'react'
 import App from './App.tsx'
 import './index.css'
-import { StagewiseProvider } from './components/dev/StagewiseProvider'
+// Importar solo para inicialización automática
+import './components/dev/StagewiseProvider'
 
 // Desactivar las advertencias de desarrollo en producción
 if (import.meta.env.PROD) {
@@ -19,7 +20,5 @@ const root = createRoot(container!)
 root.render(
   <StrictMode>
     <App />
-    {/* Stagewise solo se renderiza en modo desarrollo */}
-    <StagewiseProvider />
   </StrictMode>
 )
