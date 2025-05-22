@@ -861,13 +861,11 @@ const Conversations = () => {
       
       console.log(`Cargando conversación directa con contacto: ${contactId}`);
       
-      // Simplificar la carga de datos para evitar errores
-      // Creamos solo una consulta básica sin filtros complejos
+      // Consulta para obtener todos los mensajes de WhatsApp del usuario
       const messagesRef = collection(db, "messages");
       const basicQuery = query(
         messagesRef,
-        where("userId", "==", currentUser.uid),
-        where("platform", "==", "whatsapp")
+        where("userId", "==", currentUser.uid)
       );
       
       // Obtener documentos con manejo de errores
@@ -876,22 +874,35 @@ const Conversations = () => {
         return { empty: true, docs: [] };
       });
       
-      console.log(`Obtenidos ${snapshot.docs.length} mensajes de WhatsApp en total`);
+      console.log(`Obtenidos ${snapshot.docs.length} mensajes en total`);
       
       // Filtrar mensajes relacionados con este contacto
       const filteredMessages: WhatsAppMessage[] = [];
       
+      // Primero recopilamos todos los IDs de mensajes relacionados con este contacto
+      const contactMessageIds = new Set<string>();
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.from === contactId || data.to === contactId) {
+          contactMessageIds.add(doc.id);
+        }
+      });
+      
+      console.log(`Identificados ${contactMessageIds.size} mensajes directamente relacionados con ${contactId}`);
+      
+      // Ahora procesamos todos los mensajes, incluyendo respuestas
       snapshot.docs.forEach(doc => {
         try {
           const data = doc.data();
           
-          // Comprobar si el mensaje está relacionado con este contacto
-          const isRelated = data.from === contactId || data.to === contactId;
+          // Verificar si el mensaje está relacionado con este contacto de alguna manera
+          const isDirectlyRelated = data.from === contactId || data.to === contactId;
+          const isResponseToContact = data.originalMessageId && contactMessageIds.has(data.originalMessageId);
+          const isAIResponse = data.aiAssisted === true;
           
-          if (isRelated) {
-            console.log(`Mensaje relacionado: ${doc.id}, from: ${data.from}, to: ${data.to}`);
+          if (isDirectlyRelated || isResponseToContact) {
+            console.log(`Añadiendo mensaje: ${doc.id}, from: ${data.from}, to: ${data.to}, aiAssisted: ${data.aiAssisted}`);
             
-            // Crear objeto de mensaje simple
             filteredMessages.push({
               id: doc.id,
               messageId: data.messageId || doc.id,
@@ -899,12 +910,13 @@ const Conversations = () => {
               from: data.from || "",
               to: data.to || "",
               timestamp: data.timestamp || Timestamp.now(),
-              isFromMe: data.isFromMe || data.from === currentUser.phoneNumber,
+              isFromMe: data.isFromMe || data.from === currentUser.phoneNumber || data.aiAssisted === true,
               senderName: data.senderName || "",
               messageType: data.messageType || "text",
               status: data.status || "sent",
               type: data.type || "text",
-              aiAssisted: data.aiAssisted || false
+              aiAssisted: data.aiAssisted || false,
+              originalMessageId: data.originalMessageId
             });
           }
         } catch (error) {
@@ -912,7 +924,59 @@ const Conversations = () => {
         }
       });
       
-      console.log(`Filtrados ${filteredMessages.length} mensajes relacionados con ${contactId}`);
+      // Buscar respuestas embebidas en agentResponse/agentResponseText
+      snapshot.docs.forEach(doc => {
+        try {
+          const data = doc.data();
+          
+          // Si el mensaje ya tiene una respuesta de IA explícita, no necesitamos crear una
+          if (!data.agentResponse && !data.agentResponseText) return;
+          
+          // Verificar si es un mensaje relacionado con este contacto
+          const isRelatedToContact = data.from === contactId || data.to === contactId;
+          
+          if (isRelatedToContact) {
+            // Extraer el texto de respuesta
+            const responseText = typeof data.agentResponse === 'string'
+              ? data.agentResponse
+              : data.agentResponseText || "";
+              
+            if (responseText && responseText.trim().length > 0) {
+              console.log(`Creando mensaje de respuesta IA desde agentResponse: ${doc.id}`);
+              
+              // Verificar si ya existe esta respuesta
+              const responseExists = filteredMessages.some(
+                msg => msg.aiAssisted && msg.body === responseText && msg.originalMessageId === doc.id
+              );
+              
+              if (!responseExists) {
+                filteredMessages.push({
+                  id: `ai_response_${doc.id}`,
+                  messageId: `ai_response_${doc.id}`,
+                  body: responseText,
+                  from: data.to || "", // Invertir emisor/receptor
+                  to: data.from || "",
+                  timestamp: data.timestamp ? new Timestamp(
+                    (data.timestamp as Timestamp).seconds + 1,  // 1 segundo después
+                    (data.timestamp as Timestamp).nanoseconds
+                  ) : Timestamp.now(),
+                  isFromMe: true,
+                  senderName: "Asistente IA",
+                  messageType: "text",
+                  status: "sent",
+                  type: "text",
+                  aiAssisted: true,
+                  originalMessageId: doc.id
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Error al procesar respuesta embebida ${doc.id}:`, error);
+        }
+      });
+      
+      console.log(`Total de ${filteredMessages.length} mensajes procesados para la conversación`);
       
       // Ordenar mensajes por fecha (más recientes primero)
       filteredMessages.sort((a, b) => {
