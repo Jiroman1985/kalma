@@ -878,22 +878,28 @@ const Conversations = () => {
         where("to", "==", contactId)
       );
       
-      // Consulta adicional para capturar todas las posibles respuestas de IA
-      // Eliminamos el filtro de plataforma para asegurar que capturamos todas las respuestas
-      const responsesQuery = query(
+      // Consulta más amplia para capturar todas las respuestas de IA
+      const aiResponsesQuery = query(
         messagesRef,
         where("userId", "==", currentUser.uid),
         where("aiAssisted", "==", true)
       );
       
       // Ejecutar todas las consultas
-      const [fromSnapshot, toSnapshot, responsesSnapshot] = await Promise.all([
+      const [fromSnapshot, toSnapshot, aiResponsesSnapshot] = await Promise.all([
         getDocs(fromContactQuery),
         getDocs(toContactQuery),
-        getDocs(responsesQuery)
+        getDocs(aiResponsesQuery)
       ]);
       
-      console.log(`Encontrados ${fromSnapshot.size} mensajes FROM ${contactId}, ${toSnapshot.size} mensajes TO ${contactId} y ${responsesSnapshot.size} respuestas IA potenciales`);
+      console.log(`Encontrados ${fromSnapshot.size} mensajes FROM ${contactId}, ${toSnapshot.size} mensajes TO ${contactId} y ${aiResponsesSnapshot.size} respuestas IA potenciales`);
+      
+      // Obtener todos los mensajes que involucran a este contacto
+      const contactMessages = new Set<string>();
+      
+      // Primero recopilamos todos los IDs de mensajes relacionados con este contacto
+      fromSnapshot.forEach(doc => contactMessages.add(doc.id));
+      toSnapshot.forEach(doc => contactMessages.add(doc.id));
       
       // Convertir documentos a mensajes
       const threadMessages: WhatsAppMessage[] = [];
@@ -904,20 +910,11 @@ const Conversations = () => {
         const data = doc.data();
         if (processedIds.has(doc.id)) return; // Evitar duplicados
         
-        console.log(`Procesando mensaje potencial:`, {
-          id: doc.id,
-          from: data.from,
-          to: data.to, 
-          aiAssisted: data.aiAssisted,
-          originalMessageId: data.originalMessageId
-        });
-        
-        // Verificar si este mensaje está relacionado con el contacto actual
+        // Verificar si este mensaje está relacionado con el contacto
         const isRelatedToContact = 
           data.from === contactId || 
           data.to === contactId || 
-          (data.originalMessageId && 
-            threadMessages.some(m => m.id === data.originalMessageId || m.messageId === data.originalMessageId));
+          (data.originalMessageId && contactMessages.has(data.originalMessageId));
         
         // Siempre agregar mensajes de IA o mensajes relacionados con el contacto
         if (data.aiAssisted || isRelatedToContact || data.to === contactId || data.from === contactId) {
@@ -943,88 +940,86 @@ const Conversations = () => {
           });
           
           processedIds.add(doc.id);
-        } else {
-          console.log(`Ignorando mensaje no relacionado: ${doc.id}`);
         }
       };
       
       // Procesar mensajes donde el contacto es emisor
       fromSnapshot.forEach(doc => {
         addMessage(doc, false);
+        contactMessages.add(doc.id);
       });
       
       // Procesar mensajes donde el contacto es receptor
       toSnapshot.forEach(doc => {
         addMessage(doc, true);
+        contactMessages.add(doc.id);
       });
       
-      // Procesar respuestas IA potenciales - proceso más detallado
-      responsesSnapshot.forEach(doc => {
+      // Procesar todas las respuestas de IA
+      aiResponsesSnapshot.forEach(doc => {
         const data = doc.data();
-        console.log(`Evaluando respuesta IA: ${doc.id}, originalMessageId: ${data.originalMessageId}, to: ${data.to}`);
         
-        // Verificar si es una respuesta a un mensaje de este contacto o dirigida a este contacto
-        const isRelatedToContact = 
-          data.to === contactId ||
-          (data.originalMessageId && 
-            threadMessages.some(m => m.id === data.originalMessageId || m.messageId === data.originalMessageId));
-        
-        // Verificar también por mensajes relacionados que pueden no estar directamente vinculados
-        const couldBeRelated = threadMessages.length > 0 && 
-          data.timestamp && 
-          Math.abs(getTimestampValue(data.timestamp) - getTimestampValue(threadMessages[0].timestamp)) < 1000 * 60 * 60; // 1 hora de diferencia
-        
-        if (isRelatedToContact || couldBeRelated || data.platform === 'whatsapp') {
-          console.log(`Añadiendo respuesta IA: ${doc.id}`);
+        // Verificar si es una respuesta a un mensaje relacionado con este contacto
+        if (data.originalMessageId && contactMessages.has(data.originalMessageId)) {
+          console.log(`Añadiendo respuesta IA relacionada: ${doc.id}`);
           addMessage(doc, true);
-        } else {
-          console.log(`Ignorando respuesta IA no relacionada: ${doc.id}`);
+        }
+        // Verificar si la respuesta está dirigida a este contacto
+        else if (data.to === contactId) {
+          console.log(`Añadiendo respuesta IA dirigida a contacto: ${doc.id}`);
+          addMessage(doc, true);
         }
       });
       
-      // Intentar agregar respuestas embebidas en el mensaje original
-      if (whatsappMessage.agentResponseText || 
-          (typeof whatsappMessage.agentResponse === 'string' && whatsappMessage.agentResponse)) {
-        
-        // Obtener el texto de respuesta del campo correcto
-        const responseText = typeof whatsappMessage.agentResponse === 'string' 
-          ? whatsappMessage.agentResponse 
-          : whatsappMessage.agentResponseText || "";
-        
-        if (responseText && !threadMessages.some(m => m.aiAssisted && m.body === responseText)) {
-          console.log(`Creando mensaje de respuesta IA desde agentResponseText: "${responseText.substring(0, 50)}..."`);
+      // Intentar agregar respuestas embebidas en los mensajes originales
+      // Recorremos todos los mensajes para buscar respuestas embebidas
+      threadMessages.forEach(msg => {
+        if (msg.agentResponseText || 
+            (typeof msg.agentResponse === 'string' && msg.agentResponse)) {
           
-          // Crear un mensaje "virtual" para la respuesta del agente
-          threadMessages.push({
-            id: `agent_${whatsappMessage.id}`,
-            messageId: `agent_${whatsappMessage.id}`,
-            body: responseText,
-            from: whatsappMessage.to || "", // Invertir emisor/receptor
-            to: whatsappMessage.from || "",
-            timestamp: whatsappMessage.timestamp || Timestamp.now(),
-            isFromMe: true,
-            senderName: "Asistente IA",
-            messageType: "text",
-            status: "sent",
-            type: "text",
-            aiAssisted: true,
-            originalMessageId: whatsappMessage.id
-          });
+          // Obtener el texto de respuesta del campo correcto
+          const responseText = typeof msg.agentResponse === 'string' 
+            ? msg.agentResponse 
+            : msg.agentResponseText || "";
+          
+          if (responseText && !threadMessages.some(m => m.aiAssisted && m.body === responseText)) {
+            console.log(`Creando mensaje de respuesta IA desde mensaje ${msg.id}: "${responseText.substring(0, 50)}..."`);
+            
+            // Crear un mensaje "virtual" para la respuesta del agente
+            threadMessages.push({
+              id: `agent_${msg.id}`,
+              messageId: `agent_${msg.id}`,
+              body: responseText,
+              from: msg.to || "", // Invertir emisor/receptor
+              to: msg.from || "",
+              timestamp: msg.timestamp ? new Timestamp(
+                (msg.timestamp as Timestamp).seconds + 1,  // 1 segundo después
+                (msg.timestamp as Timestamp).nanoseconds
+              ) : Timestamp.now(),
+              isFromMe: true,
+              senderName: "Asistente IA",
+              messageType: "text",
+              status: "sent",
+              type: "text",
+              aiAssisted: true,
+              originalMessageId: msg.id
+            });
+          }
         }
-      }
+      });
       
-      // Ordenar mensajes por fecha (más antiguos primero)
+      // Ordenar mensajes por fecha (más recientes primero)
       threadMessages.sort((a, b) => {
         const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : 
                     typeof a.timestamp === 'number' ? a.timestamp : 0;
         const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : 
                     typeof b.timestamp === 'number' ? b.timestamp : 0;
-        return timeA - timeB;
+        return timeB - timeA; // Invertido para mostrar más recientes primero
       });
       
       console.log(`Procesados ${threadMessages.length} mensajes para la conversación`);
       threadMessages.forEach(msg => {
-        console.log(`Mensaje final: id=${msg.id}, from=${msg.from}, to=${msg.to}, isFromMe=${msg.isFromMe}, AI=${msg.aiAssisted}, body="${msg.body?.substring(0, 30)}..."`);
+        console.log(`Mensaje final: id=${msg.id}, from=${msg.from}, to=${msg.to}, isFromMe=${msg.isFromMe}, AI=${msg.aiAssisted}, fecha=${formatTimestamp(msg.timestamp).formatted}, body="${msg.body?.substring(0, 30)}..."`);
       });
       
       // Guardar en el estado como array de WhatsAppMessage
@@ -1122,7 +1117,7 @@ const Conversations = () => {
                           Asistente IA
                         </span>
                       : 'Tú' 
-                    : message.senderName || 'Contacto'}
+                    : replyingTo.user}
                 </div>
                 <div className="text-xs text-gray-500">
                   {formatTimestamp(message.timestamp).formatted}
@@ -1134,7 +1129,7 @@ const Conversations = () => {
               </div>
               
               {/* Mostrar vínculo al mensaje original si corresponde */}
-              {message.originalMessageId && (
+              {message.originalMessageId && isAIMessage && (
                 <div className="text-xs text-gray-500 mt-1 text-right italic">
                   Respuesta a mensaje anterior
                 </div>
