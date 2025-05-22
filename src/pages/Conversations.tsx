@@ -862,35 +862,59 @@ const Conversations = () => {
       // Buscar todos los mensajes relacionados con este contacto
       const messagesRef = collection(db, "messages");
       
-      // Crear dos consultas separadas para cada condición
+      // Crear consultas para obtener todos los mensajes relacionados con este contacto
       const fromContactQuery = query(
         messagesRef,
         where("userId", "==", currentUser.uid),
-        where("platform", "==", "whatsapp"),
         where("from", "==", contactId)
       );
       
       const toContactQuery = query(
         messagesRef,
         where("userId", "==", currentUser.uid),
-        where("platform", "==", "whatsapp"),
         where("to", "==", contactId)
       );
       
-      // Ejecutar ambas consultas
-      const [fromSnapshot, toSnapshot] = await Promise.all([
+      // Consulta adicional para asegurar que capturamos respuestas IA que puedan estar 
+      // vinculadas por originalMessageId a mensajes de este contacto
+      const responsesQuery = query(
+        messagesRef,
+        where("userId", "==", currentUser.uid),
+        where("aiAssisted", "==", true),
+        where("platform", "==", "whatsapp")
+      );
+      
+      // Ejecutar todas las consultas
+      const [fromSnapshot, toSnapshot, responsesSnapshot] = await Promise.all([
         getDocs(fromContactQuery),
-        getDocs(toContactQuery)
+        getDocs(toContactQuery),
+        getDocs(responsesQuery)
       ]);
       
-      console.log(`Encontrados ${fromSnapshot.size} mensajes FROM ${contactId} y ${toSnapshot.size} mensajes TO ${contactId}`);
+      console.log(`Encontrados ${fromSnapshot.size} mensajes FROM ${contactId}, ${toSnapshot.size} mensajes TO ${contactId} y ${responsesSnapshot.size} respuestas IA potenciales`);
       
       // Convertir documentos a mensajes
       const threadMessages: WhatsAppMessage[] = [];
+      const processedIds = new Set<string>();
       
-      // Procesar mensajes donde el contacto es emisor
-      fromSnapshot.forEach(doc => {
+      // Función auxiliar para añadir mensajes sin duplicados
+      const addMessage = (doc: any, isFromMe: boolean) => {
         const data = doc.data();
+        if (processedIds.has(doc.id)) return; // Evitar duplicados
+        
+        // Verificar si este mensaje está relacionado con el contacto actual
+        const isRelatedToContact = 
+          data.from === contactId || 
+          data.to === contactId || 
+          (data.originalMessageId && 
+            threadMessages.some(m => m.id === data.originalMessageId || m.messageId === data.originalMessageId));
+        
+        if (!isRelatedToContact && 
+            !data.aiAssisted && 
+            !(data.to === contactId || data.from === contactId)) {
+          return; // No agregar si no está relacionado
+        }
+        
         threadMessages.push({
           id: doc.id,
           messageId: data.messageId || doc.id,
@@ -898,32 +922,42 @@ const Conversations = () => {
           from: data.from || "",
           to: data.to || "",
           timestamp: data.timestamp || data.createdAt || Timestamp.now(),
-          isFromMe: data.isFromMe || false,  // El contacto es emisor, no es de nosotros
+          isFromMe: data.isFromMe || isFromMe,
           senderName: data.senderName || "",
           messageType: data.messageType || "text",
           status: data.status || "sent",
           type: data.type || "text",
-          aiAssisted: data.aiAssisted || false
+          aiAssisted: data.aiAssisted || false,
+          originalMessageId: data.originalMessageId
         });
+        
+        processedIds.add(doc.id);
+      };
+      
+      // Procesar mensajes donde el contacto es emisor
+      fromSnapshot.forEach(doc => {
+        addMessage(doc, false);
       });
       
       // Procesar mensajes donde el contacto es receptor
       toSnapshot.forEach(doc => {
+        addMessage(doc, true);
+      });
+      
+      // Procesar respuestas IA potenciales
+      responsesSnapshot.forEach(doc => {
         const data = doc.data();
-        threadMessages.push({
-          id: doc.id,
-          messageId: data.messageId || doc.id,
-          body: data.body || data.content || "",
-          from: data.from || "",
-          to: data.to || "",
-          timestamp: data.timestamp || data.createdAt || Timestamp.now(),
-          isFromMe: data.isFromMe || true,  // El contacto es receptor, es de nosotros
-          senderName: data.senderName || "",
-          messageType: data.messageType || "text",
-          status: data.status || "sent",
-          type: data.type || "text",
-          aiAssisted: data.aiAssisted || false
-        });
+        
+        // Verificar si es una respuesta a un mensaje de este contacto
+        if (data.originalMessageId) {
+          const isRelatedToContact = 
+            threadMessages.some(m => m.id === data.originalMessageId || m.messageId === data.originalMessageId) ||
+            data.to === contactId;
+          
+          if (isRelatedToContact) {
+            addMessage(doc, true);
+          }
+        }
       });
       
       // Ordenar mensajes por fecha (más antiguos primero)
@@ -937,7 +971,7 @@ const Conversations = () => {
       
       console.log(`Procesados ${threadMessages.length} mensajes para la conversación`);
       threadMessages.forEach(msg => {
-        console.log(`Mensaje: from=${msg.from}, to=${msg.to}, isFromMe=${msg.isFromMe}, AI=${msg.aiAssisted}`);
+        console.log(`Mensaje: id=${msg.id}, from=${msg.from}, to=${msg.to}, isFromMe=${msg.isFromMe}, AI=${msg.aiAssisted}, originalMessageId=${msg.originalMessageId}`);
       });
       
       // Guardar en el estado como array de WhatsAppMessage
@@ -1007,27 +1041,54 @@ const Conversations = () => {
       <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-4">
         <div className="flex justify-between items-center">
           <h3 className="text-sm font-medium text-gray-700">Conversación con {replyingTo.user}:</h3>
-          <span className="text-xs text-gray-500">ID: {replyingTo.contactId}</span>
+          <span className="text-xs text-gray-500">Mensajes: {whatsappThread.length}</span>
         </div>
         
-        {whatsappThread.map((message, index) => (
-          <div 
-            key={message.id} 
-            className={`p-3 rounded-lg ${message.isFromMe ? 'bg-blue-50 ml-8' : 'bg-green-50 mr-8'}`}
-          >
-            <div className="flex justify-between items-start mb-2">
-              <div className="text-sm font-semibold">
-                {message.isFromMe ? 'Tú' : message.senderName || 'Contacto'}
-                {message.aiAssisted && <span className="ml-2 text-xs text-green-600">AI</span>}
-              </div>
-              <div className="text-xs text-gray-500">
-                {formatTimestamp(message.timestamp).formatted}
-              </div>
-            </div>
+        {whatsappThread.map((message, index) => {
+          // Determinar si es un mensaje de AI
+          const isAIMessage = message.aiAssisted || false;
+          
+          // Determinar clases de estilo
+          const messageClass = message.isFromMe 
+            ? isAIMessage 
+              ? 'bg-green-100 ml-8 border border-green-200' 
+              : 'bg-blue-50 ml-8'
+            : 'bg-gray-100 mr-8';
             
-            <div className="text-sm whitespace-pre-wrap">{message.body}</div>
-          </div>
-        ))}
+          return (
+            <div 
+              key={message.id} 
+              className={`p-3 rounded-lg ${messageClass}`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div className="text-sm font-semibold flex items-center">
+                  {message.isFromMe 
+                    ? isAIMessage 
+                      ? <span className="flex items-center text-green-700">
+                          <Bot className="h-4 w-4 mr-1.5 inline" />
+                          Asistente IA
+                        </span>
+                      : 'Tú' 
+                    : message.senderName || 'Contacto'}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {formatTimestamp(message.timestamp).formatted}
+                </div>
+              </div>
+              
+              <div className="text-sm whitespace-pre-wrap">
+                {message.body}
+              </div>
+              
+              {/* Mostrar vínculo al mensaje original si corresponde */}
+              {message.originalMessageId && (
+                <div className="text-xs text-gray-500 mt-1 text-right italic">
+                  Respuesta a mensaje anterior
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
