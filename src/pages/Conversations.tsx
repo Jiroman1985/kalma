@@ -878,7 +878,14 @@ const Conversations = () => {
         where("to", "==", contactId)
       );
       
-      // Consulta más amplia para capturar todas las respuestas de IA
+      // Consulta específica para mensajes con responded=true
+      const respondedMessagesQuery = query(
+        messagesRef,
+        where("userId", "==", currentUser.uid),
+        where("responded", "==", true)
+      );
+      
+      // Consulta para capturar todas las respuestas de IA
       const aiResponsesQuery = query(
         messagesRef,
         where("userId", "==", currentUser.uid),
@@ -886,13 +893,14 @@ const Conversations = () => {
       );
       
       // Ejecutar todas las consultas
-      const [fromSnapshot, toSnapshot, aiResponsesSnapshot] = await Promise.all([
+      const [fromSnapshot, toSnapshot, respondedSnapshot, aiResponsesSnapshot] = await Promise.all([
         getDocs(fromContactQuery),
         getDocs(toContactQuery),
+        getDocs(respondedMessagesQuery),
         getDocs(aiResponsesQuery)
       ]);
       
-      console.log(`Encontrados ${fromSnapshot.size} mensajes FROM ${contactId}, ${toSnapshot.size} mensajes TO ${contactId} y ${aiResponsesSnapshot.size} respuestas IA potenciales`);
+      console.log(`Encontrados ${fromSnapshot.size} mensajes FROM ${contactId}, ${toSnapshot.size} mensajes TO ${contactId}, ${respondedSnapshot.size} mensajes RESPONDED y ${aiResponsesSnapshot.size} respuestas IA potenciales`);
       
       // Obtener todos los mensajes que involucran a este contacto
       const contactMessages = new Set<string>();
@@ -916,17 +924,20 @@ const Conversations = () => {
           data.to === contactId || 
           (data.originalMessageId && contactMessages.has(data.originalMessageId));
         
-        // Siempre agregar mensajes de IA o mensajes relacionados con el contacto
-        if (data.aiAssisted || isRelatedToContact || data.to === contactId || data.from === contactId) {
-          console.log(`Añadiendo mensaje: ${doc.id}, aiAssisted: ${data.aiAssisted}, isFromMe: ${isFromMe}`);
+        // Siempre agregar mensajes de IA, mensajes con responded=true, o mensajes relacionados con el contacto
+        if (data.aiAssisted || data.responded === true || isRelatedToContact || data.to === contactId || data.from === contactId) {
+          console.log(`Añadiendo mensaje: ${doc.id}, aiAssisted: ${data.aiAssisted}, responded: ${data.responded}, isFromMe: ${isFromMe}`);
           
           // Para mensajes de IA, siempre establecer isFromMe = true
           const finalIsFromMe = data.aiAssisted ? true : (data.isFromMe || isFromMe);
           
+          // Procesar texto del mensaje (puede estar en body o content)
+          const messageBody = data.body || data.content || "";
+          
           threadMessages.push({
             id: doc.id,
             messageId: data.messageId || doc.id,
-            body: data.body || data.content || "",
+            body: messageBody,
             from: data.from || "",
             to: data.to || "",
             timestamp: data.timestamp || data.createdAt || Timestamp.now(),
@@ -936,10 +947,48 @@ const Conversations = () => {
             status: data.status || "sent",
             type: data.type || "text",
             aiAssisted: data.aiAssisted || false,
-            originalMessageId: data.originalMessageId
+            originalMessageId: data.originalMessageId,
+            agentResponse: data.agentResponse,
+            agentResponseText: data.agentResponseText,
+            responded: data.responded || false
           });
           
           processedIds.add(doc.id);
+          
+          // Si el mensaje tiene agentResponse como string, crear un mensaje adicional con esa respuesta
+          if ((typeof data.agentResponse === 'string' && data.agentResponse.trim().length > 0) || 
+              (typeof data.agentResponseText === 'string' && data.agentResponseText.trim().length > 0)) {
+            
+            const responseText = typeof data.agentResponse === 'string' 
+              ? data.agentResponse 
+              : data.agentResponseText || "";
+            
+            if (responseText && !processedIds.has(`agent_${doc.id}`)) {
+              console.log(`Creando mensaje explícito de respuesta IA para ${doc.id}: "${responseText.substring(0, 50)}..."`);
+              
+              // Crear un mensaje "virtual" para la respuesta del agente
+              threadMessages.push({
+                id: `agent_${doc.id}`,
+                messageId: `agent_${doc.id}`,
+                body: responseText,
+                from: data.to || "", // Invertir emisor/receptor
+                to: data.from || "",
+                timestamp: data.timestamp ? new Timestamp(
+                  (data.timestamp as Timestamp).seconds + 1,  // 1 segundo después
+                  (data.timestamp as Timestamp).nanoseconds
+                ) : Timestamp.now(),
+                isFromMe: true,
+                senderName: "Asistente IA",
+                messageType: "text",
+                status: "sent",
+                type: "text",
+                aiAssisted: true,
+                originalMessageId: doc.id
+              });
+              
+              processedIds.add(`agent_${doc.id}`);
+            }
+          }
         }
       };
       
@@ -953,6 +1002,18 @@ const Conversations = () => {
       toSnapshot.forEach(doc => {
         addMessage(doc, true);
         contactMessages.add(doc.id);
+      });
+      
+      // Procesar mensajes con responded=true
+      respondedSnapshot.forEach(doc => {
+        const data = doc.data();
+        
+        // Verificar si este mensaje está relacionado con el contacto actual
+        if (data.from === contactId || data.to === contactId) {
+          console.log(`Añadiendo mensaje con responded=true: ${doc.id}`);
+          addMessage(doc, data.isFromMe || false);
+          contactMessages.add(doc.id);
+        }
       });
       
       // Procesar todas las respuestas de IA
@@ -975,7 +1036,8 @@ const Conversations = () => {
       // Recorremos todos los mensajes para buscar respuestas embebidas
       threadMessages.forEach(msg => {
         if (msg.agentResponseText || 
-            (typeof msg.agentResponse === 'string' && msg.agentResponse)) {
+            (typeof msg.agentResponse === 'string' && msg.agentResponse) ||
+            msg.responded === true) {
           
           // Obtener el texto de respuesta del campo correcto
           const responseText = typeof msg.agentResponse === 'string' 
@@ -1019,7 +1081,7 @@ const Conversations = () => {
       
       console.log(`Procesados ${threadMessages.length} mensajes para la conversación`);
       threadMessages.forEach(msg => {
-        console.log(`Mensaje final: id=${msg.id}, from=${msg.from}, to=${msg.to}, isFromMe=${msg.isFromMe}, AI=${msg.aiAssisted}, fecha=${formatTimestamp(msg.timestamp).formatted}, body="${msg.body?.substring(0, 30)}..."`);
+        console.log(`Mensaje final: id=${msg.id}, from=${msg.from}, to=${msg.to}, isFromMe=${msg.isFromMe}, AI=${msg.aiAssisted}, responded=${msg.responded}, agentResponse=${typeof msg.agentResponse === 'string' ? 'texto' : msg.agentResponse}, fecha=${formatTimestamp(msg.timestamp).formatted}, body="${msg.body?.substring(0, 30)}..."`);
       });
       
       // Guardar en el estado como array de WhatsAppMessage
