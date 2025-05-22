@@ -5,21 +5,9 @@ const { getFirestore } = require('firebase-admin/firestore');
 // Configuración de Firebase Admin
 const initializeFirebaseAdmin = () => {
   if (getApps().length === 0) {
-    let serviceAccount;
-    
-    // Intentar usar FIREBASE_SERVICE_ACCOUNT si existe, sino usar FIREBASE_SERVICE_ACCOUNT_KEY
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-      console.log('Usando credenciales desde FIREBASE_SERVICE_ACCOUNT');
-    } else if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      serviceAccount = JSON.parse(
-        Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY, 'base64').toString()
-      );
-      console.log('Usando credenciales desde FIREBASE_SERVICE_ACCOUNT_KEY');
-    } else {
-      console.error('No se encontraron credenciales de Firebase. Verifique las variables de entorno.');
-      throw new Error('Credenciales de Firebase no configuradas');
-    }
+    const serviceAccount = JSON.parse(
+      Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY, 'base64').toString()
+    );
     
     initializeApp({
       credential: cert(serviceAccount)
