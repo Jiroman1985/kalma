@@ -859,6 +859,9 @@ const Conversations = () => {
       const whatsappMessage = conversation.originalMessage as WhatsAppMessage;
       const contactId = whatsappMessage.isFromMe ? whatsappMessage.to : whatsappMessage.from;
       
+      console.log(`Cargando conversación completa con contacto: ${contactId}`);
+      console.log(`Mensaje original:`, whatsappMessage);
+      
       // Buscar todos los mensajes relacionados con este contacto
       const messagesRef = collection(db, "messages");
       
@@ -875,13 +878,12 @@ const Conversations = () => {
         where("to", "==", contactId)
       );
       
-      // Consulta adicional para asegurar que capturamos respuestas IA que puedan estar 
-      // vinculadas por originalMessageId a mensajes de este contacto
+      // Consulta adicional para capturar todas las posibles respuestas de IA
+      // Eliminamos el filtro de plataforma para asegurar que capturamos todas las respuestas
       const responsesQuery = query(
         messagesRef,
         where("userId", "==", currentUser.uid),
-        where("aiAssisted", "==", true),
-        where("platform", "==", "whatsapp")
+        where("aiAssisted", "==", true)
       );
       
       // Ejecutar todas las consultas
@@ -902,6 +904,14 @@ const Conversations = () => {
         const data = doc.data();
         if (processedIds.has(doc.id)) return; // Evitar duplicados
         
+        console.log(`Procesando mensaje potencial:`, {
+          id: doc.id,
+          from: data.from,
+          to: data.to, 
+          aiAssisted: data.aiAssisted,
+          originalMessageId: data.originalMessageId
+        });
+        
         // Verificar si este mensaje está relacionado con el contacto actual
         const isRelatedToContact = 
           data.from === contactId || 
@@ -909,29 +919,33 @@ const Conversations = () => {
           (data.originalMessageId && 
             threadMessages.some(m => m.id === data.originalMessageId || m.messageId === data.originalMessageId));
         
-        if (!isRelatedToContact && 
-            !data.aiAssisted && 
-            !(data.to === contactId || data.from === contactId)) {
-          return; // No agregar si no está relacionado
+        // Siempre agregar mensajes de IA o mensajes relacionados con el contacto
+        if (data.aiAssisted || isRelatedToContact || data.to === contactId || data.from === contactId) {
+          console.log(`Añadiendo mensaje: ${doc.id}, aiAssisted: ${data.aiAssisted}, isFromMe: ${isFromMe}`);
+          
+          // Para mensajes de IA, siempre establecer isFromMe = true
+          const finalIsFromMe = data.aiAssisted ? true : (data.isFromMe || isFromMe);
+          
+          threadMessages.push({
+            id: doc.id,
+            messageId: data.messageId || doc.id,
+            body: data.body || data.content || "",
+            from: data.from || "",
+            to: data.to || "",
+            timestamp: data.timestamp || data.createdAt || Timestamp.now(),
+            isFromMe: finalIsFromMe,
+            senderName: data.senderName || "",
+            messageType: data.messageType || "text",
+            status: data.status || "sent",
+            type: data.type || "text",
+            aiAssisted: data.aiAssisted || false,
+            originalMessageId: data.originalMessageId
+          });
+          
+          processedIds.add(doc.id);
+        } else {
+          console.log(`Ignorando mensaje no relacionado: ${doc.id}`);
         }
-        
-        threadMessages.push({
-          id: doc.id,
-          messageId: data.messageId || doc.id,
-          body: data.body || data.content || "",
-          from: data.from || "",
-          to: data.to || "",
-          timestamp: data.timestamp || data.createdAt || Timestamp.now(),
-          isFromMe: data.isFromMe || isFromMe,
-          senderName: data.senderName || "",
-          messageType: data.messageType || "text",
-          status: data.status || "sent",
-          type: data.type || "text",
-          aiAssisted: data.aiAssisted || false,
-          originalMessageId: data.originalMessageId
-        });
-        
-        processedIds.add(doc.id);
       };
       
       // Procesar mensajes donde el contacto es emisor
@@ -944,21 +958,60 @@ const Conversations = () => {
         addMessage(doc, true);
       });
       
-      // Procesar respuestas IA potenciales
+      // Procesar respuestas IA potenciales - proceso más detallado
       responsesSnapshot.forEach(doc => {
         const data = doc.data();
+        console.log(`Evaluando respuesta IA: ${doc.id}, originalMessageId: ${data.originalMessageId}, to: ${data.to}`);
         
-        // Verificar si es una respuesta a un mensaje de este contacto
-        if (data.originalMessageId) {
-          const isRelatedToContact = 
-            threadMessages.some(m => m.id === data.originalMessageId || m.messageId === data.originalMessageId) ||
-            data.to === contactId;
-          
-          if (isRelatedToContact) {
-            addMessage(doc, true);
-          }
+        // Verificar si es una respuesta a un mensaje de este contacto o dirigida a este contacto
+        const isRelatedToContact = 
+          data.to === contactId ||
+          (data.originalMessageId && 
+            threadMessages.some(m => m.id === data.originalMessageId || m.messageId === data.originalMessageId));
+        
+        // Verificar también por mensajes relacionados que pueden no estar directamente vinculados
+        const couldBeRelated = threadMessages.length > 0 && 
+          data.timestamp && 
+          Math.abs(getTimestampValue(data.timestamp) - getTimestampValue(threadMessages[0].timestamp)) < 1000 * 60 * 60; // 1 hora de diferencia
+        
+        if (isRelatedToContact || couldBeRelated || data.platform === 'whatsapp') {
+          console.log(`Añadiendo respuesta IA: ${doc.id}`);
+          addMessage(doc, true);
+        } else {
+          console.log(`Ignorando respuesta IA no relacionada: ${doc.id}`);
         }
       });
+      
+      // Intentar agregar respuestas embebidas en el mensaje original
+      if (whatsappMessage.agentResponseText || 
+          (typeof whatsappMessage.agentResponse === 'string' && whatsappMessage.agentResponse)) {
+        
+        // Obtener el texto de respuesta del campo correcto
+        const responseText = typeof whatsappMessage.agentResponse === 'string' 
+          ? whatsappMessage.agentResponse 
+          : whatsappMessage.agentResponseText || "";
+        
+        if (responseText && !threadMessages.some(m => m.aiAssisted && m.body === responseText)) {
+          console.log(`Creando mensaje de respuesta IA desde agentResponseText: "${responseText.substring(0, 50)}..."`);
+          
+          // Crear un mensaje "virtual" para la respuesta del agente
+          threadMessages.push({
+            id: `agent_${whatsappMessage.id}`,
+            messageId: `agent_${whatsappMessage.id}`,
+            body: responseText,
+            from: whatsappMessage.to || "", // Invertir emisor/receptor
+            to: whatsappMessage.from || "",
+            timestamp: whatsappMessage.timestamp || Timestamp.now(),
+            isFromMe: true,
+            senderName: "Asistente IA",
+            messageType: "text",
+            status: "sent",
+            type: "text",
+            aiAssisted: true,
+            originalMessageId: whatsappMessage.id
+          });
+        }
+      }
       
       // Ordenar mensajes por fecha (más antiguos primero)
       threadMessages.sort((a, b) => {
@@ -971,7 +1024,7 @@ const Conversations = () => {
       
       console.log(`Procesados ${threadMessages.length} mensajes para la conversación`);
       threadMessages.forEach(msg => {
-        console.log(`Mensaje: id=${msg.id}, from=${msg.from}, to=${msg.to}, isFromMe=${msg.isFromMe}, AI=${msg.aiAssisted}, originalMessageId=${msg.originalMessageId}`);
+        console.log(`Mensaje final: id=${msg.id}, from=${msg.from}, to=${msg.to}, isFromMe=${msg.isFromMe}, AI=${msg.aiAssisted}, body="${msg.body?.substring(0, 30)}..."`);
       });
       
       // Guardar en el estado como array de WhatsAppMessage
