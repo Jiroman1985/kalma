@@ -255,7 +255,7 @@ const Conversations = () => {
       // Verificar si tiene respuesta de agente (puede ser booleano o string)
       const agentResponseIsString = typeof latestMessage.agentResponse === 'string';
       // Si es string, usamos su valor, si no, cadena vacía
-      const agentResponseText = agentResponseIsString ? latestMessage.agentResponse as string : '';
+      const agentResponseText = agentResponseIsString ? (latestMessage.agentResponse as unknown as string) : '';
       // Verificamos si hay texto de respuesta
       const hasAgentResponseText = agentResponseIsString && (agentResponseText as string).length > 0;
       
@@ -861,18 +861,35 @@ const Conversations = () => {
       
       // Buscar todos los mensajes relacionados con este contacto
       const messagesRef = collection(db, "messages");
-      const contactMessagesQuery = query(
+      
+      // Crear dos consultas separadas para cada condición
+      const fromContactQuery = query(
         messagesRef,
         where("userId", "==", currentUser.uid),
-        where(whatsappMessage.isFromMe ? "to" : "from", "==", contactId)
+        where("platform", "==", "whatsapp"),
+        where("from", "==", contactId)
       );
       
-      const messagesSnapshot = await getDocs(contactMessagesQuery);
-      console.log(`Encontrados ${messagesSnapshot.size} mensajes para la conversación con ${contactId}`);
+      const toContactQuery = query(
+        messagesRef,
+        where("userId", "==", currentUser.uid),
+        where("platform", "==", "whatsapp"),
+        where("to", "==", contactId)
+      );
+      
+      // Ejecutar ambas consultas
+      const [fromSnapshot, toSnapshot] = await Promise.all([
+        getDocs(fromContactQuery),
+        getDocs(toContactQuery)
+      ]);
+      
+      console.log(`Encontrados ${fromSnapshot.size} mensajes FROM ${contactId} y ${toSnapshot.size} mensajes TO ${contactId}`);
       
       // Convertir documentos a mensajes
       const threadMessages: WhatsAppMessage[] = [];
-      messagesSnapshot.forEach(doc => {
+      
+      // Procesar mensajes donde el contacto es emisor
+      fromSnapshot.forEach(doc => {
         const data = doc.data();
         threadMessages.push({
           id: doc.id,
@@ -881,7 +898,26 @@ const Conversations = () => {
           from: data.from || "",
           to: data.to || "",
           timestamp: data.timestamp || data.createdAt || Timestamp.now(),
-          isFromMe: data.isFromMe || false,
+          isFromMe: data.isFromMe || false,  // El contacto es emisor, no es de nosotros
+          senderName: data.senderName || "",
+          messageType: data.messageType || "text",
+          status: data.status || "sent",
+          type: data.type || "text",
+          aiAssisted: data.aiAssisted || false
+        });
+      });
+      
+      // Procesar mensajes donde el contacto es receptor
+      toSnapshot.forEach(doc => {
+        const data = doc.data();
+        threadMessages.push({
+          id: doc.id,
+          messageId: data.messageId || doc.id,
+          body: data.body || data.content || "",
+          from: data.from || "",
+          to: data.to || "",
+          timestamp: data.timestamp || data.createdAt || Timestamp.now(),
+          isFromMe: data.isFromMe || true,  // El contacto es receptor, es de nosotros
           senderName: data.senderName || "",
           messageType: data.messageType || "text",
           status: data.status || "sent",
@@ -897,6 +933,11 @@ const Conversations = () => {
         const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : 
                     typeof b.timestamp === 'number' ? b.timestamp : 0;
         return timeA - timeB;
+      });
+      
+      console.log(`Procesados ${threadMessages.length} mensajes para la conversación`);
+      threadMessages.forEach(msg => {
+        console.log(`Mensaje: from=${msg.from}, to=${msg.to}, isFromMe=${msg.isFromMe}, AI=${msg.aiAssisted}`);
       });
       
       // Guardar en el estado como array de WhatsAppMessage
@@ -1082,228 +1123,253 @@ const Conversations = () => {
         </Button>
       </div>
 
-      {/* Lista de conversaciones */}
-      <div className="grid gap-6 mt-4">
-        {loading ? (
-          // Mostrar estado de carga
-          <div className="flex justify-center my-12">
-            <div className="flex flex-col items-center">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 mb-4"></div>
-              <p className="text-gray-500">Cargando conversaciones...</p>
-            </div>
-          </div>
-        ) : filteredConversations.length === 0 ? (
-          // Mostrar estado vacío
-          <div className="text-center p-8 border rounded-lg bg-gray-50">
-            <MessageSquare className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-            <h3 className="text-lg font-medium text-gray-700">No hay conversaciones</h3>
-            <p className="text-gray-500 mt-1 mb-4">
-              {searchTerm ? 
-                "No se encontraron resultados para tu búsqueda." : 
-                "Cuando recibas mensajes, aparecerán aquí."}
-            </p>
-          </div>
-        ) : (
-          // Renderizar lista de conversaciones
-          filteredConversations.map((conversation) => {
-            const isWhatsApp = conversation.platform === 'whatsapp';
-            
-            // Obtener información del mensaje
-            const messageContent = getMessageContent(conversation.originalMessage);
-            const messageTime = formatTimestamp(conversation.timestamp);
-            
-            // Obtener información de la respuesta
-            const hasResponse = !!conversation.responseMessage;
-            const responseContent = hasResponse ? getMessageContent(conversation.responseMessage!) : '';
-            const responseTime = hasResponse ? formatTimestamp(conversation.responseMessage!.timestamp) : null;
-            
-            return (
-              <div 
-                key={conversation.id}
-                className={`relative border rounded-lg p-4 transition-all hover:border-gray-400 ${
-                  conversation.isRead ? 'bg-white' : 'bg-blue-50'
-                } cursor-pointer`}
-                onClick={() => handleConversationClick(conversation)}
-              >
-                {/* Mostrar indicador de no leído */}
-                {!conversation.isRead && (
-                  <div className="absolute top-4 right-4 w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
-                )}
-                
-                {/* Encabezado */}
-                <div className="flex items-center mb-3">
-                  {/* Avatar */}
-                  <div className="flex-shrink-0 mr-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback>
-                        {conversation.user.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  </div>
-                  
-                  {/* Información del usuario */}
-                  <div className="flex-grow">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center">
-                        <h4 className="font-medium">{conversation.user}</h4>
-                        <Badge 
-                          variant="outline" 
-                          className="ml-2 px-1.5 py-0 text-xs flex items-center"
-                        >
-                          {getPlatformIcon(conversation.platform)}
-                          <span className="ml-1">{conversation.platform}</span>
-                        </Badge>
-                      </div>
-                      <span className="text-xs text-gray-500">
-                        {messageTime.formatted}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Contenido del mensaje */}
-                <div className="mb-2 relative">
-                  {/* Mensaje original */}
-                  <div className="text-sm text-gray-700">
-                    {isWhatsApp ? (
-                      <div className="flex gap-3 items-start">
-                        <User className="h-5 w-5 text-gray-500 mt-0.5 shrink-0" />
-                        <div className="flex-1">
-                          <p className="text-sm">{messageContent}</p>
-                        </div>
-                      </div>
-                    ) : (
-                      <p>{messageContent}</p>
-                    )}
-                  </div>
-                  
-                  {/* Respuesta de la IA si existe */}
-                  {hasResponse && (
-                    <div className="flex gap-3 items-start mt-3 bg-green-50 p-3 rounded-lg ml-6">
-                      <Bot className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                      <div className="flex-1">
-                        <p className="text-sm text-gray-700">
-                          {isWhatsApp 
-                            ? (conversation.responseMessage as WhatsAppMessage).body 
-                            : (conversation.responseMessage as SocialMediaMessage).content
-                          }
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {responseTime?.formatted || 'Fecha desconocida'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                {/* Acciones */}
-                <div className="flex justify-end gap-2 mt-2">
-                  {!conversation.isReplied && (
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="text-xs"
-                      onClick={(e) => {
-                        e.stopPropagation(); // Evitar que el clic se propague al contenedor
-                        handleConversationClick(conversation);
-                      }}
-                    >
-                      <MessageCircle className="h-3.5 w-3.5 mr-1" />
-                      Responder
-                    </Button>
-                  )}
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    className="text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation(); // Evitar que el clic se propague al contenedor
-                      markAsRead(conversation);
-                    }}
-                  >
-                    <Check className="h-3.5 w-3.5 mr-1" />
-                    {conversation.isRead ? "Marcar como no leído" : "Marcar como leído"}
-                  </Button>
-                </div>
+      {/* Diseño de dos columnas */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        {/* Lista de conversaciones (Columna izquierda) */}
+        <div className="md:col-span-5 lg:col-span-4">
+          {loading ? (
+            // Mostrar estado de carga
+            <div className="flex justify-center my-12">
+              <div className="flex flex-col items-center">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 mb-4"></div>
+                <p className="text-gray-500">Cargando conversaciones...</p>
               </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* Conversación seleccionada */}
-      {replyingTo && (
-        <Card className="mt-4">
-          <CardHeader className="pb-2">
-            <div className="flex justify-between items-center">
-              <CardTitle className="text-lg flex items-center gap-2">
-                {getPlatformIcon(replyingTo.platform)}
-                <span>Responder a {replyingTo.user}</span>
-              </CardTitle>
-              <Button variant="ghost" onClick={() => setReplyingTo(null)} className="h-8 w-8 p-0">
-                <X className="h-4 w-4" />
-              </Button>
             </div>
-            <CardDescription>
-              {replyingTo.platform === 'whatsapp' ? 
-                (replyingTo.originalMessage as WhatsAppMessage).from : 
-                (replyingTo.originalMessage as SocialMediaMessage).sender.name}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Mostrar el hilo completo para emails */}
-            {replyingTo.platform === 'gmail' && renderEmailThread()}
-            
-            {/* Mostrar el hilo completo de WhatsApp */}
-            {replyingTo.platform === 'whatsapp' && renderWhatsAppThread()}
-            
-            {/* Mensaje Original */}
-            <div className={`${getPlatformBgColor(replyingTo.platform)} p-3 rounded-lg mb-4`}>
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex gap-2 items-center">
-                  <Avatar className="h-6 w-6">
-                    <AvatarImage src={replyingTo.userAvatar} />
-                    <AvatarFallback>{replyingTo.user.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm font-medium">{replyingTo.user}</span>
-                </div>
-                <span className="text-xs text-gray-500">
-                  {formatTimestamp(replyingTo.timestamp).formatted}
-                </span>
-              </div>
-              <p className="text-sm">
-                {getMessageContent(replyingTo.originalMessage)}
+          ) : filteredConversations.length === 0 ? (
+            // Mostrar estado vacío
+            <div className="text-center p-8 border rounded-lg bg-gray-50">
+              <MessageSquare className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+              <h3 className="text-lg font-medium text-gray-700">No hay conversaciones</h3>
+              <p className="text-gray-500 mt-1 mb-4">
+                {searchTerm ? 
+                  "No se encontraron resultados para tu búsqueda." : 
+                  "Cuando recibas mensajes, aparecerán aquí."}
               </p>
             </div>
-            
-            {/* Campo para responder */}
-            <div className="border rounded-lg p-2 bg-white">
-              <Textarea
-                ref={replyInputRef}
-                placeholder="Escribe tu respuesta..."
-                className="border-0 focus-visible:ring-0 resize-none"
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                rows={4}
-              />
-              <div className="flex justify-end mt-2">
-                <Button 
-                  onClick={sendReply} 
-                  disabled={sendingReply || !replyText.trim()}
-                  className="flex items-center gap-2"
-                >
-                  {sendingReply ? (
-                    <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent" />
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                  Enviar
-                </Button>
+          ) : (
+            // Renderizar lista de conversaciones
+            <div className="grid gap-4">
+              {filteredConversations.map((conversation) => {
+                const isWhatsApp = conversation.platform === 'whatsapp';
+                
+                // Obtener información del mensaje
+                const messageContent = getMessageContent(conversation.originalMessage);
+                const messageTime = formatTimestamp(conversation.timestamp);
+                
+                // Obtener información de la respuesta
+                const hasResponse = !!conversation.responseMessage;
+                const responseContent = hasResponse ? getMessageContent(conversation.responseMessage!) : '';
+                const responseTime = hasResponse ? formatTimestamp(conversation.responseMessage!.timestamp) : null;
+                
+                return (
+                  <div 
+                    key={conversation.id}
+                    className={`relative border rounded-lg p-4 transition-all hover:border-gray-400 ${
+                      conversation.isRead ? 'bg-white' : 'bg-blue-50'
+                    } ${replyingTo?.id === conversation.id ? 'border-blue-500 ring-1 ring-blue-500' : ''} cursor-pointer`}
+                    onClick={() => handleConversationClick(conversation)}
+                  >
+                    {/* Mostrar indicador de no leído */}
+                    {!conversation.isRead && (
+                      <div className="absolute top-4 right-4 w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+                    )}
+                    
+                    {/* Encabezado */}
+                    <div className="flex items-center mb-3">
+                      {/* Avatar */}
+                      <div className="flex-shrink-0 mr-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback>
+                            {conversation.user.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      </div>
+                      
+                      {/* Información del usuario */}
+                      <div className="flex-grow">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center">
+                            <h4 className="font-medium">{conversation.user}</h4>
+                            <Badge 
+                              variant="outline" 
+                              className="ml-2 px-1.5 py-0 text-xs flex items-center"
+                            >
+                              {getPlatformIcon(conversation.platform)}
+                              <span className="ml-1">{conversation.platform}</span>
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {messageTime.formatted}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Contenido del mensaje */}
+                    <div className="mb-2 relative">
+                      {/* Mensaje original */}
+                      <div className="text-sm text-gray-700">
+                        {isWhatsApp ? (
+                          <div className="flex gap-3 items-start">
+                            <User className="h-5 w-5 text-gray-500 mt-0.5 shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-sm truncate">{messageContent}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="truncate">{messageContent}</p>
+                        )}
+                      </div>
+                      
+                      {/* Respuesta de la IA si existe */}
+                      {hasResponse && (
+                        <div className="flex gap-3 items-start mt-3 bg-green-50 p-3 rounded-lg ml-6">
+                          <Bot className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-700 truncate">
+                              {isWhatsApp 
+                                ? (conversation.responseMessage as WhatsAppMessage).body 
+                                : (conversation.responseMessage as SocialMediaMessage).content
+                              }
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {responseTime?.formatted || 'Fecha desconocida'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Acciones */}
+                    <div className="flex justify-end gap-2 mt-2">
+                      {!conversation.isReplied && (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Evitar que el clic se propague al contenedor
+                            handleConversationClick(conversation);
+                          }}
+                        >
+                          <MessageCircle className="h-3.5 w-3.5 mr-1" />
+                          Responder
+                        </Button>
+                      )}
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        className="text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Evitar que el clic se propague al contenedor
+                          markAsRead(conversation);
+                        }}
+                      >
+                        <Check className="h-3.5 w-3.5 mr-1" />
+                        {conversation.isRead ? "Marcar como no leído" : "Marcar como leído"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Detalle de conversación seleccionada (Columna derecha) */}
+        <div className="md:col-span-7 lg:col-span-8">
+          {replyingTo ? (
+            <Card>
+              <CardHeader className="pb-2">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    {getPlatformIcon(replyingTo.platform)}
+                    <span>Responder a {replyingTo.user}</span>
+                  </CardTitle>
+                  <Button variant="ghost" onClick={() => setReplyingTo(null)} className="h-8 w-8 p-0">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <CardDescription>
+                  {replyingTo.platform === 'whatsapp' ? 
+                    (replyingTo.originalMessage as WhatsAppMessage).from : 
+                    (replyingTo.originalMessage as SocialMediaMessage).sender.name}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Mostrar el hilo completo para emails */}
+                {replyingTo.platform === 'gmail' && renderEmailThread()}
+                
+                {/* Mostrar el hilo completo de WhatsApp */}
+                {replyingTo.platform === 'whatsapp' && (loadingThread ? (
+                  <div className="flex justify-center my-6">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                  </div>
+                ) : (
+                  renderWhatsAppThread()
+                ))}
+                
+                {/* Mensaje Original si no hay hilo de conversación */}
+                {(!renderEmailThread() && !renderWhatsAppThread()) && (
+                  <div className={`${getPlatformBgColor(replyingTo.platform)} p-3 rounded-lg mb-4`}>
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex gap-2 items-center">
+                        <Avatar className="h-6 w-6">
+                          <AvatarImage src={replyingTo.userAvatar} />
+                          <AvatarFallback>{replyingTo.user.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium">{replyingTo.user}</span>
+                      </div>
+                      <span className="text-xs text-gray-500">
+                        {formatTimestamp(replyingTo.timestamp).formatted}
+                      </span>
+                    </div>
+                    <p className="text-sm">
+                      {getMessageContent(replyingTo.originalMessage)}
+                    </p>
+                  </div>
+                )}
+                
+                {/* Campo para responder */}
+                <div className="border rounded-lg p-2 bg-white">
+                  <Textarea
+                    ref={replyInputRef}
+                    placeholder="Escribe tu respuesta..."
+                    className="border-0 focus-visible:ring-0 resize-none"
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    rows={4}
+                  />
+                  <div className="flex justify-end mt-2">
+                    <Button 
+                      onClick={sendReply} 
+                      disabled={sendingReply || !replyText.trim()}
+                      className="flex items-center gap-2"
+                    >
+                      {sendingReply ? (
+                        <div className="animate-spin h-4 w-4 border-2 border-white rounded-full border-t-transparent" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                      Enviar
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="flex items-center justify-center h-full min-h-[300px] border rounded-lg border-dashed border-gray-300 bg-gray-50">
+              <div className="text-center p-6">
+                <MessageSquare className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                <h3 className="text-lg font-medium text-gray-700">Selecciona una conversación</h3>
+                <p className="text-gray-500 mt-2 max-w-md">
+                  Haz clic en una conversación de la lista para ver el historial completo y responder.
+                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </div>
+      </div>
     </div>
   );
 };
