@@ -292,25 +292,36 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
         const createPastData = (currentValue: number, days: number = 30) => {
           // Generar un historial simulado basado en el valor actual
           const data = [];
-          let lastValue = currentValue;
+          let lastValue = Math.round(currentValue * 0.85); // Empezar con un 85% del valor actual
           
           for (let i = days; i >= 0; i--) {
             const date = new Date();
             date.setDate(date.getDate() - i);
             
-            // Pequeña variación aleatoria (±2%)
-            const randomChange = 1 + (Math.random() * 0.04 - 0.02);
-            lastValue = i === days ? currentValue * 0.85 : Math.round(lastValue * randomChange);
+            // Crear una fecha en formato ISO para el gráfico
+            const dateStr = format(date, 'yyyy-MM-dd');
             
+            // Pequeña variación aleatoria (±1.5%)
+            const randomChange = 1 + (Math.random() * 0.03 - 0.015);
+            
+            // Calcular el valor para este día
+            if (i === days) {
+              // El primer día usamos el valor inicial
+              lastValue = Math.round(currentValue * 0.85);
+            } else if (i === 0) {
+              // El último día (hoy) usamos el valor actual exacto
+              lastValue = currentValue;
+            } else {
+              // Días intermedios con crecimiento gradual
+              lastValue = Math.round(lastValue * randomChange);
+            }
+            
+            // Añadir a los datos
             data.push({
-              date: format(date, 'dd/MM'),
-              value: lastValue
+              id: dateStr,
+              seguidores: lastValue,
+              engagement: parseFloat((Math.random() * 2 + 1).toFixed(2)) // Engagement aleatorio entre 1% y 3%
             });
-          }
-          
-          // Asegurar que el último valor coincide con el actual
-          if (data.length > 0) {
-            data[data.length - 1].value = currentValue;
           }
           
           return data;
@@ -495,13 +506,14 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
         
         // Verificar el rango de datos y asegurar variación suficiente
         const seguimientosValues = metricasFormateadas.map(m => m.seguidores);
-        const minSeguidores = Math.min(...seguimientosValues);
+        const minSeguidores = Math.min(...seguimientosValues.filter(v => v > 0));
         const maxSeguidores = Math.max(...seguimientosValues);
         
-        // Si todos los valores son iguales, añadir algo de variación
-        if (minSeguidores === maxSeguidores && minSeguidores > 0) {
-          console.log("Todos los valores de seguidores son iguales:", minSeguidores);
-          // Añadir variación aleatoria sutil a los datos
+        // Si no hay variación suficiente o todos los valores son iguales, añadir variación
+        if ((maxSeguidores - minSeguidores) < 10 || minSeguidores === maxSeguidores) {
+          console.log("Insuficiente variación en datos de seguidores, añadiendo variación");
+          
+          // Si todos los valores son iguales, añadir variación aleatoria sutil a los datos
           const metricasConVariacion = metricasFormateadas.map((m, i) => ({
             ...m,
             seguidores: m.seguidores + Math.floor(Math.random() * 10) - 5 + i
@@ -1169,10 +1181,9 @@ const InstagramMetrics = ({ isLoading = false }: InstagramMetricsProps) => {
                     }}
                   />
                   <YAxis 
-                    domain={['auto', 'auto']} 
+                    domain={['dataMin - 10', 'dataMax + 10']} 
                     allowDataOverflow={false}
                     allowDecimals={false}
-                    padding={{ top: 20, bottom: 20 }}
                   />
                   <Tooltip 
                     formatter={(value) => [`${value} seguidores`, "Total"]}

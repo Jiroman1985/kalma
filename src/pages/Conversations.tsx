@@ -859,105 +859,118 @@ const Conversations = () => {
       const whatsappMessage = conversation.originalMessage as WhatsAppMessage;
       const contactId = whatsappMessage.isFromMe ? whatsappMessage.to : whatsappMessage.from;
       
-      console.log(`Cargando conversación directa con contacto: ${contactId}`);
+      console.log(`Cargando conversación con contacto: ${contactId}`);
       
-      // Consulta para obtener todos los mensajes de WhatsApp del usuario
+      // Buscar todos los mensajes relacionados con este contacto
       const messagesRef = collection(db, "messages");
-      const basicQuery = query(
+      
+      // Crear consultas más específicas para mejorar rendimiento
+      const fromContactQuery = query(
         messagesRef,
-        where("userId", "==", currentUser.uid)
+        where("userId", "==", currentUser.uid),
+        where("from", "==", contactId)
       );
       
-      // Obtener documentos con manejo de errores
-      const snapshot = await getDocs(basicQuery).catch(err => {
-        console.error("Error al obtener mensajes:", err);
-        return { empty: true, docs: [] };
-      });
+      const toContactQuery = query(
+        messagesRef,
+        where("userId", "==", currentUser.uid),
+        where("to", "==", contactId)
+      );
       
-      console.log(`Obtenidos ${snapshot.docs.length} mensajes en total`);
-      
-      // Filtrar mensajes relacionados con este contacto
-      const filteredMessages: WhatsAppMessage[] = [];
-      
-      // Primero recopilamos todos los IDs de mensajes relacionados con este contacto
-      const contactMessageIds = new Set<string>();
-      snapshot.docs.forEach(doc => {
-        const data = doc.data();
-        if (data.from === contactId || data.to === contactId) {
-          contactMessageIds.add(doc.id);
-        }
-      });
-      
-      console.log(`Identificados ${contactMessageIds.size} mensajes directamente relacionados con ${contactId}`);
-      
-      // Ahora procesamos todos los mensajes, incluyendo respuestas
-      snapshot.docs.forEach(doc => {
-        try {
-          const data = doc.data();
-          
-          // Verificar si el mensaje está relacionado con este contacto de alguna manera
-          const isDirectlyRelated = data.from === contactId || data.to === contactId;
-          const isResponseToContact = data.originalMessageId && contactMessageIds.has(data.originalMessageId);
-          const isAIResponse = data.aiAssisted === true;
-          
-          if (isDirectlyRelated || isResponseToContact) {
-            console.log(`Añadiendo mensaje: ${doc.id}, from: ${data.from}, to: ${data.to}, aiAssisted: ${data.aiAssisted}`);
+      try {
+        // Ejecutar las consultas por separado
+        const fromSnapshot = await getDocs(fromContactQuery);
+        const toSnapshot = await getDocs(toContactQuery);
+        
+        console.log(`Encontrados ${fromSnapshot.size} mensajes FROM y ${toSnapshot.size} mensajes TO`);
+        
+        // Lista para almacenar todos los mensajes del hilo
+        const threadMessages: WhatsAppMessage[] = [];
+        const processedIds = new Set<string>();
+        
+        // Procesar mensajes donde el contacto es emisor
+        fromSnapshot.forEach(doc => {
+          try {
+            const data = doc.data();
+            if (!data) return;
             
-            filteredMessages.push({
+            // Evitar duplicados
+            if (processedIds.has(doc.id)) return;
+            processedIds.add(doc.id);
+            
+            // Añadir mensaje a la lista
+            threadMessages.push({
               id: doc.id,
               messageId: data.messageId || doc.id,
               body: data.body || data.content || "",
               from: data.from || "",
               to: data.to || "",
               timestamp: data.timestamp || Timestamp.now(),
-              isFromMe: data.isFromMe || data.from === currentUser.phoneNumber || data.aiAssisted === true,
-              senderName: data.senderName || "",
+              isFromMe: false,
+              senderName: data.senderName || contactId,
               messageType: data.messageType || "text",
               status: data.status || "sent",
               type: data.type || "text",
-              aiAssisted: data.aiAssisted || false,
+              aiAssisted: false,
               originalMessageId: data.originalMessageId
             });
+          } catch (error) {
+            console.error(`Error procesando mensaje FROM ${doc.id}:`, error);
           }
-        } catch (error) {
-          console.error(`Error al procesar documento ${doc.id}:`, error);
-        }
-      });
-      
-      // Buscar respuestas embebidas en agentResponse/agentResponseText
-      snapshot.docs.forEach(doc => {
-        try {
-          const data = doc.data();
-          
-          // Si el mensaje ya tiene una respuesta de IA explícita, no necesitamos crear una
-          if (!data.agentResponse && !data.agentResponseText) return;
-          
-          // Verificar si es un mensaje relacionado con este contacto
-          const isRelatedToContact = data.from === contactId || data.to === contactId;
-          
-          if (isRelatedToContact) {
-            // Extraer el texto de respuesta
-            const responseText = typeof data.agentResponse === 'string'
-              ? data.agentResponse
-              : data.agentResponseText || "";
+        });
+        
+        // Procesar mensajes donde el contacto es receptor
+        toSnapshot.forEach(doc => {
+          try {
+            const data = doc.data();
+            if (!data) return;
+            
+            // Evitar duplicados
+            if (processedIds.has(doc.id)) return;
+            processedIds.add(doc.id);
+            
+            // Determinar si es respuesta de IA
+            const isAIMessage = data.aiAssisted === true || 
+                              (typeof data.agentResponse === 'string' && data.agentResponse.trim().length > 0) ||
+                              (typeof data.agentResponseText === 'string' && data.agentResponseText.trim().length > 0);
+            
+            // Añadir mensaje a la lista
+            threadMessages.push({
+              id: doc.id,
+              messageId: data.messageId || doc.id,
+              body: data.body || data.content || "",
+              from: data.from || "",
+              to: data.to || "",
+              timestamp: data.timestamp || Timestamp.now(),
+              isFromMe: true,
+              senderName: data.senderName || "Tú",
+              messageType: data.messageType || "text",
+              status: data.status || "sent",
+              type: data.type || "text",
+              aiAssisted: isAIMessage,
+              originalMessageId: data.originalMessageId
+            });
+            
+            // Si el mensaje tiene agentResponse o agentResponseText, crear mensaje adicional
+            if ((typeof data.agentResponse === 'string' && data.agentResponse.trim().length > 0) ||
+                (typeof data.agentResponseText === 'string' && data.agentResponseText.trim().length > 0)) {
               
-            if (responseText && responseText.trim().length > 0) {
-              console.log(`Creando mensaje de respuesta IA desde agentResponse: ${doc.id}`);
+              const responseText = typeof data.agentResponse === 'string' 
+                ? data.agentResponse 
+                : data.agentResponseText || "";
               
-              // Verificar si ya existe esta respuesta
-              const responseExists = filteredMessages.some(
-                msg => msg.aiAssisted && msg.body === responseText && msg.originalMessageId === doc.id
-              );
-              
-              if (!responseExists) {
-                filteredMessages.push({
-                  id: `ai_response_${doc.id}`,
-                  messageId: `ai_response_${doc.id}`,
+              if (responseText && !processedIds.has(`ai_${doc.id}`)) {
+                processedIds.add(`ai_${doc.id}`);
+                
+                // Añadir la respuesta de IA como mensaje separado
+                threadMessages.push({
+                  id: `ai_${doc.id}`,
+                  messageId: `ai_${doc.id}`,
                   body: responseText,
-                  from: data.to || "", // Invertir emisor/receptor
+                  from: data.to || "",
                   to: data.from || "",
                   timestamp: data.timestamp ? new Timestamp(
-                    (data.timestamp as Timestamp).seconds + 1,  // 1 segundo después
+                    (data.timestamp as Timestamp).seconds + 1, 
                     (data.timestamp as Timestamp).nanoseconds
                   ) : Timestamp.now(),
                   isFromMe: true,
@@ -970,30 +983,37 @@ const Conversations = () => {
                 });
               }
             }
+          } catch (error) {
+            console.error(`Error procesando mensaje TO ${doc.id}:`, error);
           }
-        } catch (error) {
-          console.error(`Error al procesar respuesta embebida ${doc.id}:`, error);
-        }
-      });
-      
-      console.log(`Total de ${filteredMessages.length} mensajes procesados para la conversación`);
-      
-      // Ordenar mensajes por fecha (más recientes primero)
-      filteredMessages.sort((a, b) => {
-        const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : 
-                    typeof a.timestamp === 'number' ? a.timestamp : 0;
-        const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : 
-                    typeof b.timestamp === 'number' ? b.timestamp : 0;
-        return timeB - timeA;
-      });
-      
-      // Guardar en el estado
-      setSelectedThread(filteredMessages);
+        });
+        
+        // Ordenar mensajes por fecha (más recientes primero)
+        threadMessages.sort((a, b) => {
+          const timeA = a.timestamp instanceof Timestamp ? a.timestamp.toMillis() : 
+                      typeof a.timestamp === 'number' ? a.timestamp : 0;
+          const timeB = b.timestamp instanceof Timestamp ? b.timestamp.toMillis() : 
+                      typeof b.timestamp === 'number' ? b.timestamp : 0;
+          return timeB - timeA; // Más recientes primero
+        });
+        
+        console.log(`Procesados ${threadMessages.length} mensajes para la conversación`);
+        
+        // Guardar en el estado
+        setSelectedThread(threadMessages);
+      } catch (error) {
+        console.error("Error al ejecutar consultas:", error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los mensajes. Por favor, intenta de nuevo.",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
-      console.error("Error al cargar mensajes de WhatsApp:", error);
+      console.error("Error general al cargar mensajes de WhatsApp:", error);
       toast({
         title: "Error",
-        description: "No se pudo cargar la conversación. Intenta nuevamente.",
+        description: "Ocurrió un error al cargar la conversación.",
         variant: "destructive"
       });
     } finally {
