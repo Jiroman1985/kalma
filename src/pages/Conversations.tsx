@@ -1107,7 +1107,7 @@ const Conversations = () => {
         </TabsList>
       </Tabs>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-center">
+      <div className="flex flex-col sm:flex-row gap-4 items-center mb-6">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
           <Input
@@ -1123,10 +1123,10 @@ const Conversations = () => {
         </Button>
       </div>
 
-      {/* Diseño de dos columnas */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        {/* Lista de conversaciones (Columna izquierda) */}
-        <div className="md:col-span-5 lg:col-span-4">
+      {/* Layout principal: dos columnas lado a lado */}
+      <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-250px)] overflow-hidden">
+        {/* Lista de conversaciones (Columna izquierda, más estrecha) */}
+        <div className="md:w-1/3 overflow-y-auto pr-2">
           {loading ? (
             // Mostrar estado de carga
             <div className="flex justify-center my-12">
@@ -1148,7 +1148,7 @@ const Conversations = () => {
             </div>
           ) : (
             // Renderizar lista de conversaciones
-            <div className="grid gap-4">
+            <div className="space-y-4">
               {filteredConversations.map((conversation) => {
                 const isWhatsApp = conversation.platform === 'whatsapp';
                 
@@ -1164,21 +1164,21 @@ const Conversations = () => {
                 return (
                   <div 
                     key={conversation.id}
-                    className={`relative border rounded-lg p-4 transition-all hover:border-gray-400 ${
+                    className={`relative border rounded-lg p-3 transition-all hover:border-gray-400 ${
                       conversation.isRead ? 'bg-white' : 'bg-blue-50'
                     } ${replyingTo?.id === conversation.id ? 'border-blue-500 ring-1 ring-blue-500' : ''} cursor-pointer`}
                     onClick={() => handleConversationClick(conversation)}
                   >
                     {/* Mostrar indicador de no leído */}
                     {!conversation.isRead && (
-                      <div className="absolute top-4 right-4 w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
+                      <div className="absolute top-3 right-3 w-2.5 h-2.5 bg-blue-500 rounded-full"></div>
                     )}
                     
                     {/* Encabezado */}
-                    <div className="flex items-center mb-3">
+                    <div className="flex items-center mb-2">
                       {/* Avatar */}
                       <div className="flex-shrink-0 mr-3">
-                        <Avatar className="h-10 w-10">
+                        <Avatar className="h-9 w-9">
                           <AvatarFallback>
                             {conversation.user.slice(0, 2).toUpperCase()}
                           </AvatarFallback>
@@ -1189,7 +1189,7 @@ const Conversations = () => {
                       <div className="flex-grow">
                         <div className="flex justify-between items-center">
                           <div className="flex items-center">
-                            <h4 className="font-medium">{conversation.user}</h4>
+                            <h4 className="font-medium text-sm">{conversation.user}</h4>
                             <Badge 
                               variant="outline" 
                               className="ml-2 px-1.5 py-0 text-xs flex items-center"
@@ -1210,23 +1210,23 @@ const Conversations = () => {
                       {/* Mensaje original */}
                       <div className="text-sm text-gray-700">
                         {isWhatsApp ? (
-                          <div className="flex gap-3 items-start">
-                            <User className="h-5 w-5 text-gray-500 mt-0.5 shrink-0" />
+                          <div className="flex gap-2 items-start">
+                            <User className="h-4 w-4 text-gray-500 mt-0.5 shrink-0" />
                             <div className="flex-1">
-                              <p className="text-sm truncate">{messageContent}</p>
+                              <p className="text-xs truncate">{messageContent}</p>
                             </div>
                           </div>
                         ) : (
-                          <p className="truncate">{messageContent}</p>
+                          <p className="text-xs truncate">{messageContent}</p>
                         )}
                       </div>
                       
                       {/* Respuesta de la IA si existe */}
                       {hasResponse && (
-                        <div className="flex gap-3 items-start mt-3 bg-green-50 p-3 rounded-lg ml-6">
-                          <Bot className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                        <div className="flex gap-2 items-start mt-2 bg-green-50 p-2 rounded-lg ml-4">
+                          <Bot className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
                           <div className="flex-1">
-                            <p className="text-sm text-gray-700 truncate">
+                            <p className="text-xs text-gray-700 truncate">
                               {isWhatsApp 
                                 ? (conversation.responseMessage as WhatsAppMessage).body 
                                 : (conversation.responseMessage as SocialMediaMessage).content
@@ -1246,7 +1246,7 @@ const Conversations = () => {
                         <Button 
                           size="sm" 
                           variant="outline" 
-                          className="text-xs"
+                          className="text-xs h-7 px-2"
                           onClick={(e) => {
                             e.stopPropagation(); // Evitar que el clic se propague al contenedor
                             handleConversationClick(conversation);
@@ -1259,14 +1259,14 @@ const Conversations = () => {
                       <Button 
                         size="sm" 
                         variant="ghost" 
-                        className="text-xs"
+                        className="text-xs h-7 px-2"
                         onClick={(e) => {
                           e.stopPropagation(); // Evitar que el clic se propague al contenedor
                           markAsRead(conversation);
                         }}
                       >
                         <Check className="h-3.5 w-3.5 mr-1" />
-                        {conversation.isRead ? "Marcar como no leído" : "Marcar como leído"}
+                        {conversation.isRead ? "No leído" : "Leído"}
                       </Button>
                     </div>
                   </div>
@@ -1276,69 +1276,88 @@ const Conversations = () => {
           )}
         </div>
 
-        {/* Detalle de conversación seleccionada (Columna derecha) */}
-        <div className="md:col-span-7 lg:col-span-8">
+        {/* Detalle de conversación seleccionada (Columna derecha, más ancha) */}
+        <div className="md:w-2/3 overflow-y-auto">
           {replyingTo ? (
-            <Card>
-              <CardHeader className="pb-2">
+            <Card className="h-full">
+              <CardHeader className="pb-2 border-b">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    {getPlatformIcon(replyingTo.platform)}
-                    <span>Responder a {replyingTo.user}</span>
-                  </CardTitle>
-                  <Button variant="ghost" onClick={() => setReplyingTo(null)} className="h-8 w-8 p-0">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                <CardDescription>
-                  {replyingTo.platform === 'whatsapp' ? 
-                    (replyingTo.originalMessage as WhatsAppMessage).from : 
-                    (replyingTo.originalMessage as SocialMediaMessage).sender.name}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {/* Mostrar el hilo completo para emails */}
-                {replyingTo.platform === 'gmail' && renderEmailThread()}
-                
-                {/* Mostrar el hilo completo de WhatsApp */}
-                {replyingTo.platform === 'whatsapp' && (loadingThread ? (
-                  <div className="flex justify-center my-6">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-                  </div>
-                ) : (
-                  renderWhatsAppThread()
-                ))}
-                
-                {/* Mensaje Original si no hay hilo de conversación */}
-                {(!renderEmailThread() && !renderWhatsAppThread()) && (
-                  <div className={`${getPlatformBgColor(replyingTo.platform)} p-3 rounded-lg mb-4`}>
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex gap-2 items-center">
-                        <Avatar className="h-6 w-6">
-                          <AvatarImage src={replyingTo.userAvatar} />
-                          <AvatarFallback>{replyingTo.user.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm font-medium">{replyingTo.user}</span>
+                  <CardTitle className="flex items-center gap-2">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback>
+                        {replyingTo.user.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span>{replyingTo.user}</span>
+                        <Badge variant="outline" className="px-1.5 py-0 text-xs flex items-center">
+                          {getPlatformIcon(replyingTo.platform)}
+                          <span className="ml-1">{replyingTo.platform}</span>
+                        </Badge>
                       </div>
-                      <span className="text-xs text-gray-500">
-                        {formatTimestamp(replyingTo.timestamp).formatted}
-                      </span>
+                      <CardDescription className="mt-0.5">
+                        {replyingTo.platform === 'whatsapp' ? 
+                          (replyingTo.originalMessage as WhatsAppMessage).from : 
+                          (replyingTo.originalMessage as SocialMediaMessage).sender.name}
+                      </CardDescription>
                     </div>
-                    <p className="text-sm">
-                      {getMessageContent(replyingTo.originalMessage)}
-                    </p>
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">
+                      {formatTimestamp(replyingTo.timestamp).formatted}
+                    </span>
+                    <Button variant="ghost" onClick={() => setReplyingTo(null)} className="h-8 w-8 p-0">
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                )}
+                </div>
+              </CardHeader>
+              <CardContent className="py-4 flex flex-col h-[calc(100%-130px)]">
+                <div className="flex-1 overflow-y-auto pr-2 space-y-4 mb-4">
+                  {/* Mostrar el hilo completo para emails */}
+                  {replyingTo.platform === 'gmail' && renderEmailThread()}
+                  
+                  {/* Mostrar el hilo completo de WhatsApp */}
+                  {replyingTo.platform === 'whatsapp' && (loadingThread ? (
+                    <div className="flex justify-center my-6">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+                    </div>
+                  ) : (
+                    renderWhatsAppThread()
+                  ))}
+                  
+                  {/* Mensaje Original si no hay hilo de conversación */}
+                  {(!renderEmailThread() && !renderWhatsAppThread()) && (
+                    <div className={`${getPlatformBgColor(replyingTo.platform)} p-3 rounded-lg mb-4`}>
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex gap-2 items-center">
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage src={replyingTo.userAvatar} />
+                            <AvatarFallback>{replyingTo.user.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <span className="text-sm font-medium">{replyingTo.user}</span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {formatTimestamp(replyingTo.timestamp).formatted}
+                        </span>
+                      </div>
+                      <p className="text-sm">
+                        {getMessageContent(replyingTo.originalMessage)}
+                      </p>
+                    </div>
+                  )}
+                </div>
                 
                 {/* Campo para responder */}
-                <div className="border rounded-lg p-2 bg-white">
+                <div className="border rounded-lg p-2 bg-white mt-auto">
                   <Textarea
                     ref={replyInputRef}
                     placeholder="Escribe tu respuesta..."
                     className="border-0 focus-visible:ring-0 resize-none"
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
-                    rows={4}
+                    rows={3}
                   />
                   <div className="flex justify-end mt-2">
                     <Button 
@@ -1358,7 +1377,7 @@ const Conversations = () => {
               </CardContent>
             </Card>
           ) : (
-            <div className="flex items-center justify-center h-full min-h-[300px] border rounded-lg border-dashed border-gray-300 bg-gray-50">
+            <div className="flex items-center justify-center h-full min-h-[calc(100vh-250px)] border rounded-lg border-dashed border-gray-300 bg-gray-50">
               <div className="text-center p-6">
                 <MessageSquare className="h-12 w-12 mx-auto text-gray-300 mb-4" />
                 <h3 className="text-lg font-medium text-gray-700">Selecciona una conversación</h3>
