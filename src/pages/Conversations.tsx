@@ -1081,6 +1081,11 @@ const Conversations = () => {
           // Determinar si es un mensaje de AI
           const isAIMessage = message.aiAssisted || false;
           
+          // Obtener contenido de agentResponse si existe
+          const agentResponseContent = message.agentResponse && typeof message.agentResponse === 'string' 
+            ? message.agentResponse 
+            : message.agentResponseText || null;
+          
           // Determinar clases de estilo
           const messageClass = message.isFromMe 
             ? isAIMessage 
@@ -1112,6 +1117,26 @@ const Conversations = () => {
               <div className="text-sm whitespace-pre-wrap">
                 {message.body || ""}
               </div>
+              
+              {/* Mostrar agentResponse si existe y no es un mensaje de IA */}
+              {!isAIMessage && agentResponseContent && (
+                <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+                  <div className="flex items-center text-xs text-green-700 mb-1">
+                    <Bot className="h-3 w-3 mr-1 inline" />
+                    <span>Respuesta IA:</span>
+                  </div>
+                  <div className="text-sm whitespace-pre-wrap text-green-800 bg-green-50 p-2 rounded">
+                    {agentResponseContent}
+                  </div>
+                </div>
+              )}
+              
+              {/* Mostrar información de debug para ayudar con la resolución de problemas */}
+              {message.responded && (
+                <div className="mt-1 text-xs text-gray-400 italic">
+                  Mensaje respondido: {message.responded.toString()}
+                </div>
+              )}
             </div>
           );
         })}
