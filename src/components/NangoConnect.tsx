@@ -40,13 +40,11 @@ const NangoConnect: React.FC<NangoConnectProps> = ({
         throw new Error(result.error || 'Error al obtener token de sesión');
       }
       
-      // 2. Iniciar flujo de conexión con Nango
-      const nango = new Nango({
-        publicKey: import.meta.env.VITE_NANGO_PUBLIC_KEY
-      });
+      // 2. Iniciar flujo de conexión con Nango (usando solo el token de sesión)
+      const nango = new Nango();
       
       const connect = nango.openConnectUI({
-        onEvent: (event: NangoConnectEvent) => {
+        onEvent: (event: any) => {
           if (event.type === 'connect') {
             console.log('Conexión exitosa:', event.payload);
             toast({

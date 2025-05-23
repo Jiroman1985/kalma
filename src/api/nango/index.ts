@@ -5,7 +5,7 @@ const nango = new Nango({
   secretKey: import.meta.env.VITE_NANGO_SECRET_KEY 
 });
 
-// Función para generar un token de sesión de Nango
+// Función para generar un token de sesión de Nango (usando el método recomendado)
 export const createNangoSessionToken = async (userId: string, integrationIds: string[] = ['gmail']) => {
   try {
     const response = await nango.createConnectSession({
