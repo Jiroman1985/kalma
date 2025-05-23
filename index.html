@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>kalma</title>
+    <title>Kalma</title>
     <meta name="description" content="Lovable Generated Project" />
     <meta name="author" content="Lovable" />
 
@@ -17,12 +17,75 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@lovable_dev" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-  </head>
 
+    <style>
+      /* Estilos para la demo de Nango */
+      .nango-demo-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background-color: #ffffff;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        z-index: 9999;
+        padding: 20px;
+        text-align: center;
+      }
+      
+      .nango-services {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      
+      .nango-service-btn {
+        padding: 10px 15px;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      
+      .gmail-btn { background-color: #ea4335; }
+      .calendar-btn { background-color: #4285f4; }
+      .outlook-btn { background-color: #0078d4; }
+      .instagram-btn { background-color: #c13584; }
+      
+      .nango-service-btn:hover {
+        opacity: 0.9;
+      }
+      
+      .demo-note {
+        font-size: 12px;
+        color: #666;
+        margin-top: 10px;
+      }
+    </style>
+  </head>
   <body>
+    <!-- Demo de Nango - Banner fijo -->
+    <div class="nango-demo-container">
+      <h2>Demostración de Integración con Nango</h2>
+      <div class="nango-services">
+        <button class="nango-service-btn gmail-btn" onclick="simulateConnect('Gmail')">Conectar Gmail</button>
+        <button class="nango-service-btn calendar-btn" onclick="simulateConnect('Google Calendar')">Conectar Calendar</button>
+        <button class="nango-service-btn outlook-btn" onclick="simulateConnect('Outlook')">Conectar Outlook</button>
+        <button class="nango-service-btn instagram-btn" onclick="simulateConnect('Instagram')">Conectar Instagram</button>
+      </div>
+      <p class="demo-note">Esta es una demostración estática. En una implementación real, estos botones iniciarían el flujo OAuth con Nango.</p>
+    </div>
+    
+    <!-- Root para la aplicación React -->
     <div id="root"></div>
-    <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
-    <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
+    
+    <!-- Scripts -->
+    <script>
+      function simulateConnect(service) {
+        alert(`Simulando conexión con ${service}\n\nEn una implementación real, se abriría una ventana para autenticar al usuario con ${service} y se establecería una conexión a través de Nango.`);
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
