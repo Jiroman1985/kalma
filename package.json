@@ -18,6 +18,8 @@
     "@firebase/functions": "^0.12.3",
     "@firebase/storage": "^0.13.7",
     "@hookform/resolvers": "^5.0.1",
+    "@nangohq/frontend": "^0.59.2",
+    "@nangohq/node": "^0.59.2",
     "@radix-ui/react-accordion": "^1.2.0",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-aspect-ratio": "^1.1.0",

@@ -19,6 +19,7 @@ const KnowledgeBase = lazy(() => import("./pages/KnowledgeBase"));
 const Channels = lazy(() => import("./pages/Channels"));
 const OAuthCallback = lazy(() => import("./pages/OAuthCallback"));
 const DashboardLayout = lazy(() => import("./components/DashboardLayout"));
+const NangoTest = lazy(() => import("./pages/NangoTest"));
 
 // Componentes de autenticación de Instagram
 const InstagramAuthStart = lazy(() => import("./pages/auth/instagram/start"));
@@ -59,6 +60,13 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
+              
+              {/* Prueba de Nango */}
+              <Route path="/nango-test" element={
+                <ProtectedRoute>
+                  <NangoTest />
+                </ProtectedRoute>
+              } />
               
               {/* Rutas de autenticación de Instagram */}
               <Route path="/auth/instagram/start" element={
