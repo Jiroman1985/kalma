@@ -16,7 +16,7 @@ import Login from "./Login";
 import NotFound from "./NotFound";
 import SocialNetworks from "./SocialNetworks";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import SimpleNangoDemo from "@/components/SimpleNangoDemo";
+import ServiceButtons from "@/components/ServiceButtons";
 
 const Index = () => {
   const location = useLocation();
@@ -30,11 +30,10 @@ const Index = () => {
           <>
             <HeroSection />
             
-            {/* Sección de prueba de Nango */}
+            {/* Sección de servicios de integración */}
             <div className="bg-gray-100 py-16">
               <div className="container mx-auto px-4">
-                <h2 className="text-3xl font-bold mb-8 text-center">Prueba de integración Nango</h2>
-                <SimpleNangoDemo />
+                <ServiceButtons />
               </div>
             </div>
             
