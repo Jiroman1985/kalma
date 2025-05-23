@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import Nango from '@nangohq/frontend';
 
 const SimpleNangoDemo: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
@@ -11,16 +10,14 @@ const SimpleNangoDemo: React.FC = () => {
       setIsConnecting(true);
       setError(null);
       
-      // En producción aquí llamaríamos a una API para obtener el token
-      // Por simplicidad para la demo, asumiremos que la conexión fue exitosa
-      
-      const nango = new Nango();
-      
-      // Mostrar un mensaje en vez de intentar la conexión real
-      alert('En una implementación real, aquí se abriría la ventana de Nango para conectar con el proveedor.\n\nPara completar la implementación se necesita:\n1. Configurar una clave secreta en el servidor\n2. Crear un endpoint para generar tokens\n3. Configurar los proveedores en Nango');
-      
-      setConnectionId('demo-connection-id-123');
-      setIsConnecting(false);
+      // Simple timeout para simular una operación asíncrona
+      setTimeout(() => {
+        // Mostrar un mensaje en vez de intentar la conexión real
+        alert('En una implementación real, aquí se abriría la ventana de Nango para conectar con el proveedor.\n\nPara completar la implementación se necesita:\n1. Configurar una clave secreta en el servidor\n2. Crear un endpoint para generar tokens\n3. Configurar los proveedores en Nango');
+        
+        setConnectionId('demo-connection-id-123');
+        setIsConnecting(false);
+      }, 1000);
       
     } catch (err) {
       console.error('Error:', err);
