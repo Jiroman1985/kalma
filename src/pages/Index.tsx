@@ -16,6 +16,7 @@ import Login from "./Login";
 import NotFound from "./NotFound";
 import SocialNetworks from "./SocialNetworks";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import NangoConnect from "@/components/NangoConnect";
 
 const Index = () => {
   const location = useLocation();
@@ -28,6 +29,41 @@ const Index = () => {
         <Route path="/" element={
           <>
             <HeroSection />
+            
+            {/* Sección de prueba de Nango */}
+            <div className="bg-gray-100 py-16">
+              <div className="container mx-auto px-4">
+                <h2 className="text-3xl font-bold mb-8 text-center">Prueba de integración Nango</h2>
+                <div className="max-w-2xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+                  <h3 className="text-xl font-semibold mb-4">Conecta tus servicios</h3>
+                  <p className="text-gray-600 mb-6">Haz clic en los botones para conectar diferentes servicios usando Nango.</p>
+                  
+                  <div className="flex flex-wrap gap-4">
+                    <NangoConnect 
+                      userId="usuario-demo-123"
+                      provider="gmail"
+                      buttonText="Conectar Gmail"
+                      className="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg"
+                    />
+                    
+                    <NangoConnect 
+                      userId="usuario-demo-123"
+                      provider="google-calendar"
+                      buttonText="Conectar Google Calendar"
+                      className="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg"
+                    />
+                    
+                    <NangoConnect 
+                      userId="usuario-demo-123"
+                      provider="outlook"
+                      buttonText="Conectar Outlook"
+                      className="bg-blue-700 hover:bg-blue-800 text-white font-medium py-2 px-4 rounded-lg"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            
             <FeatureSection />
             <IntegrationSection />
             <TimeSection />
